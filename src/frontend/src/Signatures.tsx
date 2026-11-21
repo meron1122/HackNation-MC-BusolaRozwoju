@@ -1,5 +1,5 @@
 import { QRCodeSVG } from 'qrcode.react'
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, apiBlobUrl } from './api'
 
 type SignatureRequest = {
@@ -36,7 +36,7 @@ const formatDate = (iso: string) => new Date(iso).toLocaleString('pl-PL')
 /** Zlecanie podpisów: kod QR dla telefonu albo link na tym urządzeniu, status odświeżany na żywo. */
 export function SignaturesPage() {
   const [items, setItems] = useState<SignatureRequest[] | null>(null)
-  const [active, setActive] = useState<{ id: string; url: string } | null>(null)
+  const [active, setActive] = useState<{ id: string; token: string } | null>(null)
   const [error, setError] = useState('')
   const [fields, setFields] = useState<SignatureField[] | null>(null)
 
@@ -45,15 +45,7 @@ export function SignaturesPage() {
     load()
   }, [load])
 
-  const activeItem = items?.find((i) => i.id === active?.id)
-  const waiting = activeItem?.status === 'Pending'
-  useEffect(() => {
-    if (!waiting) return
-    const timer = setInterval(load, POLL_MS)
-    return () => clearInterval(timer)
-  }, [waiting, load])
-
-  const show = (id: string, token: string) => setActive({ id, url: `${location.origin}/podpis/${encodeURIComponent(token)}` })
+  const show = (id: string, token: string) => setActive({ id, token })
 
   async function loadFields(evaluationId: string) {
     setFields(null)
@@ -127,33 +119,8 @@ export function SignaturesPage() {
         <div className="buttons"><button type="submit">Poproś o podpis</button></div>
       </form>
 
-      {active && activeItem && (
-        <div className="card sign-panel">
-          <div>
-            <h3>{activeItem.title}</h3>
-            <p>Podpisuje: <strong>{activeItem.signerName}</strong></p>
-            <p role="status" aria-live="polite">
-              {activeItem.status === 'Pending' ? 'Czekam na podpis…' : STATUS_LABELS[activeItem.status]}
-              {activeItem.completedAt && ` · ${formatDate(activeItem.completedAt)}`}
-            </p>
-            {activeItem.status === 'Signed' && <SignatureImage id={activeItem.id} large />}
-            {activeItem.status === 'Pending' && (
-              <div className="buttons">
-                <a className="button" href={active.url} target="_blank" rel="noopener">Podpisz na tym urządzeniu</a>
-                <button className="secondary" onClick={() => navigator.clipboard?.writeText(active.url).catch(() => undefined)}>
-                  Kopiuj link
-                </button>
-              </div>
-            )}
-            <button className="link" onClick={() => setActive(null)}>Zamknij</button>
-          </div>
-          {activeItem.status === 'Pending' && (
-            <div className="sign-qr">
-              <div className="qr"><QRCodeSVG value={active.url} size={220} marginSize={2} title="Kod QR z linkiem do podpisu" /></div>
-              <p className="muted">Zeskanuj telefonem</p>
-            </div>
-          )}
-        </div>
+      {active && (
+        <SignatureLinkPanel key={active.token} requestId={active.id} token={active.token} onFinished={load} onClose={() => setActive(null)} />
       )}
 
       {items === null ? (
@@ -189,6 +156,72 @@ export function SignaturesPage() {
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * Link do podpisu: kod QR dla telefonu, przycisk dla tego urządzenia (ekran dotykowy) i status odświeżany na żywo.
+ * onFinished dostaje status, gdy prośba przestanie czekać (podpisano, odrzucono, link wygasł).
+ */
+export function SignatureLinkPanel({ requestId, token, onFinished, onClose }: {
+  requestId: string
+  token: string
+  onFinished?: (status: SignatureRequest['status']) => void
+  onClose: () => void
+}) {
+  const url = `${location.origin}/podpis/${encodeURIComponent(token)}`
+  const [item, setItem] = useState<SignatureRequest | null>(null)
+  const onFinishedRef = useRef(onFinished)
+  useEffect(() => {
+    onFinishedRef.current = onFinished
+  }, [onFinished])
+
+  useEffect(() => {
+    let done = false
+    const tick = () => api<SignatureRequest>(`signatures/${requestId}`).then((r) => {
+      if (done) return
+      setItem(r)
+      if (r.status !== 'Pending') {
+        done = true
+        onFinishedRef.current?.(r.status)
+      }
+    }, () => undefined)
+    tick()
+    const timer = setInterval(() => !done && tick(), POLL_MS)
+    return () => {
+      done = true
+      clearInterval(timer)
+    }
+  }, [requestId])
+
+  if (!item) return null
+  return (
+    <div className="card sign-panel">
+      <div>
+        <h3>{item.title}</h3>
+        <p>Podpisuje: <strong>{item.signerName}</strong></p>
+        <p role="status" aria-live="polite">
+          {item.status === 'Pending' ? 'Czekam na podpis…' : STATUS_LABELS[item.status]}
+          {item.completedAt && ` · ${formatDate(item.completedAt)}`}
+        </p>
+        {item.status === 'Signed' && <SignatureImage id={item.id} large />}
+        {item.status === 'Pending' && (
+          <div className="buttons">
+            <a className="button" href={url} target="_blank" rel="noopener">Podpisz na tym urządzeniu</a>
+            <button type="button" className="secondary" onClick={() => navigator.clipboard?.writeText(url).catch(() => undefined)}>
+              Kopiuj link
+            </button>
+          </div>
+        )}
+        <button type="button" className="link" onClick={onClose}>Zamknij</button>
+      </div>
+      {item.status === 'Pending' && (
+        <div className="sign-qr">
+          <div className="qr"><QRCodeSVG value={url} size={220} marginSize={2} title="Kod QR z linkiem do podpisu" /></div>
+          <p className="muted">Zeskanuj telefonem</p>
+        </div>
+      )}
+    </div>
   )
 }
 

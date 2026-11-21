@@ -3,6 +3,7 @@ import { api, apiBlobUrl } from './api'
 import { Avatar } from './Avatar'
 import type { Row } from './Crud'
 import { SignaturePad } from './SignaturePad'
+import { SignatureLinkPanel } from './Signatures'
 
 // --- kształty z API / szablonu (EvaluationTemplates/*.json) ---
 type Cond = { field: string; in: string[] }
@@ -431,9 +432,26 @@ function SignatureField({ field, detail, onSigned }: { field: Field; detail: Det
   const signature = detail.signatures.find((s) => s.fieldKey === field.key)
   const [image, setImage] = useState<string | null>(null)
   const [error, setError] = useState('')
+  const [link, setLink] = useState<{ id: string; token: string } | null>(null)
   const mine = field.role === 'evaluated'
   const canSign = !signature && !detail.isFinal && (mine ? detail.isOwn : detail.canEdit)
   const roleLabel: Record<string, string> = { evaluated: 'oceniany', supervisor: 'bezpośredni przełożony', unitHead: 'kierujący komórką', evaluator: 'oceniający' }
+
+  // Podpis odręczny na telefonie/tablecie przez link z kodem QR; po podpisaniu trafia do tego pola oceny.
+  async function requestLink() {
+    try {
+      const res = await api<{ request: { id: string }; token: string }>('signatures', 'POST', {
+        title: `${detail.templateTitle}: ${field.label ?? field.key}`.slice(0, 200),
+        signerName: mine ? detail.employeeName : detail.evaluatorName ?? roleLabel[field.role] ?? field.role,
+        evaluationId: detail.id,
+        evaluationFieldKey: field.key,
+      })
+      setError('')
+      setLink({ id: res.request.id, token: res.token })
+    } catch (err) {
+      setError((err as Error).message)
+    }
+  }
 
   async function sign(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -468,7 +486,14 @@ function SignatureField({ field, detail, onSigned }: { field: Field; detail: Det
           <SignaturePad onChange={setImage} />
           <p className="muted small">Odręczny podpis jest opcjonalny — bez niego zostaje potwierdzenie w systemie.</p>
           {error && <p role="alert" className="error">{error}</p>}
-          <div className="buttons"><button type="submit">Podpisz</button></div>
+          <div className="buttons">
+            <button type="submit">Podpisz</button>
+            {!link && <button type="button" className="secondary" onClick={requestLink}>Podpisz na telefonie lub tablecie</button>}
+          </div>
+          {link && (
+            <SignatureLinkPanel key={link.token} requestId={link.id} token={link.token}
+              onFinished={(status) => (status === 'Signed' ? onSigned() : setLink(null))} onClose={() => setLink(null)} />
+          )}
         </form>
       ) : (
         <p className="muted">Niepodpisane.</p>
