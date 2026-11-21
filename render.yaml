@@ -17,6 +17,10 @@ services:
         sync: false
       - key: Seed__SuperAdmin__Password
         sync: false
+      - key: OpenRouter__ApiKey
+        sync: false
+      - key: OpenRouter__Model
+        sync: false
       - key: ASPNETCORE_HTTP_PORTS
         value: "10000"
       - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
