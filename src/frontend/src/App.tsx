@@ -7,7 +7,8 @@ import { DeadlinesPage } from './Deadlines'
 import { DevPage } from './Dev'
 import { EvaluationsPage } from './Evaluations'
 import { Login } from './Login'
-import { SignaturesPage } from './Signatures'
+import { OrgPage } from './Org'
+import { ProfilePage } from './Profile'
 import { UsersPage } from './Users'
 
 // shortcut: lista pracowników to pierwsze 200 rekordów (API stronicuje); przy większej bazie dodać stronicowanie
@@ -36,11 +37,11 @@ const employeeCreatedNotice = (created: { email: string; temporaryPassword: stri
   </p>
 )
 
-const employeeColumns: Column[] = [
+const employeeColumns = (nav: Nav): Column[] => [
   ['Zdjęcie', (e) => (
     <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={`${e.firstName} ${e.lastName}`} size={28} />
   )],
-  ['Nazwisko i imię', (e) => `${e.lastName} ${e.firstName}`],
+  ['Nazwisko i imię', (e) => <button className="link person-link" onClick={() => nav.showProfile(e.id)}>{e.lastName} {e.firstName}</button>],
   ['E-mail', (e) => e.email ?? '—'],
   ['Urodzony', (e) => e.dateOfBirth],
   ['Zatrudniony', (e) => e.hireDate],
@@ -75,11 +76,19 @@ const serviceFields: Field[] = [
 const serviceColumns: Column[] = [['Nazwa', (s) => <ServiceName name={s.name} logoUrl={s.logoUrl} />]]
 
 /** Przejścia między stronami, np. z listy terminów prosto do karty oceny. */
-type Nav = { openEvaluation: number | null; showEvaluation: (id: number | null) => void }
+type Nav = {
+  openEvaluation: number | null
+  showEvaluation: (id: number | null) => void
+  showProfile: (employeeId: number) => void
+  orgStart: number | null
+  showOrg: (employeeId: number | null) => void
+}
 type Page = { key: string; label: string; visible: (s: Session) => boolean; render: (s: Session, nav: Nav) => ReactNode }
 
 // Dostępne dla każdego zalogowanego, otwierane z nagłówka (avatar + imię), nie z zakładek.
 const ACCOUNT_PAGE = 'account'
+// Profil innego pracownika: otwierany z listy, drzewka albo z innego profilu.
+const PROFILE_PAGE = 'profile'
 
 const PAGES: Page[] = [
   {
@@ -98,11 +107,23 @@ const PAGES: Page[] = [
     key: 'employees',
     label: 'Pracownicy',
     visible: (s) => can(s, 'read_employees'),
-    render: (s) => (
-      <CrudPage title="Pracownicy" path="employees" query={EMPLOYEES_QUERY} fields={employeeFields} columns={employeeColumns}
+    render: (s, nav) => (
+      <CrudPage title="Pracownicy" path="employees" query={EMPLOYEES_QUERY} fields={employeeFields} columns={employeeColumns(nav)}
         canAdd={can(s, 'add_employee')} canEdit={can(s, 'edit_employee')} canDelete={can(s, 'delete_employee')}
         createdNotice={employeeCreatedNotice} />
     ),
+  },
+  {
+    key: 'myprofile',
+    label: 'Mój profil',
+    visible: () => true,
+    render: (_, nav) => <ProfilePage employeeId="me" onOpenProfile={nav.showProfile} onShowOrg={nav.showOrg} />,
+  },
+  {
+    key: 'org',
+    label: 'Struktura',
+    visible: () => true,
+    render: (_, nav) => <OrgPage key={nav.orgStart ?? 'me'} startId={nav.orgStart} onOpenProfile={nav.showProfile} />,
   },
   {
     key: 'departments',
@@ -138,12 +159,6 @@ const PAGES: Page[] = [
     render: (s) => <UsersPage superAdmin={isSuperAdmin(s)} />,
   },
   {
-    key: 'signatures',
-    label: 'Podpisy',
-    visible: () => true,
-    render: () => <SignaturesPage />,
-  },
-  {
     key: 'dev',
     label: 'Dev',
     visible: isSuperAdmin,
@@ -156,12 +171,23 @@ export default function App() {
   const [pageKey, setPageKey] = useState(PAGES[0].key)
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [openEvaluation, setOpenEvaluation] = useState<number | null>(null)
+  const [profileId, setProfileId] = useState<number | null>(null)
+  const [orgStart, setOrgStart] = useState<number | null>(null)
   const session = token ? readSession(token) : null
   const nav: Nav = {
     openEvaluation,
     showEvaluation: (id) => {
       setOpenEvaluation(id)
       setPageKey('evaluations')
+    },
+    showProfile: (id) => {
+      setProfileId(id)
+      setPageKey(PROFILE_PAGE)
+    },
+    orgStart,
+    showOrg: (id) => {
+      setOrgStart(id)
+      setPageKey('org')
     },
   }
 
@@ -185,7 +211,8 @@ export default function App() {
 
   const pages = PAGES.filter((p) => p.visible(session))
   const onAccount = pageKey === ACCOUNT_PAGE
-  const page = onAccount ? undefined : pages.find((p) => p.key === pageKey) ?? pages[0]
+  const onProfile = pageKey === PROFILE_PAGE && profileId !== null
+  const page = onAccount || onProfile ? undefined : pages.find((p) => p.key === pageKey) ?? pages[0]
 
   return (
     <>
@@ -194,7 +221,7 @@ export default function App() {
         <nav>
           {pages.map((p) => (
             <button key={p.key} className={p === page ? 'tab active' : 'tab'} aria-current={p === page ? 'page' : undefined}
-              onClick={() => { setPageKey(p.key); setOpenEvaluation(null) }}>
+              onClick={() => { setPageKey(p.key); setOpenEvaluation(null); setOrgStart(null) }}>
               {p.label}
             </button>
           ))}
@@ -211,6 +238,8 @@ export default function App() {
       <main className="content">
         {onAccount ? (
           <AccountPage onToken={login} avatarVersion={avatarVersion} onAvatarChange={() => setAvatarVersion((v) => v + 1)} />
+        ) : onProfile ? (
+          <ProfilePage key={profileId} employeeId={profileId} onOpenProfile={nav.showProfile} onShowOrg={nav.showOrg} />
         ) : page ? (
           <div key={page.key}>{page.render(session, nav)}</div>
         ) : (

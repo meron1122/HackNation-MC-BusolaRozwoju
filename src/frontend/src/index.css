@@ -190,3 +190,51 @@ code.password { font-size: 1.05rem; padding: 0.1rem 0.4rem; border: 1px solid va
 .criterion .level { display: grid; grid-template-columns: auto 1fr; gap: 0.5rem; align-items: start; font-size: 0.85rem; color: var(--text); cursor: pointer; }
 .criterion .level input { margin-top: 0.2rem; }
 .criterion .level.no-basis { color: var(--muted); }
+
+/* Profil pracownika (układ jak w OrangeHRM) */
+.profile { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+@media (max-width: 760px) { .profile { grid-template-columns: 1fr; } }
+.profile-side { display: grid; justify-items: center; gap: 0.5rem; padding: 1.25rem 0.75rem; text-align: center; }
+.profile-side h2 { font-size: 1.1rem; }
+.profile-side p { margin: 0; }
+.profile-side nav { display: grid; gap: 0.15rem; width: 100%; margin-top: 0.75rem; text-align: left; }
+.profile-tab { background: transparent; color: var(--text); border: 0; border-left: 3px solid transparent; border-radius: 0; text-align: left; padding: 0.55rem 0.9rem; }
+.profile-tab:hover { background: var(--bg); }
+.profile-tab.active { border-left-color: var(--accent); color: var(--accent); font-weight: 600; background: var(--bg); }
+.profile-main { display: grid; gap: 1rem; }
+.profile-section { display: block; }
+.profile-section h3 { margin: 0 0 1rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); font-size: 1.05rem; }
+.profile-section .toolbar h3 { margin: 0; padding: 0; border: 0; }
+.profile-section .toolbar { padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
+.profile-section h4 { margin: 1rem 0 0.5rem; font-size: 0.95rem; }
+.field-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.9rem 1.25rem; }
+.field-grid label { display: grid; gap: 0.3rem; font-size: 0.85rem; color: var(--muted); }
+.field-grid input:disabled, .field-grid select:disabled { opacity: 0.75; }
+.section-footer { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; margin-top: 1.25rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.section-footer [role=status] { margin-right: auto; }
+.list-editor { display: grid; gap: 0.75rem; margin: 1rem 0; padding: 1rem; background: var(--bg); border-radius: 8px; }
+.readonly-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem 1.25rem; margin: 0; }
+.readonly-grid dt { font-size: 0.85rem; color: var(--muted); }
+.readonly-grid dd { margin: 0.2rem 0 0; }
+.small { font-size: 0.8rem; }
+.person-link { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0; text-align: left; }
+
+/* Drzewko przełożonych */
+.org { display: grid; justify-items: center; gap: 0; }
+.org-chain { list-style: none; margin: 0; padding: 0; display: grid; justify-items: center; }
+.org-chain li, .org-focus { position: relative; padding-bottom: 1.5rem; }
+/* Linia łącząca karty w pionie. */
+.org-chain li::after, .org-focus::after { content: ""; position: absolute; left: 50%; bottom: 0; height: 1.5rem; border-left: 2px solid var(--border); }
+.org-card { width: 300px; max-width: calc(100vw - 2rem); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.org-card.focus { width: 340px; border: 2px solid var(--accent); box-shadow: 0 4px 16px rgb(0 0 0 / 0.12); }
+.org-card.me .org-card-main strong { color: var(--accent); }
+.org-card-main { display: flex; align-items: center; gap: 0.75rem; width: 100%; padding: 0.75rem; background: none; border: 0; border-radius: 0; color: var(--text); text-align: left; }
+.org-card-main:hover:not(:disabled) { background: var(--bg); }
+.org-card-main:disabled { opacity: 1; cursor: default; }
+.org-card-main > span:last-child { display: grid; gap: 0.1rem; min-width: 0; }
+.org-card-footer { display: flex; justify-content: space-between; align-items: center; padding: 0.35rem 0.75rem; border-top: 1px solid var(--border); }
+.org-card-footer .link { margin-left: auto; }
+.badge { margin-left: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 999px; background: var(--accent); color: var(--accent-text); font-size: 0.7rem; vertical-align: middle; }
+.org-reports-title { margin: 0 0 0.75rem; font-size: 0.95rem; color: var(--muted); }
+.org-reports { list-style: none; margin: 0; padding: 1rem 0 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 1rem; border-top: 2px solid var(--border); width: 100%; }
+.org-reports .org-card { width: 260px; }

@@ -216,14 +216,25 @@ QuestPDF (licencja Community). `Busola.Api/Pdf/PdfReport.cs` daje wspólny ukła
 
 ## Podpisy odręczne (demo)
 
-Symulacja zbierania podpisu, docelowo zastąpiona dostawcą (np. Autenti). Zakładka **Podpisy**: zlecający wpisuje dokument i osobę, dostaje kod QR (telefon) albo link „Podpisz na tym urządzeniu” (ekran dotykowy). Sygnatariusz otwiera `/podpis/{token}` bez logowania i podpisuje palcem, rysikiem albo myszą. Status u zlecającego odświeża się co 2 s.
+Podpis jest częścią flow oceny, bez osobnej zakładki. Na karcie oceny przy polu podpisu: „Podpisz na telefonie lub tablecie” pokazuje kod QR (telefon) i link „Podpisz na tym urządzeniu” (ekran dotykowy). Sygnatariusz otwiera `/podpis/{token}` bez logowania i podpisuje palcem, rysikiem albo myszą; karta oceny odświeża się sama po podpisaniu. Docelowo zastąpione dostawcą (np. Autenti).
 
-- `GET/POST /api/signatures`, `GET /api/signatures/{id}`, `POST /api/signatures/{id}/link` (nowy link, stary przestaje działać), `GET /api/signatures/{id}/image` (PNG). Każdy widzi swoje prośby, SuperAdmin wszystkie.
+- `POST /api/signatures` `{ title, signerName, evaluationId, evaluationFieldKey }`, `GET /api/signatures/{id}` (status), `GET /api/signatures/{id}/image` (PNG). Ponowne zlecenie tego samego pola daje nowy link do czekającej prośby (stary przestaje działać).
 - Publiczne, tylko z tokenem: `GET /api/sign/{token}`, `POST /api/sign/{token}` `{ image: "data:image/png;base64,..." }`, `POST /api/sign/{token}/decline`.
+- Po podpisaniu w tej samej transakcji powstaje wiersz `evaluation_signatures` z obrazem PNG i SHA-256; konto potwierdzające (`signed_by_id`) to zlecający, czyli osoba, która zebrała podpis. Zasady jak przy podpisie w systemie (`EvaluationsController.Sign`): pole ocenianego zleca tylko sam oceniany, pozostałe osoba z `edit_evaluation` w swoim zakresie, ale nie oceniany. Odrzucane: pole spoza szablonu (400), zamknięta ocena albo pole już podpisane (409); zamknięcie oceny unieważnia czekające linki.
 - Link ważny 24 h, w bazie jest tylko hash tokenu. Podpis jest dekodowany i kodowany od nowa (SkiaSharp), zapisujemy IP i User-Agent podpisującego.
-- **Zakładka Dev** (tylko SuperAdmin): ten sam flow (QR, ekran dotykowy, status na żywo) w pamięci serwera, bez zapisu w bazie. API `api/dev/signatures` i publiczne `api/dev/sign/{token}`, strona `/podpis-test/{token}` z oznaczeniem trybu testowego. Testy znikają po godzinie albo po restarcie (najwyżej 200 naraz).
-- **Podpis do oceny**: `POST /api/signatures` z `evaluationId` i `evaluationFieldKey` (pole typu `signature` ze szablonu; lista: `GET /api/signatures/evaluation-fields?evaluationId=`). Rolę bierze z szablonu. Po podpisaniu w tej samej transakcji powstaje wiersz `evaluation_signatures` z obrazem PNG i SHA-256; konto potwierdzające (`signed_by_id`) to zlecający, czyli osoba, która zebrała podpis. Zasady jak przy podpisie w systemie (`EvaluationsController.Sign`): pole ocenianego zleca tylko sam oceniany (podpisze na telefonie/tablecie), pozostałe osoba z `edit_evaluation` w swoim zakresie, ale nie oceniany. Odrzucane: pole spoza szablonu (400), zamknięta ocena, pole już podpisane albo czekająca prośba o to samo pole (409); zamknięcie oceny unieważnia też czekające linki.
-- Z kodu (np. flow ocen): `SignatureService.CreateAsync(..., new EvaluationTarget(evaluationId, fieldKey), ...)`, a link/QR pokazuje się użytkownikowi jak wyżej.
+- **Zakładka Dev** (tylko SuperAdmin): ten sam flow w pamięci serwera, bez zapisu w bazie. API `api/dev/signatures` i publiczne `api/dev/sign/{token}`, strona `/podpis-test/{token}` z oznaczeniem trybu testowego. Testy znikają po godzinie albo po restarcie (najwyżej 200 naraz).
+
+## Profil pracownika
+
+Układ jak w OrangeHRM: zdjęcie i zakładki po lewej, sekcja po prawej. Zakładki: dane osobowe, kontakt, kontakty alarmowe, członkowie rodziny, zatrudnienie, przełożeni i podwładni, kwalifikacje (doświadczenie, wykształcenie, umiejętności, języki). Bez wynagrodzenia i danych imigracyjnych.
+
+- Dane w `employee_profiles` (1:1 z `employees`), listy w jsonb. Imię, nazwisko, daty, wydział i przełożony zostają w `employees`.
+- `GET /api/employees/{id}/profile`, `GET /api/employees/me/profile`, `PUT /api/employees/{id}/profile/{personal|contact|job|emergency-contacts|dependents|qualifications}`.
+- Odczyt: `read_employees` w zakresie albo własny rekord. Edycja: `edit_employee` w zakresie — wszystko; pracownik u siebie — wszystko poza zatrudnieniem, imieniem, nazwiskiem, datą urodzenia i nr. ewidencyjnym.
+
+## Drzewko przełożonych
+
+Zakładka **Struktura**: łańcuch przełożonych w górę, wybrana osoba i jej podwładni; kliknięcie karty przenosi widok na tę osobę. `GET /api/org?employeeId=` (domyślnie ja), `GET /api/org/{id}/avatar`. Każdy widzi tylko osoby ze swojej służby (SuperAdmin wszystkich), a karta ma tylko imię i nazwisko, stanowisko i komórkę.
 
 ## Migracje
 
