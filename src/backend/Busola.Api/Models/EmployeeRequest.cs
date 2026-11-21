@@ -10,4 +10,5 @@ public sealed record EmployeeRequest(
     DateOnly HireDate,
     int DepartmentId,
     int? SupervisorId = null,
-    [EmailAddress, MaxLength(256)] string? Email = null);
+    [EmailAddress, MaxLength(256)] string? Email = null,
+    bool SubjectToFirstEvaluation = false);

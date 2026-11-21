@@ -11,6 +11,12 @@ public class Employee
     /// <summary>Data zatrudnienia.</summary>
     public DateOnly HireDate { get; set; }
 
+    /// <summary>
+    /// Podlega pierwszej ocenie w służbie cywilnej. Przy zakładaniu pracownika: true — pierwsza ocena,
+    /// false — od razu cykl oceny okresowej; oba od daty zatrudnienia.
+    /// </summary>
+    public bool SubjectToFirstEvaluation { get; set; }
+
     public int DepartmentId { get; set; }
     public Department Department { get; set; } = null!;
 

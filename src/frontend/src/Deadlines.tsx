@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { api } from './api'
 
 type Deadline = {
-  evaluationId: number; employeeName: string; templateTitle: string; stageTitle: string
+  evaluationId: number; employeeName: string; templateTitle: string; stageKey: string; stageTitle: string
   dueFrom: string | null; dueTo: string; daysLeft: number; overdue: boolean
 }
+type WithoutEvaluation = { employeeId: number; employeeName: string; hireDate: string; subjectToFirstEvaluation: boolean }
 
 const RANGES = [30, 60, 90, 365]
 
@@ -51,13 +52,42 @@ export function DeadlinesPage({ onOpen }: { onOpen: (evaluationId: number) => vo
                   <td>{r.employeeName}</td>
                   <td>{r.stageTitle}</td>
                   <td>{r.templateTitle}</td>
-                  <td className="actions"><button className="link" onClick={() => onOpen(r.evaluationId)}>Otwórz ocenę</button></td>
+                  <td className="actions">
+                    <button className="link" onClick={() => onOpen(r.evaluationId)}>
+                      {r.stageKey === 'criteria' ? 'Wybierz kryteria' : 'Otwórz ocenę'}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+      <WithoutEvaluationList />
     </section>
+  )
+}
+
+// Pracownicy, których terminów nikt nie pilnuje (np. dodani przed automatycznym zakładaniem cykli).
+function WithoutEvaluationList() {
+  const [rows, setRows] = useState<WithoutEvaluation[] | null>(null)
+
+  useEffect(() => {
+    api<WithoutEvaluation[]>('dashboard/without-evaluation').then(setRows, () => setRows([]))
+  }, [])
+
+  if (!rows || rows.length === 0) return null
+  return (
+    <div className="card panel without-evaluation">
+      <h3>Bez otwartej oceny ({rows.length})</h3>
+      <p className="muted">Ci pracownicy nie mają trwającego cyklu, więc ich terminów nic nie pilnuje. Załóż ocenę w zakładce „Oceny”.</p>
+      <ul>
+        {rows.map((r) => (
+          <li key={r.employeeId}>
+            {r.employeeName} <span className="muted">— zatrudniony {r.hireDate}{r.subjectToFirstEvaluation ? ', podlega pierwszej ocenie' : ''}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }

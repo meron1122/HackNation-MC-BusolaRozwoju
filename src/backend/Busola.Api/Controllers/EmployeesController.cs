@@ -1,4 +1,5 @@
 using Busola.Api.Authorization;
+using Busola.Api.Evaluations;
 using Busola.Api.Infrastructure;
 using Busola.Api.Models;
 using Busola.Database;
@@ -110,10 +111,17 @@ public sealed class EmployeesController(BusolaDbContext db, AccessScopeService a
             return ValidationProblem(ModelState);
         }
 
+        // Od zatrudnienia biegnie albo pierwsza ocena, albo cykl oceny okresowej — terminy pilnujemy od pierwszego dnia.
+        var templateCode = employee.SubjectToFirstEvaluation
+            ? EvaluationWorkflow.FirstTemplate
+            : await EvaluationWorkflow.PeriodicTemplateCodeAsync(db, employee.Id, ct);
+        var evaluation = await EvaluationWorkflow.StartAsync(db, employee, templateCode, employee.HireDate, ct);
+        await db.SaveChangesAsync(ct);
+
         await transaction.CommitAsync(ct);
 
         return CreatedAtAction(nameof(Get), new { id = employee.Id },
-            new CreatedEmployeeDto(await LoadDtoAsync(employee.Id, ct), email, password));
+            new CreatedEmployeeDto(await LoadDtoAsync(employee.Id, ct), email, password, evaluation.Id, evaluation.Template.Title));
     }
 
     [HttpPut("{id:int}")]
@@ -176,6 +184,7 @@ public sealed class EmployeesController(BusolaDbContext db, AccessScopeService a
         employee.HireDate = request.HireDate;
         employee.DepartmentId = request.DepartmentId;
         employee.SupervisorId = request.SupervisorId;
+        employee.SubjectToFirstEvaluation = request.SubjectToFirstEvaluation;
     }
 
     // Wydział sprawdzamy tylko przy zmianie — inaczej rola z zakresem Own/Subordinates nie mogłaby edytować nikogo.

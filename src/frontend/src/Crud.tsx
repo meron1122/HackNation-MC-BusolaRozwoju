@@ -7,8 +7,10 @@ export type Row = { id: number } & Record<string, any>
 export type Field = {
   name: string
   label: string
-  type?: 'text' | 'date' | 'url' | 'email'
+  type?: 'text' | 'date' | 'url' | 'email' | 'checkbox'
   optional?: boolean
+  /** Przypis pod polem (np. kto spełnia warunek). */
+  note?: ReactNode
   /** Tylko przy dodawaniu (np. e-mail, z którym powstaje konto); przy edycji pole jest ukryte i nie jest wysyłane. */
   createOnly?: boolean
   /** Pole wyboru z listy z API, wartość to id. */
@@ -159,6 +161,10 @@ function EntityForm({ fields, row, onSave, onCancel }: {
     const form = new FormData(e.currentTarget)
     const body: Record<string, unknown> = {}
     for (const f of visibleFields) {
+      if (f.type === 'checkbox') {
+        body[f.name] = form.get(f.name) === 'on'
+        continue
+      }
       const raw = String(form.get(f.name) ?? '')
       body[f.name] = raw === '' && f.optional ? null : f.options ? Number(raw) : raw
     }
@@ -174,7 +180,15 @@ function EntityForm({ fields, row, onSave, onCancel }: {
 
   return (
     <form onSubmit={submit} className="form card">
-      {visibleFields.map((f) => (
+      {visibleFields.map((f) => f.type === 'checkbox' ? (
+        <div key={f.name} className="checkbox-field">
+          <label className="check">
+            <input name={f.name} type="checkbox" defaultChecked={!!row?.[f.name]} />
+            {f.label}
+          </label>
+          {f.note && <div className="field-note">{f.note}</div>}
+        </div>
+      ) : (
         <label key={f.name}>
           {f.label}
           {f.options && !options[f.name] ? (

@@ -95,21 +95,10 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             return Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Nie ma takiego szablonu.");
         }
 
-        var schema = TemplateSchema.Parse(template.Schema);
         var start = request.StartDate
             ?? (template.Kind == EvaluationKind.First ? employee.HireDate : DateOnly.FromDateTime(DateTime.Today));
 
-        var evaluation = new Evaluation
-        {
-            EmployeeId = employee.Id,
-            TemplateId = template.Id,
-            Status = schema.InitialStatus,
-            StartDate = start,
-            EvaluatorId = employee.SupervisorId,
-            CreatedAt = DateTimeOffset.UtcNow,
-            Stages = EvaluationWorkflow.CreateStages(schema, start),
-        };
-        db.Evaluations.Add(evaluation);
+        var evaluation = await EvaluationWorkflow.StartAsync(db, employee, template.Code, start, ct);
         await db.SaveChangesAsync(ct);
 
         return CreatedAtAction(nameof(Get), new { id = evaluation.Id }, (await LoadDetailAsync(evaluation.Id, scope, ct))!);
@@ -190,12 +179,44 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
 
     [HttpPost("{id:int}/stages/{stageKey}/complete")]
     [Authorize(Policy = Permissions.EditEvaluation)]
-    public Task<IActionResult> CompleteStage(int id, string stageKey, CompleteStageRequest request, CancellationToken ct) =>
-        ChangeStageAsync(id, stageKey, ct, (schema, evaluation, stage) =>
+    public async Task<IActionResult> CompleteStage(int id, string stageKey, CompleteStageRequest request, CancellationToken ct)
+    {
+        var result = await ChangeStageAsync(id, stageKey, ct, (schema, evaluation, stage) =>
         {
             EvaluationWorkflow.Complete(schema, evaluation, stage, request.CompletedOn);
             return null;
         });
+
+        if (result is NoContentResult && stageKey == "evaluation")
+        {
+            await StartNextPeriodicCycleAsync(id, request.CompletedOn, ct);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Sporządzenie oceny okresowej na piśmie otwiera kolejny 24-miesięczny cykl (od tego dnia),
+    /// żeby pracownik nie wypadł z pilnowania terminów.
+    /// </summary>
+    private async Task StartNextPeriodicCycleAsync(int evaluationId, DateOnly start, CancellationToken ct)
+    {
+        var finished = await db.Evaluations
+            .Include(e => e.Employee)
+            .Include(e => e.Template)
+            .SingleAsync(e => e.Id == evaluationId, ct);
+
+        var alreadyStarted = await db.Evaluations.AnyAsync(e =>
+            e.EmployeeId == finished.EmployeeId && e.StartDate == start && e.Template.Kind == EvaluationKind.Periodic, ct);
+        if (finished.Template.Kind != EvaluationKind.Periodic || alreadyStarted)
+        {
+            return;
+        }
+
+        var templateCode = await EvaluationWorkflow.PeriodicTemplateCodeAsync(db, finished.EmployeeId, ct);
+        await EvaluationWorkflow.StartAsync(db, finished.Employee, templateCode, start, ct);
+        await db.SaveChangesAsync(ct);
+    }
 
     /// <summary>Tylko etapy opcjonalne (np. brak sprzeciwu).</summary>
     [HttpPost("{id:int}/stages/{stageKey}/skip")]

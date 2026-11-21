@@ -169,7 +169,7 @@ Endpointy (wszystkie poza logowaniem wymagają `Authorization: Bearer <token>`):
 | `POST /api/account/password` | `{ currentPassword, newPassword }` → nowy token |
 | `GET/PUT/DELETE /api/account/avatar` | `PUT` jako multipart z polem `file` |
 | `POST /api/account/two-factor/setup`, `…/enable`, `…/disable`, `…/recovery-codes` | konfiguracja 2FA (TOTP) |
-| `GET/POST /api/employees`, `GET/PUT/DELETE /api/employees/{id}` | `GET` przyjmuje `page`, `pageSize`. `POST` wymaga `email` i zakłada pracownika razem z kontem (w jednej transakcji), a odpowiedź zawiera jednorazowo `temporaryPassword`. `DELETE` usuwa pracownika razem z kontem; jeśli coś na nie wskazuje (oceny, wypełnione pola, podpisy), zwraca 409 i nic nie usuwa |
+| `GET/POST /api/employees`, `GET/PUT/DELETE /api/employees/{id}` | `GET` przyjmuje `page`, `pageSize`. `POST` wymaga `email` i zakłada pracownika razem z kontem i pierwszym cyklem oceny (w jednej transakcji), a odpowiedź zawiera jednorazowo `temporaryPassword` oraz `evaluationId`. `subjectToFirstEvaluation: true` oznacza arkusz pierwszej oceny, `false` ocenę okresową (arkusz B, gdy pracownik ma podwładnych, inaczej C); w obu przypadkach od daty zatrudnienia. `DELETE` usuwa pracownika razem z kontem; jeśli coś na nie wskazuje (oceny, wypełnione pola, podpisy), zwraca 409 i nic nie usuwa |
 | `GET /api/employees/{id}/avatar` | zdjęcie widzi ten, kto widzi pracownika |
 | `GET/POST /api/locations`, `GET/PUT/DELETE /api/locations/{id}` | |
 | `GET/POST /api/departments`, `GET/PUT/DELETE /api/departments/{id}` | `GET` przyjmuje `locationId` |
@@ -181,6 +181,9 @@ Endpointy (wszystkie poza logowaniem wymagają `Authorization: Bearer <token>`):
 | `POST /api/evaluations/{id}/stages/{stageKey}/complete`, `…/skip` | zamknięcie etapu (`{ completedOn }`): status oceny zmienia się na `completesTo`, a etapy zależne dostają terminy. `skip` tylko dla opcjonalnych |
 | `POST /api/evaluations/{id}/signatures`, `GET …/signatures/{signatureId}/image` | podpis pola (`{ fieldKey, signedOn, place?, image? }`, obraz jako PNG/WebP w base64 albo data URL) / obraz podpisu |
 | `GET /api/dashboard/deadlines?days=60` | otwarte etapy z terminem w ciągu `days` dni albo po terminie |
+| `GET /api/dashboard/without-evaluation` | pracownicy w zakresie bez żadnej otwartej oceny (ich terminów nic nie pilnuje) |
+
+Ciągłość cykli: zamknięcie etapu „Rozmowa oceniająca i sporządzenie oceny” w ocenie okresowej zakłada kolejny cykl od dnia sporządzenia oceny (arkusz B albo C jak wyżej), bez dubli. Po pierwszej ocenie następny cykl zakłada się ręcznie.
 
 Oceny: `read_evaluations` (pracownik: własne, przełożony: podwładni, HR: służba), `add_evaluation` (HR, admin służby), `edit_evaluation` (przełożony, HR, admin służby). Nikt nie zakłada ani nie wypełnia własnej oceny. Pola podpisu ocenianego podpisuje wyłącznie oceniany, a pozostałe osoba z `edit_evaluation` w swoim zakresie. Zamkniętej oceny nie da się edytować; wyjątkiem jest etap opcjonalny (sprzeciw).
 

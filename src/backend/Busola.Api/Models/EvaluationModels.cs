@@ -64,6 +64,9 @@ public sealed record SignatureDto(int Id, string FieldKey, string Role, string S
 /// <summary>Image: opcjonalny PNG/WebP jako base64 albo data URL (np. canvas.toDataURL()).</summary>
 public sealed record SignRequest(string FieldKey, DateOnly SignedOn, string? Place = null, string? Image = null);
 
+/// <summary>Pracownik bez otwartej oceny — nikt nie pilnuje jego terminów.</summary>
+public sealed record EmployeeWithoutEvaluationDto(int EmployeeId, string EmployeeName, DateOnly HireDate, bool SubjectToFirstEvaluation);
+
 public sealed record DeadlineDto(
     int EvaluationId,
     int EmployeeId,
