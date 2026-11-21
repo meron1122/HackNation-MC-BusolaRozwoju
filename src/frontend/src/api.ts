@@ -72,5 +72,10 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
     window.dispatchEvent(new Event(LOGOUT_EVENT))
   }
   if (!res.ok) throw new Error(await errorMessage(res))
-  return (res.status === 204 ? undefined : await res.json()) as T
+  if (res.status === 204) return undefined as T
+  // np. statyczny hosting bez backendu odpowiada 200 z pustym ciałem albo HTML-em
+  if (!res.headers.get('content-type')?.includes('json')) {
+    throw new Error(`/api/${path} nie zwróciło JSON-a (${res.status}). Czy pod tym adresem działa API?`)
+  }
+  return (await res.json()) as T
 }
