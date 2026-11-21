@@ -7,7 +7,7 @@ import { DeadlinesPage } from './Deadlines'
 import { DevPage } from './Dev'
 import { EvaluationsPage } from './Evaluations'
 import { Login } from './Login'
-import { ProfilePage } from './Profile'
+import { ProfilePage, type ProfileTab } from './Profile'
 import { UserMenu } from './UserMenu'
 import { UsersPage } from './Users'
 
@@ -115,11 +115,9 @@ type Nav = {
 }
 type Page = { key: string; label: string; visible: (s: Session) => boolean; render: (s: Session, nav: Nav) => ReactNode }
 
-// Dostępne dla każdego zalogowanego, otwierane z nagłówka (avatar + imię), nie z zakładek.
-const ACCOUNT_PAGE = 'account'
 // Profil innego pracownika: otwierany z listy albo ze struktury w innym profilu.
 const PROFILE_PAGE = 'profile'
-// Własny profil: z menu pod loginem.
+// Własny profil (z kontem: zdjęcie, hasło, 2FA): z menu pod loginem.
 const MY_PROFILE_PAGE = 'my-profile'
 
 const PAGES: Page[] = [
@@ -192,6 +190,7 @@ export default function App() {
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [openEvaluation, setOpenEvaluation] = useState<number | null>(null)
   const [profileId, setProfileId] = useState<number | null>(null)
+  const [myProfileTab, setMyProfileTab] = useState<ProfileTab>('personal')
   const session = token ? readSession(token) : null
   const nav: Nav = {
     openEvaluation,
@@ -216,6 +215,11 @@ export default function App() {
     setTokenState(newToken)
   }
 
+  function openMyProfile(tab: ProfileTab) {
+    setMyProfileTab(tab)
+    setPageKey(MY_PROFILE_PAGE)
+  }
+
   function logout() {
     setToken(null)
     setTokenState(null)
@@ -224,10 +228,9 @@ export default function App() {
   if (!session) return <Login onLogin={login} />
 
   const pages = PAGES.filter((p) => p.visible(session))
-  const onAccount = pageKey === ACCOUNT_PAGE
   const onProfile = pageKey === PROFILE_PAGE && profileId !== null
   const onMyProfile = pageKey === MY_PROFILE_PAGE
-  const page = onAccount || onProfile || onMyProfile ? undefined : pages.find((p) => p.key === pageKey) ?? pages[0]
+  const page = onProfile || onMyProfile ? undefined : pages.find((p) => p.key === pageKey) ?? pages[0]
 
   return (
     <>
@@ -241,14 +244,14 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <UserMenu name={session.name} avatarVersion={avatarVersion} active={onAccount || onMyProfile}
-          onProfile={() => setPageKey(MY_PROFILE_PAGE)} onAccount={() => setPageKey(ACCOUNT_PAGE)} onLogout={logout} />
+        <UserMenu name={session.name} avatarVersion={avatarVersion} active={onMyProfile}
+          onProfile={() => openMyProfile('personal')} onStructure={() => openMyProfile('structure')} onLogout={logout} />
       </header>
       <main className="content">
-        {onAccount ? (
-          <AccountPage onToken={login} avatarVersion={avatarVersion} onAvatarChange={() => setAvatarVersion((v) => v + 1)} />
-        ) : onMyProfile ? (
-          <ProfilePage employeeId="me" onOpenProfile={nav.showProfile} onOpenEvaluation={nav.showEvaluation} />
+        {onMyProfile ? (
+          <ProfilePage key={`me-${myProfileTab}`} employeeId="me" initialTab={myProfileTab} avatarVersion={avatarVersion}
+            onOpenProfile={nav.showProfile} onOpenEvaluation={nav.showEvaluation}
+            account={<AccountPage onToken={login} avatarVersion={avatarVersion} onAvatarChange={() => setAvatarVersion((v) => v + 1)} showTitle={false} />} />
         ) : onProfile ? (
           <ProfilePage key={profileId} employeeId={profileId} onOpenProfile={nav.showProfile} onOpenEvaluation={nav.showEvaluation} />
         ) : page ? (

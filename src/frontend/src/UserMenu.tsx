@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Avatar } from './Avatar'
 
-/** Menu pod loginem w nagłówku: profil, konto (hasło, 2FA, zdjęcie), wylogowanie. */
-export function UserMenu({ name, avatarVersion, active, onProfile, onAccount, onLogout }: {
+/** Menu pod loginem w nagłówku: mój profil (z kontem: zdjęcie, hasło, 2FA), struktura, wylogowanie. */
+export function UserMenu({ name, avatarVersion, active, onProfile, onStructure, onLogout }: {
   name: string
   avatarVersion: number
   active: boolean
   onProfile: () => void
-  onAccount: () => void
+  onStructure: () => void
   onLogout: () => void
 }) {
   const [open, setOpen] = useState(false)
@@ -41,7 +41,7 @@ export function UserMenu({ name, avatarVersion, active, onProfile, onAccount, on
       {open && (
         <div className="menu" role="menu">
           <button role="menuitem" onClick={pick(onProfile)}>Mój profil</button>
-          <button role="menuitem" onClick={pick(onAccount)}>Moje konto</button>
+          <button role="menuitem" onClick={pick(onStructure)}>Struktura</button>
           <button role="menuitem" onClick={pick(onLogout)}>Wyloguj</button>
         </div>
       )}

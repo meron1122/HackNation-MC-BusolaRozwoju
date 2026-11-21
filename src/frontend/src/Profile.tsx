@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api } from './api'
 import { Avatar } from './Avatar'
 import { OrgChart } from './Org'
@@ -112,18 +112,23 @@ const TABS = [
   ['structure', 'Struktura'],
   ['evaluations', 'Oceny'],
   ['qualifications', 'Kwalifikacje'],
+  ['account', 'Konto'],
 ] as const
-type Tab = (typeof TABS)[number][0]
+export type ProfileTab = (typeof TABS)[number][0]
 
 /** Profil pracownika: lewa kolumna ze zdjęciem i zakładkami, po prawej sekcja (układ jak w OrangeHRM). */
-export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation }: {
+export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation, initialTab = 'personal', account, avatarVersion = 0 }: {
   employeeId: number | 'me'
   onOpenProfile: (id: number) => void
   onOpenEvaluation: (id: number) => void
+  initialTab?: ProfileTab
+  /** Ustawienia konta (zdjęcie, hasło, 2FA): zakładka Konto we własnym profilu. */
+  account?: ReactNode
+  avatarVersion?: number
 }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<Tab>('personal')
+  const [tab, setTab] = useState<ProfileTab>(initialTab)
 
   const load = useCallback(
     () => api<Profile>(employeeId === 'me' ? 'employees/me/profile' : `employees/${employeeId}/profile`)
@@ -134,7 +139,19 @@ export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation }: {
     load()
   }, [load])
 
-  if (!profile) return error ? <p role="alert" className="error">{error}</p> : <p>Ładowanie…</p>
+  if (!profile) {
+    // Konto bez pracownika (np. SuperAdmin) nie ma profilu, ale ustawienia konta muszą być dostępne.
+    if (error && account) {
+      return (
+        <section>
+          <div className="toolbar"><h2>Moje konto</h2></div>
+          <p className="muted">Konto nie jest powiązane z pracownikiem, więc nie ma profilu. Poniżej ustawienia konta.</p>
+          {account}
+        </section>
+      )
+    }
+    return error ? <p role="alert" className="error">{error}</p> : <p>Ładowanie…</p>
+  }
 
   const e = profile.employee
   const name = `${e.firstName} ${e.lastName}`
@@ -145,11 +162,11 @@ export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation }: {
   return (
     <div className="profile">
       <aside className="profile-side card">
-        <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={name} size={112} />
+        <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={name} size={112} version={avatarVersion} />
         <h2>{name}</h2>
         {profile.job.jobTitle && <p className="muted">{profile.job.jobTitle}</p>}
         <nav aria-label="Sekcje profilu">
-          {TABS.map(([key, label]) => (
+          {TABS.filter(([key]) => key !== 'account' || (account && profile.isOwn)).map(([key, label]) => (
             <button key={key} className={tab === key ? 'profile-tab active' : 'profile-tab'} aria-current={tab === key ? 'page' : undefined}
               onClick={() => setTab(key)}>
               {label}
@@ -191,6 +208,7 @@ export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation }: {
               editable={profile.canEdit} hr={profile.canEdit} onSave={(v) => save('job', v)} />
           </>
         )}
+        {tab === 'account' && account && profile.isOwn && account}
         {tab === 'evaluations' && (
           <section className="card profile-section">
             <h3>Historia ocen</h3>

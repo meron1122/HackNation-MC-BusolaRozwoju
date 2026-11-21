@@ -18,9 +18,11 @@ type Props = {
   onToken: (token: string) => void
   avatarVersion: number
   onAvatarChange: () => void
+  /** false = osadzone w zakładce profilu, bez własnego nagłówka. */
+  showTitle?: boolean
 }
 
-export function AccountPage({ onToken, avatarVersion, onAvatarChange }: Props) {
+export function AccountPage({ onToken, avatarVersion, onAvatarChange, showTitle = true }: Props) {
   const [account, setAccount] = useState<Account | null>(null)
   const [error, setError] = useState('')
 
@@ -33,7 +35,7 @@ export function AccountPage({ onToken, avatarVersion, onAvatarChange }: Props) {
 
   return (
     <section className="account">
-      <div className="toolbar"><h2>Moje konto</h2></div>
+      {showTitle && <div className="toolbar"><h2>Moje konto</h2></div>}
       <AvatarSection account={account} version={avatarVersion} onChange={() => { onAvatarChange(); load() }} />
       <PasswordSection onToken={onToken} />
       <TwoFactorSection account={account} onToken={onToken} onChange={load} />
