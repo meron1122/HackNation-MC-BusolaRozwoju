@@ -95,6 +95,13 @@ Terminy:
 
 Okres podlegania ocenie (od zapoznania z kryteriami do sporządzenia oceny) to co innego niż 24-miesięczny cykl, więc zwykle jest krótszy, np. 23 miesiące. W arkuszu to pole `evaluationPeriod`, a nie termin etapu.
 
+Liczenie terminów (`EvaluationWorkflow` / `PolishCalendar`):
+
+- **Dni:** bieg od dnia następnego, koniec z upływem ostatniego dnia. 4.09 + 30 dni = 4.10.
+- **Miesiące:** ten sam dzień miesiąca, a gdy go brak, ostatni dzień miesiąca (art. 112 KC). 31.07 + 7 mies. = 28/29.02.
+- **Koniec terminu w sobotę, niedzielę albo święto** przesuwa się na najbliższy dzień roboczy (art. 115 KC). Święta: 1.01, 6.01, Wielkanoc z poniedziałkiem, 1.05, 3.05, Zielone Świątki, Boże Ciało, 15.08, 1.11, 11.11, 24.12 (od 2025), 25–26.12. Początek okna (np. „od 8. miesiąca”) nie jest przesuwany.
+- Terminów nie przedłużają jeszcze nieobecności pracownika.
+
 **Nowe pole w arkuszu** (tabele się nie zmieniają, bo wartości są w `evaluation_answers` po kluczu pola):
 
 1. Skopiuj ostatnią wersję, np. `periodic-c.v1.json` jako `periodic-c.v2.json`, i dopisz pole.
@@ -162,6 +169,14 @@ Endpointy (wszystkie poza logowaniem wymagają `Authorization: Bearer <token>`):
 | `GET/POST /api/departments`, `GET/PUT/DELETE /api/departments/{id}` | `GET` przyjmuje `locationId` |
 | `GET/POST /api/users`, `PUT /api/users/{id}/roles` | konta i role |
 | `DELETE /api/users/{id}/two-factor` | reset 2FA, gdy ktoś zgubi telefon i kody odzyskiwania |
+| `GET /api/evaluation-templates` | aktywne szablony arkuszy |
+| `GET/POST /api/evaluations`, `GET /api/evaluations/{id}` | lista / założenie oceny (`{ employeeId, templateCode, startDate? }`, etapy i terminy liczone z szablonu) / karta oceny ze szablonem, etapami, wartościami i podpisami |
+| `PUT /api/evaluations/{id}/answers` | `{ answers: [{ fieldKey, itemKey?, valueText?, valueNumber?, valueDate?, valueDateTo? }] }`; wpis bez wartości jest usuwany |
+| `POST /api/evaluations/{id}/stages/{stageKey}/complete`, `…/skip` | zamknięcie etapu (`{ completedOn }`): status oceny zmienia się na `completesTo`, a etapy zależne dostają terminy. `skip` tylko dla opcjonalnych |
+| `POST /api/evaluations/{id}/signatures`, `GET …/signatures/{signatureId}/image` | podpis pola (`{ fieldKey, signedOn, place?, image? }`, obraz jako PNG/WebP w base64 albo data URL) / obraz podpisu |
+| `GET /api/dashboard/deadlines?days=60` | otwarte etapy z terminem w ciągu `days` dni albo po terminie |
+
+Oceny: `read_evaluations` (pracownik: własne, przełożony: podwładni, HR: służba), `add_evaluation` (HR, admin służby), `edit_evaluation` (przełożony, HR, admin służby). Nikt nie zakłada ani nie wypełnia własnej oceny. Pola podpisu ocenianego podpisuje wyłącznie oceniany, a pozostałe osoba z `edit_evaluation` w swoim zakresie. Zamkniętej oceny nie da się edytować; wyjątkiem jest etap opcjonalny (sprzeciw).
 
 ## Konto: avatar, hasło, 2FA
 

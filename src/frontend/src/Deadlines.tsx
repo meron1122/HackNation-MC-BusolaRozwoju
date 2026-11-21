@@ -1,0 +1,63 @@
+import { useEffect, useState } from 'react'
+import { api } from './api'
+
+type Deadline = {
+  evaluationId: number; employeeName: string; templateTitle: string; stageTitle: string
+  dueFrom: string | null; dueTo: string; daysLeft: number; overdue: boolean
+}
+
+const RANGES = [30, 60, 90, 365]
+
+export function DeadlinesPage({ onOpen }: { onOpen: (evaluationId: number) => void }) {
+  const [days, setDays] = useState(60)
+  const [rows, setRows] = useState<Deadline[] | null>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api<Deadline[]>(`dashboard/deadlines?days=${days}`).then(setRows, (e: Error) => setError(e.message))
+  }, [days])
+
+  const overdue = rows?.filter((r) => r.overdue).length ?? 0
+
+  return (
+    <section>
+      <div className="toolbar">
+        <h2>Nadchodzące terminy</h2>
+        <label className="check">
+          w ciągu
+          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+            {RANGES.map((d) => <option key={d} value={d}>{d} dni</option>)}
+          </select>
+        </label>
+      </div>
+      {error && <p role="alert" className="error">{error}</p>}
+      {rows && (
+        <p className="muted">
+          {rows.length} {rows.length === 1 ? 'termin' : 'terminów'}
+          {overdue > 0 && <>, w tym <strong className="overdue">{overdue} po terminie</strong></>}.
+        </p>
+      )}
+      {rows === null ? <p>Ładowanie…</p> : rows.length === 0 ? <p className="muted">Brak terminów w tym okresie.</p> : (
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Termin</th><th>Zostało</th><th>Pracownik</th><th>Etap</th><th>Arkusz</th><th /></tr></thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={`${r.evaluationId}-${r.stageTitle}`} className={r.overdue ? 'overdue-row' : undefined}>
+                  <td className="nowrap">{r.dueFrom ? `${r.dueFrom} – ${r.dueTo}` : r.dueTo}</td>
+                  <td className={r.overdue ? 'overdue nowrap' : 'nowrap'}>
+                    {r.overdue ? `${-r.daysLeft} dni po terminie` : r.daysLeft === 0 ? 'dziś' : `${r.daysLeft} dni`}
+                  </td>
+                  <td>{r.employeeName}</td>
+                  <td>{r.stageTitle}</td>
+                  <td>{r.templateTitle}</td>
+                  <td className="actions"><button className="link" onClick={() => onOpen(r.evaluationId)}>Otwórz ocenę</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}

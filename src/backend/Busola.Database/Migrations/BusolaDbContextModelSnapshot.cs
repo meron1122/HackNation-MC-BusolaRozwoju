@@ -647,6 +647,24 @@ namespace Busola.Database.Migrations
                             Id = 13,
                             Key = "manage_users",
                             Name = "Zarządzanie kontami i rolami"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Key = "read_evaluations",
+                            Name = "Podgląd ocen"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Key = "add_evaluation",
+                            Name = "Zakładanie ocen"
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Key = "edit_evaluation",
+                            Name = "Wypełnianie ocen i zamykanie etapów"
                         });
                 });
 
@@ -755,8 +773,23 @@ namespace Busola.Database.Migrations
                         },
                         new
                         {
+                            RoleId = "c0a8e5d2-1f3b-4c6a-9e7d-2b5f8a1c3e01",
+                            PermissionId = 14
+                        },
+                        new
+                        {
                             RoleId = "c0a8e5d2-1f3b-4c6a-9e7d-2b5f8a1c3e02",
                             PermissionId = 1
+                        },
+                        new
+                        {
+                            RoleId = "c0a8e5d2-1f3b-4c6a-9e7d-2b5f8a1c3e02",
+                            PermissionId = 14
+                        },
+                        new
+                        {
+                            RoleId = "c0a8e5d2-1f3b-4c6a-9e7d-2b5f8a1c3e02",
+                            PermissionId = 16
                         },
                         new
                         {
@@ -787,6 +820,21 @@ namespace Busola.Database.Migrations
                         {
                             RoleId = "c0a8e5d2-1f3b-4c6a-9e7d-2b5f8a1c3e03",
                             PermissionId = 9
+                        },
+                        new
+                        {
+                            RoleId = "c0a8e5d2-1f3b-4c6a-9e7d-2b5f8a1c3e03",
+                            PermissionId = 14
+                        },
+                        new
+                        {
+                            RoleId = "c0a8e5d2-1f3b-4c6a-9e7d-2b5f8a1c3e03",
+                            PermissionId = 15
+                        },
+                        new
+                        {
+                            RoleId = "c0a8e5d2-1f3b-4c6a-9e7d-2b5f8a1c3e03",
+                            PermissionId = 16
                         },
                         new
                         {
@@ -852,6 +900,21 @@ namespace Busola.Database.Migrations
                         {
                             RoleId = "c0a8e5d2-1f3b-4c6a-9e7d-2b5f8a1c3e04",
                             PermissionId = 13
+                        },
+                        new
+                        {
+                            RoleId = "c0a8e5d2-1f3b-4c6a-9e7d-2b5f8a1c3e04",
+                            PermissionId = 14
+                        },
+                        new
+                        {
+                            RoleId = "c0a8e5d2-1f3b-4c6a-9e7d-2b5f8a1c3e04",
+                            PermissionId = 15
+                        },
+                        new
+                        {
+                            RoleId = "c0a8e5d2-1f3b-4c6a-9e7d-2b5f8a1c3e04",
+                            PermissionId = 16
                         });
                 });
 

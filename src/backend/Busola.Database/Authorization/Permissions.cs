@@ -20,5 +20,9 @@ public static class Permissions
 
     public const string ManageUsers = "manage_users";
 
+    public const string ReadEvaluations = "read_evaluations";
+    public const string AddEvaluation = "add_evaluation";
+    public const string EditEvaluation = "edit_evaluation";
+
     public static IReadOnlyList<string> All { get; } = PermissionSeed.Permissions.Select(p => p.Key).ToArray();
 }
