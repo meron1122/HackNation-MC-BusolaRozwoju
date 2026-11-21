@@ -100,6 +100,11 @@ Endpointy (wszystkie poza logowaniem wymagają `Authorization: Bearer <token>`):
 | `GET/POST /api/locations`, `GET/PUT/DELETE /api/locations/{id}` | |
 | `GET/POST /api/departments`, `GET/PUT/DELETE /api/departments/{id}` | `GET` przyjmuje `locationId` |
 | `GET/POST /api/users`, `PUT /api/users/{id}/roles` | konta i role |
+| `GET /api/employees/report.pdf` | lista pracowników w zakresie użytkownika jako PDF |
+
+## PDF
+
+QuestPDF (licencja Community). `Busola.Api/Pdf/PdfReport.cs` daje wspólny układ (A4, nagłówek, numeracja stron) i tabelę. Nowy raport: `PdfReport.Render("Tytuł", c => PdfReport.Table(c, nagłówki, wiersze))` i `File(bytes, "application/pdf", "nazwa.pdf")`. Przykład: `EmployeesController.Report`.
 
 Rekord spoza zakresu zwraca 404, a operacja na danych spoza zakresu 403. Naruszenie ograniczeń bazy (duplikat, usuwanie rekordu, na który coś wskazuje) zwraca 409.
 

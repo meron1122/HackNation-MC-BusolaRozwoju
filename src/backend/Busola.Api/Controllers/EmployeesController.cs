@@ -1,5 +1,6 @@
 using Busola.Api.Authorization;
 using Busola.Api.Models;
+using Busola.Api.Pdf;
 using Busola.Database;
 using Busola.Database.Authorization;
 using Busola.Database.Entities;
@@ -28,6 +29,30 @@ public sealed class EmployeesController(BusolaDbContext db, AccessScopeService a
             .Take(pageSize)
             .Select(EmployeeDto.Projection)
             .ToListAsync(ct);
+    }
+
+    /// <summary>Wszyscy pracownicy w zakresie użytkownika jako PDF (bez stronicowania).</summary>
+    [HttpGet("report.pdf")]
+    [Authorize(Policy = Permissions.ReadEmployees)]
+    public async Task<IActionResult> Report(CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.ReadEmployees, ct);
+        var employees = await db.Employees
+            .InScope(scope)
+            .OrderBy(e => e.LastName).ThenBy(e => e.FirstName).ThenBy(e => e.Id)
+            .Select(EmployeeDto.Projection)
+            .ToListAsync(ct);
+
+        var pdf = PdfReport.Render("Pracownicy", content => PdfReport.Table(
+            content,
+            ["Nazwisko i imię", "Służba", "Lokalizacja", "Wydział", "Zatrudniony", "Przełożony"],
+            employees.Select(e => new[]
+            {
+                $"{e.LastName} {e.FirstName}", e.ServiceName, e.LocationName, e.DepartmentName,
+                e.HireDate.ToString("yyyy-MM-dd"), e.SupervisorName ?? "—",
+            })));
+
+        return File(pdf, "application/pdf", "pracownicy.pdf");
     }
 
     [HttpGet("{id:int}")]
