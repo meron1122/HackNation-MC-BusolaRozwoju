@@ -60,6 +60,7 @@ builder.Services.AddScoped<AccessScopeService>();
 builder.Services.AddAgent(builder.Configuration);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<SignatureService>();
+builder.Services.AddSingleton<DevSignatureStore>();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddExceptionHandler<DbExceptionHandler>();
 builder.Services.AddProblemDetails();

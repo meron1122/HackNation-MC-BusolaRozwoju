@@ -4,9 +4,12 @@ import { SignaturePad } from './SignaturePad'
 
 type Info = { title: string; signerName: string; requestedBy: string | null; status: string; linkExpiresAt: string }
 
-/** Publiczna strona sygnatariusza (/podpis/{token}): bez logowania, działa na telefonie i ekranie dotykowym. */
-export function SignPage({ token }: { token: string }) {
-  const path = `sign/${encodeURIComponent(token)}`
+/**
+ * Publiczna strona sygnatariusza (/podpis/{token}): bez logowania, działa na telefonie i ekranie dotykowym.
+ * test = piaskownica z zakładki Dev (/podpis-test/{token}): to samo, ale API w pamięci, bez zapisu w bazie.
+ */
+export function SignPage({ token, test = false }: { token: string; test?: boolean }) {
+  const path = `${test ? 'dev/sign' : 'sign'}/${encodeURIComponent(token)}`
   const [info, setInfo] = useState<Info | null>(null)
   const [error, setError] = useState('')
   const [png, setPng] = useState<string | null>(null)
@@ -33,6 +36,7 @@ export function SignPage({ token }: { token: string }) {
   return (
     <main className="sign-page">
       <h1>Busola Rozwoju</h1>
+      {test && <p role="note" className="test-banner">Tryb testowy: podpis nie zostanie zapisany w systemie.</p>}
       {done === 'signed' ? (
         <p role="status" className="sign-done">Dziękujemy, podpis został zapisany. Możesz zamknąć tę stronę.</p>
       ) : done === 'declined' ? (

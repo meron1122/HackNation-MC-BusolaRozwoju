@@ -4,6 +4,7 @@ import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type 
 import { Avatar } from './Avatar'
 import { CrudPage, ServiceName, type Column, type Field } from './Crud'
 import { DeadlinesPage } from './Deadlines'
+import { DevPage } from './Dev'
 import { EvaluationsPage } from './Evaluations'
 import { Login } from './Login'
 import { SignaturesPage } from './Signatures'
@@ -141,6 +142,12 @@ const PAGES: Page[] = [
     label: 'Podpisy',
     visible: () => true,
     render: () => <SignaturesPage />,
+  },
+  {
+    key: 'dev',
+    label: 'Dev',
+    visible: isSuperAdmin,
+    render: () => <DevPage />,
   },
 ]
 

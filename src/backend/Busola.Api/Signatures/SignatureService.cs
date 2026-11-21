@@ -265,7 +265,7 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
     private static string Hash(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
     /// <summary>Data URL PNG z canvasa → zdekodowany i zakodowany od nowa PNG (zapisujemy tylko bajty z naszego enkodera).</summary>
-    private static byte[]? NormalizePng(string dataUrl)
+    public static byte[]? NormalizePng(string dataUrl)
     {
         const string prefix = "data:image/png;base64,";
         if (!dataUrl.StartsWith(prefix, StringComparison.Ordinal) || dataUrl.Length > prefix.Length + MaxImageBytes * 4 / 3 + 4)

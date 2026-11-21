@@ -143,7 +143,7 @@ export function SignaturesPage() {
                   <td>{i.signerName}</td>
                   <td>{STATUS_LABELS[i.status]}</td>
                   <td>{formatDate(i.createdAt)}</td>
-                  <td>{i.status === 'Signed' ? <SignatureImage id={i.id} /> : '—'}</td>
+                  <td>{i.status === 'Signed' ? <SignatureImage path={`signatures/${i.id}/image`} /> : '—'}</td>
                   <td className="actions">
                     {(i.status === 'Pending' || i.status === 'Expired') && (
                       <button className="link" onClick={() => renew(i.id)}>Pokaż kod QR</button>
@@ -163,13 +163,16 @@ export function SignaturesPage() {
  * Link do podpisu: kod QR dla telefonu, przycisk dla tego urządzenia (ekran dotykowy) i status odświeżany na żywo.
  * onFinished dostaje status, gdy prośba przestanie czekać (podpisano, odrzucono, link wygasł).
  */
-export function SignatureLinkPanel({ requestId, token, onFinished, onClose }: {
+export function SignatureLinkPanel({ requestId, token, onFinished, onClose, test = false }: {
   requestId: string
   token: string
   onFinished?: (status: SignatureRequest['status']) => void
   onClose: () => void
+  /** Piaskownica z zakładki Dev: API w pamięci i strona /podpis-test. */
+  test?: boolean
 }) {
-  const url = `${location.origin}/podpis/${encodeURIComponent(token)}`
+  const apiBase = test ? 'dev/signatures' : 'signatures'
+  const url = `${location.origin}/${test ? 'podpis-test' : 'podpis'}/${encodeURIComponent(token)}`
   const [item, setItem] = useState<SignatureRequest | null>(null)
   const onFinishedRef = useRef(onFinished)
   useEffect(() => {
@@ -178,7 +181,7 @@ export function SignatureLinkPanel({ requestId, token, onFinished, onClose }: {
 
   useEffect(() => {
     let done = false
-    const tick = () => api<SignatureRequest>(`signatures/${requestId}`).then((r) => {
+    const tick = () => api<SignatureRequest>(`${apiBase}/${requestId}`).then((r) => {
       if (done) return
       setItem(r)
       if (r.status !== 'Pending') {
@@ -192,7 +195,7 @@ export function SignatureLinkPanel({ requestId, token, onFinished, onClose }: {
       done = true
       clearInterval(timer)
     }
-  }, [requestId])
+  }, [requestId, apiBase])
 
   if (!item) return null
   return (
@@ -204,7 +207,7 @@ export function SignatureLinkPanel({ requestId, token, onFinished, onClose }: {
           {item.status === 'Pending' ? 'Czekam na podpis…' : STATUS_LABELS[item.status]}
           {item.completedAt && ` · ${formatDate(item.completedAt)}`}
         </p>
-        {item.status === 'Signed' && <SignatureImage id={item.id} large />}
+        {item.status === 'Signed' && <SignatureImage path={`${apiBase}/${item.id}/image`} large />}
         {item.status === 'Pending' && (
           <div className="buttons">
             <a className="button" href={url} target="_blank" rel="noopener">Podpisz na tym urządzeniu</a>
@@ -226,12 +229,12 @@ export function SignatureLinkPanel({ requestId, token, onFinished, onClose }: {
 }
 
 /** Obraz wymaga tokenu, więc idzie przez fetch i blob URL, jak avatary. */
-function SignatureImage({ id, large }: { id: string; large?: boolean }) {
+function SignatureImage({ path, large }: { path: string; large?: boolean }) {
   const [src, setSrc] = useState<string | null>(null)
   useEffect(() => {
     let url: string | null = null
     let cancelled = false
-    apiBlobUrl(`signatures/${id}/image`).then((u) => {
+    apiBlobUrl(path).then((u) => {
       if (cancelled) {
         if (u) URL.revokeObjectURL(u)
         return
@@ -243,6 +246,6 @@ function SignatureImage({ id, large }: { id: string; large?: boolean }) {
       cancelled = true
       if (url) URL.revokeObjectURL(url)
     }
-  }, [id])
+  }, [path])
   return src ? <img src={src} alt="Podpis odręczny" className={large ? 'signature-image large' : 'signature-image'} /> : null
 }
