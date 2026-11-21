@@ -178,3 +178,15 @@ a.button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
 .created-notice p { margin: 0; flex: 1; }
 code.password { font-size: 1.05rem; padding: 0.1rem 0.4rem; border: 1px solid var(--border); border-radius: 4px; user-select: all; }
 .test-banner { margin: 0; padding: 0.5rem 0.75rem; border: 1px dashed var(--danger); border-radius: 6px; color: var(--danger); }
+
+.criteria { grid-column: 1 / -1; display: grid; gap: 0.5rem; }
+.criteria h4 { margin: 0; font-size: 0.95rem; }
+.guidance { margin: 0; padding-left: 1.2rem; color: var(--muted); font-size: 0.85rem; }
+.criterion { border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; }
+.criterion summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; cursor: pointer; }
+.criterion-score { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--muted); }
+.criterion .indicator { border: 0; border-top: 1px solid var(--border); padding: 0.6rem 0 0.2rem; margin: 0.4rem 0 0; display: grid; gap: 0.3rem; }
+.criterion .indicator legend { font-weight: 600; font-size: 0.9rem; padding: 0; margin-bottom: 0.3rem; }
+.criterion .level { display: grid; grid-template-columns: auto 1fr; gap: 0.5rem; align-items: start; font-size: 0.85rem; color: var(--text); cursor: pointer; }
+.criterion .level input { margin-top: 0.2rem; }
+.criterion .level.no-basis { color: var(--muted); }

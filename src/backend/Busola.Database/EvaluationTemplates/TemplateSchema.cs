@@ -18,7 +18,8 @@ public sealed record TemplateSchema(
     IReadOnlyDictionary<string, IReadOnlyList<ScaleOption>> Scales,
     string? AppliesTo = null,
     string? LegalBasis = null,
-    JsonElement? Scoring = null)
+    JsonElement? Scoring = null,
+    CompetencyModel? CompetencyModel = null)
 {
     public static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -29,7 +30,7 @@ public sealed record TemplateSchema(
     public static readonly IReadOnlySet<string> FieldTypes = new HashSet<string>
     {
         "text", "longText", "date", "dateRange", "year", "choice", "person", "signature",
-        "scores", "average", "level", "criteriaSelection", "notice",
+        "scores", "average", "level", "criteriaSelection", "notice", "indicatorScores",
     };
 
     public static TemplateSchema Parse(string json) =>
@@ -111,6 +112,8 @@ public sealed record TemplateSchema(
             CheckCondition(field.RequiredWhen, $"Pole '{field.Key}'");
         }
 
+        ValidateCompetencies(fields, errors);
+
         if (errors.Count > 0)
         {
             throw new InvalidDataException($"Szablon '{Title}' jest niespójny:{Environment.NewLine}- " + string.Join($"{Environment.NewLine}- ", errors));
@@ -124,6 +127,79 @@ public sealed record TemplateSchema(
             }
         }
     }
+
+    /// <summary>
+    /// Kryteria ↔ model kompetencji: każde oceniane kryterium ma kompetencję, a każdy jej wskaźnik — opis dla
+    /// każdego stopnia skali arkusza (pierwsza ocena: 3/5/7, okresowa: 1–9).
+    /// </summary>
+    private void ValidateCompetencies(List<FieldDefinition> fields, List<string> errors)
+    {
+        var indicatorFields = fields.Where(f => f.Type == "indicatorScores").ToList();
+        if (CompetencyModel is null)
+        {
+            if (indicatorFields.Count > 0)
+            {
+                errors.Add("Pola 'indicatorScores' wymagają competencyModel.");
+            }
+
+            return;
+        }
+
+        var competencies = CompetencyModel.Competencies;
+        Unique(competencies.Values.SelectMany(c => c.Indicators).Select(i => i.Key), "wskaźnik", errors);
+
+        foreach (var indicatorField in indicatorFields)
+        {
+            var scores = fields.FirstOrDefault(f => f.Key == ExtraString(indicatorField, "of") && f.Type == "scores");
+            if (scores is null)
+            {
+                errors.Add($"Pole '{indicatorField.Key}': 'of' musi wskazywać pole typu 'scores'.");
+                continue;
+            }
+
+            var scaleKeys = Scales.GetValueOrDefault(ExtraString(scores, "scale") ?? "")?.Select(o => o.Key).ToList() ?? [];
+            var criterionKeys = new List<string>();
+            if (scores.Extra?.GetValueOrDefault("items") is { ValueKind: JsonValueKind.Array } items)
+            {
+                criterionKeys.AddRange(items.EnumerateArray().Select(i => i.GetProperty("key").GetString()!));
+            }
+
+            if (fields.FirstOrDefault(f => f.Key == ExtraString(scores, "itemsFrom")) is { } selection)
+            {
+                if (selection.Extra?.GetValueOrDefault("mandatory") is { ValueKind: JsonValueKind.Array } mandatory)
+                {
+                    criterionKeys.AddRange(mandatory.EnumerateArray().Select(i => i.GetProperty("key").GetString()!));
+                }
+
+                if (selection.Extra?.GetValueOrDefault("additional") is { ValueKind: JsonValueKind.Object } additional
+                    && additional.TryGetProperty("from", out var from) && from.GetString() == "competencyModel")
+                {
+                    criterionKeys.AddRange(competencies.Keys);
+                }
+            }
+
+            foreach (var key in criterionKeys.Distinct())
+            {
+                if (!competencies.TryGetValue(key, out var competency))
+                {
+                    errors.Add($"Pole '{scores.Key}': kryterium '{key}' nie ma kompetencji w competencyModel.");
+                    continue;
+                }
+
+                foreach (var indicator in competency.Indicators)
+                {
+                    var missing = scaleKeys.Where(k => !indicator.Levels.ContainsKey(k)).ToList();
+                    if (missing.Count > 0)
+                    {
+                        errors.Add($"Wskaźnik '{indicator.Key}': brak opisu poziomów {string.Join(", ", missing)}.");
+                    }
+                }
+            }
+        }
+    }
+
+    private static string? ExtraString(FieldDefinition field, string name) =>
+        field.Extra?.TryGetValue(name, out var value) == true && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     private static HashSet<string> Unique(IEnumerable<string> keys, string kind, List<string> errors)
     {
@@ -189,3 +265,14 @@ public sealed record FieldDefinition(
 public sealed record Condition(string Field, IReadOnlyList<string> In);
 
 public sealed record ScaleOption(int Value, string Key, string Label);
+
+/// <summary>Model kompetencji (Kompas Kompetencji): kompetencje = kryteria oceny, wskaźniki behawioralne = pytania.</summary>
+public sealed record CompetencyModel(
+    string Source,
+    IReadOnlyList<string> Guidance,
+    IReadOnlyDictionary<string, CompetencyDefinition> Competencies);
+
+public sealed record CompetencyDefinition(string Name, IReadOnlyList<IndicatorDefinition> Indicators);
+
+/// <summary>Levels: opis zachowania dla każdego klucza poziomu skali (far_below … far_above).</summary>
+public sealed record IndicatorDefinition(string Key, string Text, IReadOnlyDictionary<string, string> Levels);

@@ -11,7 +11,17 @@ type Field = { key: string; type: string; label?: string; required?: boolean; vi
 type Section = { key: string; title: string; part?: string; stage: string; visibleWhen?: Cond; fields: Field[] }
 type ScaleOption = { value: number; key: string; label: string }
 type Level = { key: string; label: string; min?: number; minExclusive?: number; max: number }
-type Schema = { title: string; sections: Section[]; scales: Record<string, ScaleOption[]>; scoring?: { levels?: Level[] } }
+type Indicator = { key: string; text: string; levels: Record<string, string> }
+type Competency = { name: string; indicators: Indicator[] }
+/** Model kompetencji: kryteria (kompetencje) z pytaniami (wskaźnikami behawioralnymi) i opisami poziomów. */
+type CompetencyModel = { source: string; guidance: string[]; competencies: Record<string, Competency> }
+type Schema = {
+  title: string; sections: Section[]; scales: Record<string, ScaleOption[]>; scoring?: { levels?: Level[] }
+  competencyModel?: CompetencyModel
+}
+
+/** Wartość wskaźnika bez oceny — model wymaga odnotowania braku okazji do obserwacji. */
+const NO_BASIS = 'n/a'
 type Answer = { fieldKey: string; itemKey: string | null; valueText: string | null; valueNumber: number | null; valueDate: string | null; valueDateTo: string | null }
 type Stage = { key: string; title: string; status: string; optional: boolean; dueFrom: string | null; dueTo: string | null; completedOn: string | null; overdue: boolean }
 type Signature = { id: number; fieldKey: string; role: string; signerName: string; signedOn: string; place: string | null; hasImage: boolean }
@@ -266,15 +276,40 @@ function SheetForm({ detail, onSaved }: { detail: Detail; onSaved: () => void })
     setValues((v) => ({ ...v, [keyOf(fieldKey, itemKey)]: { ...(v[keyOf(fieldKey, itemKey)] ?? emptyAnswer(fieldKey, itemKey)), ...patch } }))
   const matches = (c?: Cond) => !c || c.in.includes(get(c.field)?.valueText ?? '')
 
+  const competencies = schema.competencyModel?.competencies ?? {}
+  const fromModel = (f?: Field) => f?.additional?.from === 'competencyModel'
+
+  // Kryteria dodatkowe wybrane z modelu: wpisy pola criteriaSelection spoza obowiązkowych.
+  function additionalKeys(source: Field): string[] {
+    const mandatory = new Set((source.mandatory ?? []).map((m: { key: string }) => m.key))
+    return Object.values(values)
+      .filter((a) => a.fieldKey === source.key && a.itemKey && !mandatory.has(a.itemKey) && a.valueText)
+      .map((a) => a.itemKey!)
+  }
+
   // Pozycje ocen cząstkowych: z szablonu albo z wybranych kryteriów (obowiązkowe + dodatkowe).
   function scoreItems(field: Field): { key: string; label: string }[] {
     if (field.items) return field.items
     const source = allFields.find((f) => f.key === field.itemsFrom)
     if (!source) return []
-    const additional = Array.from({ length: source.additional?.max ?? 0 }, (_, i) => `extra_${i + 1}`)
-      .map((key) => ({ key, label: get(source.key, key)?.valueText ?? '' }))
-      .filter((x) => x.label)
+    const additional = fromModel(source)
+      ? additionalKeys(source).map((key) => ({ key, label: competencies[key]?.name ?? get(source.key, key)?.valueText ?? key }))
+      : Array.from({ length: source.additional?.max ?? 0 }, (_, i) => `extra_${i + 1}`)
+        .map((key) => ({ key, label: get(source.key, key)?.valueText ?? '' }))
+        .filter((x) => x.label)
     return [...(source.mandatory ?? []), ...additional]
+  }
+
+  // Podpowiedź oceny cząstkowej: średnia ocenionych wskaźników zaokrąglona do najbliższego stopnia skali.
+  function suggestion(indicatorField: Field | undefined, competency: Competency, scale: ScaleOption[]) {
+    if (!indicatorField) return null
+    const answers = competency.indicators.map((i) => get(indicatorField.key, i.key))
+    const rated = answers.map((a) => a?.valueNumber).filter((n): n is number => n != null)
+    const noBasis = answers.filter((a) => a?.valueText === NO_BASIS).length
+    if (rated.length === 0) return { rated: 0, noBasis, total: competency.indicators.length, mean: null, value: null }
+    const mean = rated.reduce((a, b) => a + b, 0) / rated.length
+    const value = scale.reduce((best, o) => (Math.abs(o.value - mean) < Math.abs(best - mean) ? o.value : best), scale[0].value)
+    return { rated: rated.length, noBasis, total: competency.indicators.length, mean: Math.round(mean * 100) / 100, value }
   }
 
   function average(scoresKey: string): number | null {
@@ -360,6 +395,31 @@ function SheetForm({ detail, onSaved }: { detail: Detail; onSaved: () => void })
           </fieldset>
         )
       case 'criteriaSelection':
+        if (fromModel(f)) {
+          const mandatory = new Set((f.mandatory ?? []).map((m: { key: string }) => m.key))
+          const selected = additionalKeys(f)
+          return (
+            <fieldset key={f.key}>
+              <legend>{label}</legend>
+              <p className="muted">Obowiązkowe: {(f.mandatory ?? []).map((m: { label: string }) => m.label).join(', ')}</p>
+              {Array.from({ length: f.additional.max }, (_, i) => (
+                <label key={i} className="check">Dodatkowe {i + 1}
+                  <select value={selected[i] ?? ''} disabled={disabled} onChange={(e) => {
+                    if (selected[i]) set(f.key, selected[i], { valueText: null })
+                    if (e.target.value) set(f.key, e.target.value, { valueText: competencies[e.target.value].name })
+                  }}>
+                    <option value="">— brak —</option>
+                    {Object.entries(competencies)
+                      .filter(([key]) => !mandatory.has(key) && (key === selected[i] || !selected.includes(key)))
+                      .sort(([, a], [, b]) => a.name.localeCompare(b.name, 'pl'))
+                      .map(([key, c]) => <option key={key} value={key}>{c.name}</option>)}
+                  </select>
+                </label>
+              ))}
+              <p className="muted small">Z modelu kompetencji. Wskaźniki wybranych kryteriów pojawią się w ocenach cząstkowych.</p>
+            </fieldset>
+          )
+        }
         return (
           <fieldset key={f.key}>
             <legend>{label}</legend>
@@ -373,22 +433,77 @@ function SheetForm({ detail, onSaved }: { detail: Detail; onSaved: () => void })
         )
       case 'scores': {
         const scale = schema.scales[f.scale] ?? []
+        const indicatorField = allFields.find((x) => x.type === 'indicatorScores' && x.of === f.key)
+        const scoreSelect = (item: { key: string }) => (
+          <select value={get(f.key, item.key)?.valueNumber ?? ''} disabled={disabled}
+            onChange={(e) => set(f.key, item.key, { valueNumber: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">—</option>
+            {scale.map((o) => <option key={o.value} value={o.value}>{o.value} – {o.label}</option>)}
+          </select>
+        )
+        if (!indicatorField || !schema.competencyModel) {
+          return (
+            <fieldset key={f.key}>
+              <legend>{label}</legend>
+              {scoreItems(f).length === 0 && <p className="muted">Najpierw wybierz kryteria.</p>}
+              {scoreItems(f).map((item) => <label key={item.key} className="check">{item.label}{scoreSelect(item)}</label>)}
+            </fieldset>
+          )
+        }
         return (
-          <fieldset key={f.key}>
-            <legend>{label}</legend>
+          <div key={f.key} className="criteria">
+            <h4>{label}</h4>
+            <ul className="guidance">{schema.competencyModel.guidance.map((g) => <li key={g}>{g}</li>)}</ul>
             {scoreItems(f).length === 0 && <p className="muted">Najpierw wybierz kryteria.</p>}
-            {scoreItems(f).map((item) => (
-              <label key={item.key} className="check">{item.label}
-                <select value={get(f.key, item.key)?.valueNumber ?? ''} disabled={disabled}
-                  onChange={(e) => set(f.key, item.key, { valueNumber: e.target.value ? Number(e.target.value) : null })}>
-                  <option value="">—</option>
-                  {scale.map((o) => <option key={o.value} value={o.value}>{o.value} – {o.label}</option>)}
-                </select>
-              </label>
-            ))}
-          </fieldset>
+            {scoreItems(f).map((item) => {
+              const competency = competencies[item.key]
+              const hint = competency && suggestion(indicatorField, competency, scale)
+              return (
+                <details key={item.key} className="criterion" open={!detail.isFinal}>
+                  <summary>
+                    <strong>{item.label}</strong>
+                    <span className="criterion-score" onClick={(e) => e.preventDefault()}>Ocena cząstkowa {scoreSelect(item)}</span>
+                  </summary>
+                  {hint && (
+                    <p className="muted small">
+                      Ocenione wskaźniki: {hint.rated} z {hint.total}{hint.noBasis > 0 && `, brak podstaw: ${hint.noBasis}`}
+                      {hint.value != null && <>
+                        {' '}· średnia {hint.mean} → sugerowana ocena <strong>{hint.value}</strong>{' '}
+                        {!disabled && get(f.key, item.key)?.valueNumber !== hint.value && (
+                          <button type="button" className="link" onClick={() => set(f.key, item.key, { valueNumber: hint.value })}>Użyj</button>
+                        )}
+                      </>}
+                    </p>
+                  )}
+                  {competency?.indicators.map((indicator) => {
+                    const answer = get(indicatorField.key, indicator.key)
+                    const name = `${detail.id}-${indicator.key}`
+                    return (
+                      <fieldset key={indicator.key} className="indicator" disabled={disabled}>
+                        <legend>{indicator.text}</legend>
+                        {scale.filter((o) => indicator.levels[o.key]).map((o) => (
+                          <label key={o.key} className="level">
+                            <input type="radio" name={name} checked={answer?.valueNumber === o.value}
+                              onChange={() => set(indicatorField.key, indicator.key, { valueNumber: o.value, valueText: null })} />
+                            <span><strong>{o.value} – {o.label}.</strong> {indicator.levels[o.key]}</span>
+                          </label>
+                        ))}
+                        <label className="level no-basis">
+                          <input type="radio" name={name} checked={answer?.valueText === NO_BASIS}
+                            onChange={() => set(indicatorField.key, indicator.key, { valueNumber: null, valueText: NO_BASIS })} />
+                          <span>Brak podstaw do oceny (nie było okazji zaobserwować zachowania)</span>
+                        </label>
+                      </fieldset>
+                    )
+                  })}
+                </details>
+              )
+            })}
+          </div>
         )
       }
+      case 'indicatorScores':
+        return null // rysowane razem z ocenami cząstkowymi (pole „of”)
       case 'average':
         return <p key={f.key}><strong>{f.label}:</strong> {average(f.of) ?? '—'}</p>
       case 'level': {

@@ -13,9 +13,14 @@ internal static class EvaluationTemplateSeed
 {
     public static readonly EvaluationTemplate[] Templates =
     [
-        Load(1, "first", 1, EvaluationKind.First, active: true),
-        Load(2, "periodic-b", 1, EvaluationKind.Periodic, active: true),
-        Load(3, "periodic-c", 1, EvaluationKind.Periodic, active: true),
+        Load(1, "first", 1, EvaluationKind.First, active: false),
+        Load(2, "periodic-b", 1, EvaluationKind.Periodic, active: false),
+        Load(3, "periodic-c", 1, EvaluationKind.Periodic, active: false),
+
+        // v2: model kompetencji — wskaźniki behawioralne z opisami poziomów.
+        Load(4, "first", 2, EvaluationKind.First, active: true),
+        Load(5, "periodic-b", 2, EvaluationKind.Periodic, active: true),
+        Load(6, "periodic-c", 2, EvaluationKind.Periodic, active: true),
     ];
 
     private static EvaluationTemplate Load(int id, string code, int version, EvaluationKind kind, bool active)

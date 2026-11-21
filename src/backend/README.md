@@ -81,6 +81,12 @@ Szablon (`Busola.Database/EvaluationTemplates/<kod>.v<wersja>.json`, kontrakt i 
 - `stages`: etapy w kolejności. `deadline.anchor` to `start` albo `stage:<wcześniejszy etap>` (data jego wykonania), `earliest`/`latest` to `{ "months": n }` / `{ "days": n }`, a `completesTo` to status po wykonaniu etapu.
 - `sections` → `fields`: sekcje arkusza przypisane do etapów. Typy pól: `text`, `longText`, `date`, `dateRange`, `year`, `choice`, `person` (imię, nazwisko, komórka, stanowisko dla roli `evaluated`/`supervisor`/`unitHead`/`evaluator`), `signature`, `scores`, `average`, `level`, `criteriaSelection`, `notice`. Warunki: `visibleWhen`/`requiredWhen` (`{ field, in }`), podpowiedzi wartości: `prefill`.
 - `scales` i `scoring`: skale ocen cząstkowych, progi poziomów i reguły oceny pozytywnej z przypisów do arkuszy.
+- `competencyModel` (od v2): model kompetencji z Kompasu Kompetencji (`Model_kompetencji.xlsx`): 14 kompetencji = kryteria, 49 wskaźników behawioralnych = pytania, każdy z opisem zachowania dla każdego stopnia skali, plus wskazówki do oceniania.
+  - **Pierwsza ocena:** skala 3/5/7, więc ma tylko trzy środkowe opisy i swoje 5 kompetencji.
+  - **Ocena okresowa:** skala 1/3/5/7/9 i wszystkie 14 kompetencji; kryteria dodatkowe (max 3) wybiera się z modelu.
+  - **Zapis:** wskaźniki trafiają do pola `indicatorScores` (np. `elementsIndicators` / `scoresIndicators`, `item_key` = klucz wskaźnika, np. `reliability_1`), jako punkty albo `value_text = 'n/a'` przy braku podstaw do oceny.
+  - **Ocena cząstkowa kryterium** zostaje decyzją oceniającego; formularz podpowiada średnią wskaźników zaokrągloną do najbliższego stopnia skali.
+  - **Walidacja:** każde kryterium musi mieć kompetencję, a każdy wskaźnik opis dla każdego stopnia skali arkusza.
 
 Terminy:
 
