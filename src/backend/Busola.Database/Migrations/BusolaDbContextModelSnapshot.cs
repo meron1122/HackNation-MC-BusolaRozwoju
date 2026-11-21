@@ -149,6 +149,10 @@ namespace Busola.Database.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("last_name");
 
+                    b.Property<bool>("SubjectToFirstEvaluation")
+                        .HasColumnType("boolean")
+                        .HasColumnName("subject_to_first_evaluation");
+
                     b.Property<int?>("SupervisorId")
                         .HasColumnType("integer")
                         .HasColumnName("supervisor_id");

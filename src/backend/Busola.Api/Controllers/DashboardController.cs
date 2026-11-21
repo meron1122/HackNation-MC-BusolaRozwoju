@@ -14,6 +14,34 @@ namespace Busola.Api.Controllers;
 [Route("api/dashboard")]
 public sealed class DashboardController(BusolaDbContext db, AccessScopeService access) : ControllerBase
 {
+    /// <summary>Pracownicy w zakresie, którzy nie mają żadnej otwartej (niezamkniętej) oceny.</summary>
+    [HttpGet("without-evaluation")]
+    [Authorize(Policy = Permissions.ReadEvaluations)]
+    public async Task<IReadOnlyList<EmployeeWithoutEvaluationDto>> WithoutEvaluation(CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.ReadEvaluations, ct);
+        var employees = await db.Employees
+            .InScope(scope)
+            .OrderBy(e => e.LastName).ThenBy(e => e.FirstName)
+            .Select(e => new EmployeeWithoutEvaluationDto(e.Id, e.LastName + " " + e.FirstName, e.HireDate, e.SubjectToFirstEvaluation))
+            .ToListAsync(ct);
+
+        var ids = employees.Select(e => e.EmployeeId).ToList();
+        var evaluations = await db.Evaluations
+            .Where(e => ids.Contains(e.EmployeeId))
+            .Select(e => new { e.EmployeeId, e.TemplateId, e.Status })
+            .ToListAsync(ct);
+
+        // Statusy końcowe są w szablonach (jsonb), więc „otwarta” liczymy w pamięci.
+        var schemas = await EvaluationWorkflow.LoadSchemasAsync(db, evaluations.Select(e => e.TemplateId), ct);
+        var withOpen = evaluations
+            .Where(e => !EvaluationWorkflow.IsFinal(schemas[e.TemplateId], e.Status))
+            .Select(e => e.EmployeeId)
+            .ToHashSet();
+
+        return employees.Where(e => !withOpen.Contains(e.EmployeeId)).ToList();
+    }
+
     /// <summary>Otwarte etapy ocen w zakresie użytkownika z terminem w ciągu `days` dni albo już po terminie.</summary>
     [HttpGet("deadlines")]
     [Authorize(Policy = Permissions.ReadEvaluations)]

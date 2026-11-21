@@ -172,6 +172,18 @@ function EvaluationCard({ id, onBack }: { id: number; onBack: () => void }) {
         {detail.isOwn && <p className="muted">To Twoja ocena — możesz ją przeglądać i podpisać swoje pola.</p>}
         {!detail.canEdit && !detail.isOwn && <p className="muted">Tylko podgląd.</p>}
       </div>
+      {detail.canEdit && detail.stages.some((s) => s.key === 'criteria' && s.status === 'Pending')
+        && detail.schema.sections.some((s) => s.fields.some((f) => f.type === 'criteriaSelection' && f.additional?.from === 'competencyModel')) && (
+        <div className="card panel cycle-start">
+          <p>
+            <strong>Początek cyklu:</strong> wybierz do 3 kryteriów dodatkowych z modelu kompetencji i omów je z ocenianym
+            {detail.stages.find((s) => s.key === 'criteria')?.dueTo && <> (termin: {detail.stages.find((s) => s.key === 'criteria')!.dueTo})</>}.
+          </p>
+          <div className="buttons">
+            <button onClick={() => document.getElementById('criteria-picker')?.scrollIntoView({ behavior: 'smooth' })}>Wybierz kryteria</button>
+          </div>
+        </div>
+      )}
       <Stages detail={detail} onChange={load} />
       {error && <p role="alert" className="error">{error}</p>}
       <SheetForm key={JSON.stringify(detail.answers)} detail={detail} onSaved={load} />
@@ -396,28 +408,46 @@ function SheetForm({ detail, onSaved }: { detail: Detail; onSaved: () => void })
         )
       case 'criteriaSelection':
         if (fromModel(f)) {
-          const mandatory = new Set((f.mandatory ?? []).map((m: { key: string }) => m.key))
+          const mandatory: { key: string; label: string }[] = f.mandatory ?? []
           const selected = additionalKeys(f)
+          const max: number = f.additional.max
+          const toggle = (key: string) => {
+            if (selected.includes(key)) set(f.key, key, { valueText: null })
+            else if (selected.length < max) set(f.key, key, { valueText: competencies[key].name })
+          }
           return (
-            <fieldset key={f.key}>
-              <legend>{label}</legend>
-              <p className="muted">Obowiązkowe: {(f.mandatory ?? []).map((m: { label: string }) => m.label).join(', ')}</p>
-              {Array.from({ length: f.additional.max }, (_, i) => (
-                <label key={i} className="check">Dodatkowe {i + 1}
-                  <select value={selected[i] ?? ''} disabled={disabled} onChange={(e) => {
-                    if (selected[i]) set(f.key, selected[i], { valueText: null })
-                    if (e.target.value) set(f.key, e.target.value, { valueText: competencies[e.target.value].name })
-                  }}>
-                    <option value="">— brak —</option>
-                    {Object.entries(competencies)
-                      .filter(([key]) => !mandatory.has(key) && (key === selected[i] || !selected.includes(key)))
-                      .sort(([, a], [, b]) => a.name.localeCompare(b.name, 'pl'))
-                      .map(([key, c]) => <option key={key} value={key}>{c.name}</option>)}
-                  </select>
-                </label>
-              ))}
-              <p className="muted small">Z modelu kompetencji. Wskaźniki wybranych kryteriów pojawią się w ocenach cząstkowych.</p>
-            </fieldset>
+            <div key={f.key} id="criteria-picker" className="criteria-picker">
+              <h4>{label}</h4>
+              <p>
+                <strong>Obowiązkowe (z arkusza):</strong>{' '}
+                {mandatory.map((m) => <span key={m.key} className="chip">{m.label}</span>)}
+              </p>
+              <p className={selected.length === max ? 'success' : 'muted'}>
+                Kryteria dodatkowe (nie więcej niż {max}): wybrano <strong>{selected.length}/{max}</strong>.
+                {' '}Ich pytania (wskaźniki) pojawią się w ocenach cząstkowych.
+              </p>
+              <div className="competency-grid">
+                {Object.entries(competencies)
+                  .filter(([key]) => !mandatory.some((m) => m.key === key))
+                  .sort(([, a], [, b]) => a.name.localeCompare(b.name, 'pl'))
+                  .map(([key, c]) => {
+                    const checked = selected.includes(key)
+                    return (
+                      <div key={key} className={checked ? 'competency-card selected' : 'competency-card'}>
+                        <label className="check">
+                          <input type="checkbox" checked={checked} disabled={disabled || (!checked && selected.length >= max)}
+                            onChange={() => toggle(key)} />
+                          <strong>{c.name}</strong>
+                        </label>
+                        <details>
+                          <summary className="muted small">Pytania ({c.indicators.length})</summary>
+                          <ul>{c.indicators.map((i) => <li key={i.key}>{i.text}</li>)}</ul>
+                        </details>
+                      </div>
+                    )
+                  })}
+              </div>
+            </div>
           )
         }
         return (
@@ -475,27 +505,52 @@ function SheetForm({ detail, onSaved }: { detail: Detail; onSaved: () => void })
                       </>}
                     </p>
                   )}
-                  {competency?.indicators.map((indicator) => {
-                    const answer = get(indicatorField.key, indicator.key)
-                    const name = `${detail.id}-${indicator.key}`
-                    return (
-                      <fieldset key={indicator.key} className="indicator" disabled={disabled}>
-                        <legend>{indicator.text}</legend>
-                        {scale.filter((o) => indicator.levels[o.key]).map((o) => (
-                          <label key={o.key} className="level">
-                            <input type="radio" name={name} checked={answer?.valueNumber === o.value}
-                              onChange={() => set(indicatorField.key, indicator.key, { valueNumber: o.value, valueText: null })} />
-                            <span><strong>{o.value} – {o.label}.</strong> {indicator.levels[o.key]}</span>
-                          </label>
-                        ))}
-                        <label className="level no-basis">
-                          <input type="radio" name={name} checked={answer?.valueText === NO_BASIS}
-                            onChange={() => set(indicatorField.key, indicator.key, { valueNumber: null, valueText: NO_BASIS })} />
-                          <span>Brak podstaw do oceny (nie było okazji zaobserwować zachowania)</span>
-                        </label>
-                      </fieldset>
-                    )
-                  })}
+                  {competency && (
+                    // Układ jak w arkuszu modelu: wiersz = pytanie (wskaźnik), kolumna = poziom z opisem zachowania.
+                    <div className="table-wrap matrix-wrap">
+                      <table className="matrix">
+                        <thead>
+                          <tr>
+                            <th>Pytanie (wskaźnik behawioralny)</th>
+                            {scale.map((o) => <th key={o.key}>{o.value} – {o.label}</th>)}
+                            <th>Brak podstaw</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {competency.indicators.map((indicator) => {
+                            const answer = get(indicatorField.key, indicator.key)
+                            const name = `${detail.id}-${indicator.key}`
+                            const choose = (patch: Partial<Answer>) => !disabled && set(indicatorField.key, indicator.key, patch)
+                            return (
+                              <tr key={indicator.key}>
+                                <th scope="row">{indicator.text}</th>
+                                {scale.map((o) => (
+                                  <td key={o.key} className={answer?.valueNumber === o.value ? 'chosen' : undefined}
+                                    onClick={() => choose({ valueNumber: o.value, valueText: null })}>
+                                    <label>
+                                      <input type="radio" name={name} disabled={disabled} checked={answer?.valueNumber === o.value}
+                                        onChange={() => choose({ valueNumber: o.value, valueText: null })}
+                                        aria-label={`${indicator.text}: ${o.value} – ${o.label}`} />
+                                      <span>{indicator.levels[o.key]}</span>
+                                    </label>
+                                  </td>
+                                ))}
+                                <td className={answer?.valueText === NO_BASIS ? 'chosen no-basis' : 'no-basis'}
+                                  onClick={() => choose({ valueNumber: null, valueText: NO_BASIS })}>
+                                  <label>
+                                    <input type="radio" name={name} disabled={disabled} checked={answer?.valueText === NO_BASIS}
+                                      onChange={() => choose({ valueNumber: null, valueText: NO_BASIS })}
+                                      aria-label={`${indicator.text}: brak podstaw do oceny`} />
+                                    <span>Nie było okazji zaobserwować</span>
+                                  </label>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </details>
               )
             })}

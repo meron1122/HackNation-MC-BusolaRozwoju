@@ -27,13 +27,44 @@ const employeeFields: Field[] = [
     options: { path: `employees?${EMPLOYEES_QUERY}`, label: (e) => `${e.lastName} ${e.firstName}` },
   },
   { name: 'email', label: 'E-mail (login do konta)', type: 'email', createOnly: true },
+  {
+    name: 'subjectToFirstEvaluation',
+    label: 'Pierwsza ocena w służbie cywilnej',
+    type: 'checkbox',
+    note: <FirstEvaluationNote />,
+  },
 ]
 
+// Źródła: art. 35 ust. 1 ustawy o służbie cywilnej oraz przypisy 1 i 5 do arkusza pierwszej oceny.
+function FirstEvaluationNote() {
+  return (
+    <>
+      <p>
+        Zaznacz, jeśli pracownik podlega pierwszej ocenie — system założy jej cykl od daty zatrudnienia
+        (rozmowa wstępna do 21 dni, sprawozdanie do 7 mies., ocena w 8.–11. mies.). Bez zaznaczenia od razu
+        rusza cykl oceny okresowej (24 mies.).
+      </p>
+      <p>Pierwszej ocenie podlega:</p>
+      <ul>
+        <li>osoba podejmująca <strong>po raz pierwszy</strong> pracę w służbie cywilnej (umowa na czas określony 12 miesięcy),</li>
+        <li>
+          pracownik zatrudniony <strong>na zastępstwo</strong> nieobecnego członka korpusu służby cywilnej — jeśli strony
+          ustaliły, że podlega pierwszej ocenie (terminy liczy się wtedy od dnia tego ustalenia),
+        </li>
+        <li>absolwent <strong>KSAP</strong>, który nie złożył wniosku o mianowanie w służbie cywilnej,</li>
+        <li>pracownik zatrudniony <strong>na wyższym stanowisku</strong> w służbie cywilnej.</li>
+      </ul>
+      <p>Trzy ostatnie grupy nie zdają egzaminu ze służby przygotowawczej (przypis 5 arkusza).</p>
+    </>
+  )
+}
+
 // Hasło tymczasowe API zwraca tylko raz, przy zakładaniu pracownika (= jego konta).
-const employeeCreatedNotice = (created: { email: string; temporaryPassword: string }) => (
+const employeeCreatedNotice = (created: { email: string; temporaryPassword: string; evaluationTitle: string }) => (
   <p>
     Założono konto <strong>{created.email}</strong> z hasłem tymczasowym <code className="password">{created.temporaryPassword}</code>.
     Przekaż je pracownikowi — nie pokażemy go ponownie. Hasło zmienia się w „Moje konto”.
+    <br />Założono też cykl: <strong>{created.evaluationTitle}</strong> — terminy są już w zakładce „Terminy”.
   </p>
 )
 
@@ -45,6 +76,7 @@ const employeeColumns = (nav: Nav): Column[] => [
   ['E-mail', (e) => e.email ?? '—'],
   ['Urodzony', (e) => e.dateOfBirth],
   ['Zatrudniony', (e) => e.hireDate],
+  ['Pierwsza ocena', (e) => (e.subjectToFirstEvaluation ? 'tak' : '—')],
   ['Wydział', (e) => e.departmentName],
   ['Lokalizacja', (e) => e.locationName],
   ['Służba', (e) => <ServiceName name={e.serviceName} logoUrl={e.serviceLogoUrl} />],

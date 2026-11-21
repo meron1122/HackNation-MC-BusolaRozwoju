@@ -19,7 +19,8 @@ public sealed record EmployeeDto(
     int? SupervisorId,
     string? SupervisorName,
     bool HasAvatar,
-    string? Email)
+    string? Email,
+    bool SubjectToFirstEvaluation)
 {
     public static readonly Expression<Func<Employee, EmployeeDto>> Projection = e => new EmployeeDto(
         e.Id,
@@ -37,5 +38,6 @@ public sealed record EmployeeDto(
         e.SupervisorId,
         e.Supervisor != null ? e.Supervisor.FirstName + " " + e.Supervisor.LastName : null,
         e.User != null && e.User.Avatar != null,
-        e.User != null ? e.User.Email : null);
+        e.User != null ? e.User.Email : null,
+        e.SubjectToFirstEvaluation);
 }

@@ -8,6 +8,33 @@ namespace Busola.Api.Evaluations;
 /// <summary>Terminy i przejścia statusów według szablonu (TemplateSchema).</summary>
 public static class EvaluationWorkflow
 {
+    public const string FirstTemplate = "first";
+
+    /// <summary>Arkusz B — stanowisko z bezpośrednim kierowaniem pracownikami (ma podwładnych), C — pozostałe.</summary>
+    public static async Task<string> PeriodicTemplateCodeAsync(BusolaDbContext db, int employeeId, CancellationToken ct) =>
+        await db.Employees.AnyAsync(e => e.SupervisorId == employeeId, ct) ? "periodic-b" : "periodic-c";
+
+    /// <summary>Zakłada ocenę według aktywnej wersji szablonu (bez SaveChanges). Oceniający = obecny przełożony.</summary>
+    public static async Task<Evaluation> StartAsync(
+        BusolaDbContext db, Employee employee, string templateCode, DateOnly start, CancellationToken ct)
+    {
+        var template = await db.EvaluationTemplates.SingleAsync(t => t.Code == templateCode && t.IsActive, ct);
+        var schema = TemplateSchema.Parse(template.Schema);
+        var evaluation = new Evaluation
+        {
+            EmployeeId = employee.Id,
+            TemplateId = template.Id,
+            Template = template,
+            Status = schema.InitialStatus,
+            StartDate = start,
+            EvaluatorId = employee.SupervisorId,
+            CreatedAt = DateTimeOffset.UtcNow,
+            Stages = CreateStages(schema, start),
+        };
+        db.Evaluations.Add(evaluation);
+        return evaluation;
+    }
+
     /// <summary>Etapy nowej oceny. Terminy od „start” liczymy od razu, od „stage:x” — dopiero po wykonaniu etapu x.</summary>
     public static List<EvaluationStage> CreateStages(TemplateSchema schema, DateOnly start) =>
         schema.Stages.Select(definition =>
