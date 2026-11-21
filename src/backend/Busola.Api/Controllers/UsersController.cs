@@ -1,4 +1,5 @@
 using Busola.Api.Authorization;
+using Busola.Api.Infrastructure;
 using Busola.Api.Models;
 using Busola.Database;
 using Busola.Database.Authorization;
@@ -190,7 +191,7 @@ public sealed class UsersController(BusolaDbContext db, UserManager<User> userMa
 
     private ActionResult IdentityErrors(IdentityResult result)
     {
-        foreach (var error in result.Errors)
+        foreach (var error in result.Errors.WithoutDuplicateUserName())
         {
             ModelState.AddModelError(error.Code, error.Description);
         }

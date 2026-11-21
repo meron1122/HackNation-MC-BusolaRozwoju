@@ -24,12 +24,23 @@ const employeeFields: Field[] = [
     optional: true,
     options: { path: `employees?${EMPLOYEES_QUERY}`, label: (e) => `${e.lastName} ${e.firstName}` },
   },
+  { name: 'email', label: 'E-mail (login do konta)', type: 'email', createOnly: true },
 ]
+
+// Hasło tymczasowe API zwraca tylko raz, przy zakładaniu pracownika (= jego konta).
+const employeeCreatedNotice = (created: { email: string; temporaryPassword: string }) => (
+  <p>
+    Założono konto <strong>{created.email}</strong> z hasłem tymczasowym <code className="password">{created.temporaryPassword}</code>.
+    Przekaż je pracownikowi — nie pokażemy go ponownie. Hasło zmienia się w „Moje konto”.
+  </p>
+)
+
 const employeeColumns: Column[] = [
   ['Zdjęcie', (e) => (
     <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={`${e.firstName} ${e.lastName}`} size={28} />
   )],
   ['Nazwisko i imię', (e) => `${e.lastName} ${e.firstName}`],
+  ['E-mail', (e) => e.email ?? '—'],
   ['Urodzony', (e) => e.dateOfBirth],
   ['Zatrudniony', (e) => e.hireDate],
   ['Wydział', (e) => e.departmentName],
@@ -88,7 +99,8 @@ const PAGES: Page[] = [
     visible: (s) => can(s, 'read_employees'),
     render: (s) => (
       <CrudPage title="Pracownicy" path="employees" query={EMPLOYEES_QUERY} fields={employeeFields} columns={employeeColumns}
-        canAdd={can(s, 'add_employee')} canEdit={can(s, 'edit_employee')} canDelete={can(s, 'delete_employee')} />
+        canAdd={can(s, 'add_employee')} canEdit={can(s, 'edit_employee')} canDelete={can(s, 'delete_employee')}
+        createdNotice={employeeCreatedNotice} />
     ),
   },
   {

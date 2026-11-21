@@ -7,8 +7,10 @@ export type Row = { id: number } & Record<string, any>
 export type Field = {
   name: string
   label: string
-  type?: 'text' | 'date' | 'url'
+  type?: 'text' | 'date' | 'url' | 'email'
   optional?: boolean
+  /** Tylko przy dodawaniu (np. e-mail, z którym powstaje konto); przy edycji pole jest ukryte i nie jest wysyłane. */
+  createOnly?: boolean
   /** Pole wyboru z listy z API, wartość to id. */
   options?: { path: string; label: (row: Row) => string }
 }
@@ -35,12 +37,15 @@ type Props = {
   canAdd: boolean
   canEdit: boolean
   canDelete: boolean
+  /** Komunikat po dodaniu, z odpowiedzi API (np. hasło tymczasowe nowego konta). */
+  createdNotice?: (created: any) => ReactNode
 }
 
-export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit, canDelete }: Props) {
+export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit, canDelete, createdNotice }: Props) {
   const [rows, setRows] = useState<Row[] | null>(null)
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<Row | 'new' | null>(null)
+  const [notice, setNotice] = useState<ReactNode>(null)
 
   const load = useCallback(
     () => api<Row[]>(query ? `${path}?${query}` : path).then(setRows, (e: Error) => setError(e.message)),
@@ -51,8 +56,12 @@ export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit,
   }, [load])
 
   async function save(body: Record<string, unknown>) {
-    if (editing === 'new') await api(path, 'POST', body)
-    else if (editing) await api(`${path}/${editing.id}`, 'PUT', body)
+    if (editing === 'new') {
+      const created = await api(path, 'POST', body)
+      setNotice(createdNotice?.(created) ?? null)
+    } else if (editing) {
+      await api(`${path}/${editing.id}`, 'PUT', body)
+    }
     setEditing(null)
     setError('')
     load()
@@ -73,9 +82,15 @@ export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit,
     <section>
       <div className="toolbar">
         <h2>{title}</h2>
-        {canAdd && editing === null && <button onClick={() => setEditing('new')}>Dodaj</button>}
+        {canAdd && editing === null && <button onClick={() => { setEditing('new'); setNotice(null) }}>Dodaj</button>}
       </div>
       {error && <p role="alert" className="error">{error}</p>}
+      {notice && (
+        <div className="created-notice" role="status">
+          {notice}
+          <button className="link" onClick={() => setNotice(null)}>Zamknij</button>
+        </div>
+      )}
       {editing !== null && (
         <EntityForm
           key={editing === 'new' ? 'new' : editing.id}
@@ -127,6 +142,7 @@ function EntityForm({ fields, row, onSave, onCancel }: {
   const [options, setOptions] = useState<Record<string, Row[]>>({})
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const visibleFields = row ? fields.filter((f) => !f.createOnly) : fields
 
   useEffect(() => {
     for (const f of fields) {
@@ -142,7 +158,7 @@ function EntityForm({ fields, row, onSave, onCancel }: {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
     const body: Record<string, unknown> = {}
-    for (const f of fields) {
+    for (const f of visibleFields) {
       const raw = String(form.get(f.name) ?? '')
       body[f.name] = raw === '' && f.optional ? null : f.options ? Number(raw) : raw
     }
@@ -158,7 +174,7 @@ function EntityForm({ fields, row, onSave, onCancel }: {
 
   return (
     <form onSubmit={submit} className="form card">
-      {fields.map((f) => (
+      {visibleFields.map((f) => (
         <label key={f.name}>
           {f.label}
           {f.options && !options[f.name] ? (

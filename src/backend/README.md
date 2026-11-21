@@ -163,7 +163,7 @@ Endpointy (wszystkie poza logowaniem wymagają `Authorization: Bearer <token>`):
 | `POST /api/account/password` | `{ currentPassword, newPassword }` → nowy token |
 | `GET/PUT/DELETE /api/account/avatar` | `PUT` jako multipart z polem `file` |
 | `POST /api/account/two-factor/setup`, `…/enable`, `…/disable`, `…/recovery-codes` | konfiguracja 2FA (TOTP) |
-| `GET/POST /api/employees`, `GET/PUT/DELETE /api/employees/{id}` | `GET` przyjmuje `page`, `pageSize` |
+| `GET/POST /api/employees`, `GET/PUT/DELETE /api/employees/{id}` | `GET` przyjmuje `page`, `pageSize`. `POST` wymaga `email` i zakłada pracownika razem z kontem (w jednej transakcji), a odpowiedź zawiera jednorazowo `temporaryPassword`. `DELETE` usuwa pracownika razem z kontem; jeśli coś na nie wskazuje (oceny, wypełnione pola, podpisy), zwraca 409 i nic nie usuwa |
 | `GET /api/employees/{id}/avatar` | zdjęcie widzi ten, kto widzi pracownika |
 | `GET/POST /api/locations`, `GET/PUT/DELETE /api/locations/{id}` | |
 | `GET/POST /api/departments`, `GET/PUT/DELETE /api/departments/{id}` | `GET` przyjmuje `locationId` |

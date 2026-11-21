@@ -4,15 +4,22 @@ using Busola.Api.Models;
 using Busola.Database;
 using Busola.Database.Authorization;
 using Busola.Database.Entities;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Busola.Api.Controllers;
 
+/// <summary>
+/// Pracownik zawsze ma konto: założenie pracownika zakłada konto (bez ról — Pracownik/Przełożony wynikają z danych),
+/// a usunięcie pracownika usuwa konto. Dlatego wystarcza add_employee/delete_employee, bez manage_users.
+/// </summary>
 [ApiController]
 [Route("api/employees")]
-public sealed class EmployeesController(BusolaDbContext db, AccessScopeService access) : ControllerBase
+public sealed class EmployeesController(BusolaDbContext db, AccessScopeService access, UserManager<User> userManager)
+    : ControllerBase
 {
     [HttpGet]
     [Authorize(Policy = Permissions.ReadEmployees)]
@@ -63,13 +70,22 @@ public sealed class EmployeesController(BusolaDbContext db, AccessScopeService a
 
     [HttpPost]
     [Authorize(Policy = Permissions.AddEmployee)]
-    public async Task<ActionResult<EmployeeDto>> Create(EmployeeRequest request, CancellationToken ct)
+    public async Task<ActionResult<CreatedEmployeeDto>> Create(EmployeeRequest request, CancellationToken ct)
     {
         var scope = await access.ResolveAsync(Permissions.AddEmployee, ct);
+        var email = request.Email?.Trim();
+        if (string.IsNullOrEmpty(email))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Podaj e-mail — z nim zakładamy konto pracownika.");
+        }
+
         if (await ValidateAsync(request, scope, employeeId: null, departmentChanged: true, ct) is { } error)
         {
             return error;
         }
+
+        // Pracownik i konto razem albo wcale (np. zajęty e-mail cofa też pracownika).
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
 
         var employee = new Employee
         {
@@ -80,7 +96,24 @@ public sealed class EmployeesController(BusolaDbContext db, AccessScopeService a
         db.Employees.Add(employee);
         await db.SaveChangesAsync(ct);
 
-        return CreatedAtAction(nameof(Get), new { id = employee.Id }, await LoadDtoAsync(employee.Id, ct));
+        var password = PasswordGenerator.Generate();
+        var user = new User { UserName = email, Email = email, EmailConfirmed = true, EmployeeId = employee.Id };
+        var result = await userManager.CreateAsync(user, password);
+        if (!result.Succeeded)
+        {
+            await transaction.RollbackAsync(ct);
+            foreach (var identityError in result.Errors.WithoutDuplicateUserName())
+            {
+                ModelState.AddModelError(identityError.Code, identityError.Description);
+            }
+
+            return ValidationProblem(ModelState);
+        }
+
+        await transaction.CommitAsync(ct);
+
+        return CreatedAtAction(nameof(Get), new { id = employee.Id },
+            new CreatedEmployeeDto(await LoadDtoAsync(employee.Id, ct), email, password));
     }
 
     [HttpPut("{id:int}")]
@@ -111,9 +144,28 @@ public sealed class EmployeesController(BusolaDbContext db, AccessScopeService a
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
         var scope = await access.ResolveAsync(Permissions.DeleteEmployee, ct);
-        var deleted = await db.Employees.InScope(scope).Where(e => e.Id == id).ExecuteDeleteAsync(ct);
+        if (!await db.Employees.InScope(scope).AnyAsync(e => e.Id == id, ct))
+        {
+            return NotFound();
+        }
 
-        return deleted == 0 ? NotFound() : NoContent();
+        var myEmployeeId = await db.Users
+            .Where(u => u.Id == User.FindFirstValue(BusolaClaims.UserId))
+            .Select(u => u.EmployeeId)
+            .SingleAsync(ct);
+        if (myEmployeeId == id)
+        {
+            return Problem(statusCode: StatusCodes.Status403Forbidden, detail: "Nie możesz usunąć samego siebie.");
+        }
+
+        // Konto i pracownik razem. Gdy coś na nie wskazuje (oceny, wypełnione pola, podpisy), baza
+        // odrzuci usunięcie (409), transakcja się wycofa i oba zostaną.
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        await db.Users.Where(u => u.EmployeeId == id).ExecuteDeleteAsync(ct);
+        await db.Employees.Where(e => e.Id == id).ExecuteDeleteAsync(ct);
+        await transaction.CommitAsync(ct);
+
+        return NoContent();
     }
 
     private static void Apply(Employee employee, EmployeeRequest request)

@@ -2,6 +2,17 @@ using Microsoft.AspNetCore.Identity;
 
 namespace Busola.Api.Infrastructure;
 
+public static class IdentityErrorExtensions
+{
+    /// <summary>Login = e-mail, więc przy zajętym adresie Identity zgłasza dwa takie same błędy — zostawiamy jeden.</summary>
+    public static IEnumerable<IdentityError> WithoutDuplicateUserName(this IEnumerable<IdentityError> errors)
+    {
+        var list = errors.ToList();
+        var hasDuplicateEmail = list.Any(e => e.Code == nameof(IdentityErrorDescriber.DuplicateEmail));
+        return list.Where(e => !(hasDuplicateEmail && e.Code == nameof(IdentityErrorDescriber.DuplicateUserName)));
+    }
+}
+
 /// <summary>Komunikaty Identity trafiają prosto do UI, więc po polsku.</summary>
 public sealed class PolishIdentityErrorDescriber : IdentityErrorDescriber
 {
