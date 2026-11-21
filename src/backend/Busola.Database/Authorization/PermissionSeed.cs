@@ -33,16 +33,20 @@ internal static class PermissionSeed
         new() { Id = 11, Key = P.EditDepartment, Name = "Edycja wydziałów" },
         new() { Id = 12, Key = P.DeleteDepartment, Name = "Usuwanie wydziałów" },
         new() { Id = 13, Key = P.ManageUsers, Name = "Zarządzanie kontami i rolami" },
+        new() { Id = 14, Key = P.ReadEvaluations, Name = "Podgląd ocen" },
+        new() { Id = 15, Key = P.AddEvaluation, Name = "Zakładanie ocen" },
+        new() { Id = 16, Key = P.EditEvaluation, Name = "Wypełnianie ocen i zamykanie etapów" },
     ];
 
     // SuperAdmin nie ma wierszy — ma wszystko z urzędu.
     public static readonly RolePermission[] RolePermissions =
     [
-        .. Grant(RoleNames.Employee, P.ReadEmployees),
-        .. Grant(RoleNames.Supervisor, P.ReadEmployees),
+        .. Grant(RoleNames.Employee, P.ReadEmployees, P.ReadEvaluations),
+        .. Grant(RoleNames.Supervisor, P.ReadEmployees, P.ReadEvaluations, P.EditEvaluation),
         .. Grant(RoleNames.Hr,
             P.ReadEmployees, P.AddEmployee, P.EditEmployee, P.DeleteEmployee,
-            P.ReadLocations, P.ReadDepartments),
+            P.ReadLocations, P.ReadDepartments,
+            P.ReadEvaluations, P.AddEvaluation, P.EditEvaluation),
         .. Grant(RoleNames.ServiceAdmin, Permissions.Select(p => p.Key).ToArray()),
     ];
 

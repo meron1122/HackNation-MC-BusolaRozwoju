@@ -3,6 +3,8 @@ import { AccountPage } from './Account'
 import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
 import { Avatar } from './Avatar'
 import { CrudPage, ServiceName, type Column, type Field } from './Crud'
+import { DeadlinesPage } from './Deadlines'
+import { EvaluationsPage } from './Evaluations'
 import { Login } from './Login'
 import { SignaturesPage } from './Signatures'
 import { UsersPage } from './Users'
@@ -60,12 +62,26 @@ const serviceFields: Field[] = [
 ]
 const serviceColumns: Column[] = [['Nazwa', (s) => <ServiceName name={s.name} logoUrl={s.logoUrl} />]]
 
-type Page = { key: string; label: string; visible: (s: Session) => boolean; render: (s: Session) => ReactNode }
+/** Przejścia między stronami, np. z listy terminów prosto do karty oceny. */
+type Nav = { openEvaluation: number | null; showEvaluation: (id: number | null) => void }
+type Page = { key: string; label: string; visible: (s: Session) => boolean; render: (s: Session, nav: Nav) => ReactNode }
 
 // Dostępne dla każdego zalogowanego, otwierane z nagłówka (avatar + imię), nie z zakładek.
 const ACCOUNT_PAGE = 'account'
 
 const PAGES: Page[] = [
+  {
+    key: 'deadlines',
+    label: 'Terminy',
+    visible: (s) => can(s, 'read_evaluations'),
+    render: (_, nav) => <DeadlinesPage onOpen={(id) => nav.showEvaluation(id)} />,
+  },
+  {
+    key: 'evaluations',
+    label: 'Oceny',
+    visible: (s) => can(s, 'read_evaluations'),
+    render: (s, nav) => <EvaluationsPage canAdd={can(s, 'add_evaluation')} openId={nav.openEvaluation} onOpen={nav.showEvaluation} />,
+  },
   {
     key: 'employees',
     label: 'Pracownicy',
@@ -120,7 +136,15 @@ export default function App() {
   const [token, setTokenState] = useState(getToken)
   const [pageKey, setPageKey] = useState(PAGES[0].key)
   const [avatarVersion, setAvatarVersion] = useState(0)
+  const [openEvaluation, setOpenEvaluation] = useState<number | null>(null)
   const session = token ? readSession(token) : null
+  const nav: Nav = {
+    openEvaluation,
+    showEvaluation: (id) => {
+      setOpenEvaluation(id)
+      setPageKey('evaluations')
+    },
+  }
 
   useEffect(() => {
     const logout = () => setTokenState(null)
@@ -151,7 +175,7 @@ export default function App() {
         <nav>
           {pages.map((p) => (
             <button key={p.key} className={p === page ? 'tab active' : 'tab'} aria-current={p === page ? 'page' : undefined}
-              onClick={() => setPageKey(p.key)}>
+              onClick={() => { setPageKey(p.key); setOpenEvaluation(null) }}>
               {p.label}
             </button>
           ))}
@@ -169,7 +193,7 @@ export default function App() {
         {onAccount ? (
           <AccountPage onToken={login} avatarVersion={avatarVersion} onAvatarChange={() => setAvatarVersion((v) => v + 1)} />
         ) : page ? (
-          <div key={page.key}>{page.render(session)}</div>
+          <div key={page.key}>{page.render(session, nav)}</div>
         ) : (
           <p>Brak dostępnych modułów dla Twojej roli.</p>
         )}
