@@ -37,7 +37,7 @@ public sealed class SignaturesController(BusolaDbContext db, SignatureService si
     [HttpPost]
     public async Task<ActionResult<CreateResponse>> Create(CreateRequest request, CancellationToken ct)
     {
-        EvaluationTarget? target = null;
+        ResolvedTarget? target = null;
         if (request.EvaluationId is { } evaluationId)
         {
             if (string.IsNullOrWhiteSpace(request.EvaluationFieldKey))
@@ -50,18 +50,23 @@ public sealed class SignaturesController(BusolaDbContext db, SignatureService si
                 return NotFound();
             }
 
-            target = new EvaluationTarget(evaluationId, request.EvaluationFieldKey);
+            try
+            {
+                target = await signatures.ResolveTargetAsync(new EvaluationTarget(evaluationId, request.EvaluationFieldKey), ct);
+            }
+            catch (SignatureTargetException e)
+            {
+                return Problem(statusCode: e.StatusCode, detail: e.Message);
+            }
+
+            if (await CheckSignRulesAsync(target, ct) is { } denied)
+            {
+                return denied;
+            }
         }
 
-        try
-        {
-            var (dto, token) = await signatures.CreateAsync(request.Title, request.SignerName, UserId, target, ct);
-            return Created($"api/signatures/{dto.Id}", new CreateResponse(dto, token));
-        }
-        catch (SignatureTargetException e)
-        {
-            return Problem(statusCode: e.StatusCode, detail: e.Message);
-        }
+        var (dto, token) = await signatures.CreateAsync(request.Title, request.SignerName, UserId, target, ct);
+        return Created($"api/signatures/{dto.Id}", new CreateResponse(dto, token));
     }
 
     [HttpPost("{id:guid}/link")]
@@ -97,7 +102,7 @@ public sealed class SignaturesController(BusolaDbContext db, SignatureService si
         return Ok(await signatures.GetEvaluationFieldsAsync(evaluationId, ct));
     }
 
-    // Podpis do oceny zleca tylko ktoś, kto widzi ocenianego pracownika.
+    // Ocenę widzi oceniany albo ktoś z read_evaluations w swoim zakresie (jak w EvaluationsController).
     private async Task<bool> CanSeeEvaluationAsync(int evaluationId, CancellationToken ct)
     {
         var employeeId = await db.Evaluations.Where(e => e.Id == evaluationId).Select(e => (int?)e.EmployeeId).SingleOrDefaultAsync(ct);
@@ -106,9 +111,52 @@ public sealed class SignaturesController(BusolaDbContext db, SignatureService si
             return false;
         }
 
-        var scope = await access.ResolveAsync(Permissions.ReadEmployees, ct);
+        if (await MyEmployeeIdAsync(ct) == employeeId)
+        {
+            return true;
+        }
+
+        if (!User.HasPermission(Permissions.ReadEvaluations))
+        {
+            return false;
+        }
+
+        var scope = await access.ResolveAsync(Permissions.ReadEvaluations, ct);
         return await db.Employees.InScope(scope).AnyAsync(e => e.Id == employeeId, ct);
     }
+
+    /// <summary>
+    /// Te same zasady co podpis w systemie (EvaluationsController.Sign): pole ocenianego zleca tylko sam oceniany
+    /// (podpisze na telefonie/tablecie), pozostałe osoba z edit_evaluation w swoim zakresie, ale nie oceniany.
+    /// </summary>
+    private async Task<ActionResult?> CheckSignRulesAsync(ResolvedTarget target, CancellationToken ct)
+    {
+        var myEmployeeId = await MyEmployeeIdAsync(ct);
+        if (target.Role == SignatureRole.Evaluated)
+        {
+            return myEmployeeId == target.EmployeeId
+                ? null
+                : Problem(statusCode: StatusCodes.Status403Forbidden, detail: "To pole podpisuje oceniany.");
+        }
+
+        if (!User.HasPermission(Permissions.EditEvaluation))
+        {
+            return Forbid();
+        }
+
+        var scope = await access.ResolveAsync(Permissions.EditEvaluation, ct);
+        if (!await db.Employees.InScope(scope).AnyAsync(e => e.Id == target.EmployeeId, ct))
+        {
+            return NotFound();
+        }
+
+        return myEmployeeId == target.EmployeeId
+            ? Problem(statusCode: StatusCodes.Status403Forbidden, detail: "Nie możesz podpisywać własnej oceny za oceniającego.")
+            : null;
+    }
+
+    private Task<int?> MyEmployeeIdAsync(CancellationToken ct) =>
+        db.Users.Where(u => u.Id == UserId).Select(u => u.EmployeeId).SingleAsync(ct);
 
     private string UserId => User.FindFirstValue(BusolaClaims.UserId)!;
 

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Busola.Database;
 using Busola.Database.Entities;
+using Busola.Api.Evaluations;
 using Busola.Database.EvaluationTemplates;
 using Microsoft.EntityFrameworkCore;
 using SkiaSharp;
@@ -28,6 +29,9 @@ public sealed record SignatureFieldDto(string Key, string? Label, string Role, b
 /// <summary>Pole podpisu w ocenie (klucz pola typu "signature" ze szablonu).</summary>
 public sealed record EvaluationTarget(int EvaluationId, string FieldKey);
 
+/// <summary>Pole podpisu sprawdzone ze szablonem: rola i oceniany pracownik (do reguł, kto może zlecić).</summary>
+public sealed record ResolvedTarget(int EvaluationId, string FieldKey, SignatureRole Role, int EmployeeId);
+
 /// <summary>Nie da się zlecić podpisu dla tego pola oceny; StatusCode to 400 albo 409.</summary>
 public sealed class SignatureTargetException(int statusCode, string message) : Exception(message)
 {
@@ -49,11 +53,10 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
     private const int MaxWidth = 4000;
     private const int MaxHeight = 2000;
 
-    /// <exception cref="SignatureTargetException">Pole oceny nie istnieje, nie jest podpisem albo jest już podpisane.</exception>
+    /// <param name="target">Z <see cref="ResolveTargetAsync"/>, po sprawdzeniu, że zlecający może zlecić ten podpis.</param>
     public async Task<(SignatureRequestDto Request, string Token)> CreateAsync(
-        string title, string signerName, string createdByUserId, EvaluationTarget? target, CancellationToken ct)
+        string title, string signerName, string createdByUserId, ResolvedTarget? target, CancellationToken ct)
     {
-        var role = target is null ? (SignatureRole?)null : await ResolveTargetAsync(target, ct);
         var token = NewToken();
         var request = new SignatureRequest
         {
@@ -67,7 +70,7 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
             Status = SignatureStatus.Pending,
             EvaluationId = target?.EvaluationId,
             EvaluationFieldKey = target?.FieldKey,
-            EvaluationRole = role,
+            EvaluationRole = target?.Role,
         };
         db.SignatureRequests.Add(request);
         await db.SaveChangesAsync(ct);
@@ -120,8 +123,12 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
                 return SignResult.InvalidImage;
             }
 
-            // Pole mogło zostać podpisane inną drogą w międzyczasie; unikalny indeks i tak by to zablokował.
-            if (await db.EvaluationSignatures.AnyAsync(s => s.EvaluationId == evaluationId && s.FieldKey == request.EvaluationFieldKey, ct))
+            // Pole mogło zostać podpisane inną drogą albo ocena zamknięta w międzyczasie.
+            var evaluation = await db.Evaluations.Where(e => e.Id == evaluationId)
+                .Select(e => new { e.Status, e.Template.Schema })
+                .SingleAsync(ct);
+            if (EvaluationWorkflow.IsFinal(TemplateSchema.Parse(evaluation.Schema), evaluation.Status)
+                || await db.EvaluationSignatures.AnyAsync(s => s.EvaluationId == evaluationId && s.FieldKey == request.EvaluationFieldKey, ct))
             {
                 return SignResult.NotPending;
             }
@@ -197,14 +204,24 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
             .Where(x => x.Role is not null)
             .Select(x => (x.Field, x.Role!.Value));
 
-    /// <summary>Rola podpisu z pola szablonu oceny. Sprawdza, że pole jest typu signature i nie czeka/nie ma już podpisu.</summary>
-    private async Task<SignatureRole> ResolveTargetAsync(EvaluationTarget target, CancellationToken ct)
+    /// <summary>
+    /// Sprawdza pole oceny: istnieje w szablonie jako signature, ocena nie jest zamknięta, pole nie jest podpisane
+    /// i nie czeka na nie inna prośba. Nie sprawdza, kto zleca — to robi wywołujący (reguły jak przy podpisie w systemie).
+    /// </summary>
+    /// <exception cref="SignatureTargetException">400 albo 409 z komunikatem dla użytkownika.</exception>
+    public async Task<ResolvedTarget> ResolveTargetAsync(EvaluationTarget target, CancellationToken ct)
     {
-        var schemaJson = await db.Evaluations
+        var evaluation = await db.Evaluations
             .Where(e => e.Id == target.EvaluationId)
-            .Select(e => e.Template.Schema)
+            .Select(e => new { e.EmployeeId, e.Status, e.Template.Schema })
             .SingleOrDefaultAsync(ct)
             ?? throw new SignatureTargetException(StatusCodes.Status400BadRequest, "Nie ma takiej oceny.");
+        var schemaJson = evaluation.Schema;
+
+        if (EvaluationWorkflow.IsFinal(TemplateSchema.Parse(schemaJson), evaluation.Status))
+        {
+            throw new SignatureTargetException(StatusCodes.Status409Conflict, "Ocena jest zamknięta.");
+        }
 
         var match = SignatureFields(schemaJson).Where(f => f.Field.Key == target.FieldKey).Select(f => (SignatureRole?)f.Role).FirstOrDefault();
         if (match is not { } role)
@@ -226,7 +243,7 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
             throw new SignatureTargetException(StatusCodes.Status409Conflict, "Prośba o ten podpis już czeka. Użyj „Pokaż kod QR”.");
         }
 
-        return role;
+        return new ResolvedTarget(target.EvaluationId, target.FieldKey, role, evaluation.EmployeeId);
     }
 
     private static readonly TimeZoneInfo Poland = FindPoland();
