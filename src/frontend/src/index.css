@@ -97,4 +97,6 @@ td.actions { white-space: nowrap; text-align: right; }
 .login { max-width: 360px; margin: 12vh auto; padding: 0 1rem; display: grid; gap: 1.5rem; }
 .error { color: var(--danger); margin: 0; }
 .muted { color: var(--muted); margin: 0; }
+.service { display: inline-flex; align-items: center; gap: 0.6rem; }
+.service img { object-fit: contain; flex-shrink: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

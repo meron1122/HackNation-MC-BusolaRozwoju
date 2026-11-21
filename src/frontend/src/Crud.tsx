@@ -7,13 +7,22 @@ export type Row = { id: number } & Record<string, any>
 export type Field = {
   name: string
   label: string
-  type?: 'text' | 'date'
+  type?: 'text' | 'date' | 'url'
   optional?: boolean
   /** Pole wyboru z listy z API, wartość to id. */
   options?: { path: string; label: (row: Row) => string }
 }
 
 export type Column = [label: string, value: (row: Row) => ReactNode]
+
+export function ServiceName({ name, logoUrl }: { name: string; logoUrl?: string | null }) {
+  return (
+    <span className="service">
+      {logoUrl && <img src={logoUrl} alt="" width={28} height={28} loading="lazy" referrerPolicy="no-referrer" />}
+      {name}
+    </span>
+  )
+}
 
 type Props = {
   title: string
@@ -135,7 +144,7 @@ function EntityForm({ fields, row, onSave, onCancel }: {
     const body: Record<string, unknown> = {}
     for (const f of fields) {
       const raw = String(form.get(f.name) ?? '')
-      body[f.name] = f.options ? (raw === '' ? null : Number(raw)) : raw
+      body[f.name] = raw === '' && f.optional ? null : f.options ? Number(raw) : raw
     }
     setBusy(true)
     setError('')

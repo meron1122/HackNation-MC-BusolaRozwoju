@@ -15,6 +15,7 @@ public sealed record EmployeeDto(
     string LocationName,
     int ServiceId,
     string ServiceName,
+    string? ServiceLogoUrl,
     int? SupervisorId,
     string? SupervisorName)
 {
@@ -30,6 +31,7 @@ public sealed record EmployeeDto(
         e.Department.Location.Name,
         e.Department.Location.ServiceId,
         e.Department.Location.Service.Name,
+        e.Department.Location.Service.LogoUrl,
         e.SupervisorId,
         e.Supervisor != null ? e.Supervisor.FirstName + " " + e.Supervisor.LastName : null);
 }

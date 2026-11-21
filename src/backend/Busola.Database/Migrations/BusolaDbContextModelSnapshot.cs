@@ -519,6 +519,11 @@ namespace Busola.Database.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("logo_url");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)

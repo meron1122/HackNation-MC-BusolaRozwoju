@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
-import { CrudPage, type Column, type Field } from './Crud'
+import { CrudPage, ServiceName, type Column, type Field } from './Crud'
 import { Login } from './Login'
 import { UsersPage } from './Users'
 
@@ -26,7 +26,7 @@ const employeeColumns: Column[] = [
   ['Zatrudniony', (e) => e.hireDate],
   ['Wydział', (e) => e.departmentName],
   ['Lokalizacja', (e) => e.locationName],
-  ['Służba', (e) => e.serviceName],
+  ['Służba', (e) => <ServiceName name={e.serviceName} logoUrl={e.serviceLogoUrl} />],
   ['Przełożony', (e) => e.supervisorName ?? '—'],
 ]
 
@@ -36,7 +36,7 @@ const locationFields: Field[] = [
 ]
 const locationColumns: Column[] = [
   ['Nazwa', (l) => l.name],
-  ['Służba', (l) => l.serviceName],
+  ['Służba', (l) => <ServiceName name={l.serviceName} logoUrl={l.serviceLogoUrl} />],
 ]
 
 const departmentFields: Field[] = [
@@ -48,8 +48,11 @@ const departmentColumns: Column[] = [
   ['Lokalizacja', (d) => d.locationName],
 ]
 
-const serviceFields: Field[] = [{ name: 'name', label: 'Nazwa' }]
-const serviceColumns: Column[] = [['Nazwa', (s) => s.name]]
+const serviceFields: Field[] = [
+  { name: 'name', label: 'Nazwa' },
+  { name: 'logoUrl', label: 'Adres logo (URL)', type: 'url', optional: true },
+]
+const serviceColumns: Column[] = [['Nazwa', (s) => <ServiceName name={s.name} logoUrl={s.logoUrl} />]]
 
 type Page = { key: string; label: string; visible: (s: Session) => boolean; render: (s: Session) => ReactNode }
 
