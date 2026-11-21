@@ -216,9 +216,9 @@ export default function App() {
         {onAccount ? (
           <AccountPage onToken={login} avatarVersion={avatarVersion} onAvatarChange={() => setAvatarVersion((v) => v + 1)} />
         ) : onMyProfile ? (
-          <ProfilePage employeeId="me" onOpenProfile={nav.showProfile} />
+          <ProfilePage employeeId="me" onOpenProfile={nav.showProfile} onOpenEvaluation={nav.showEvaluation} />
         ) : onProfile ? (
-          <ProfilePage key={profileId} employeeId={profileId} onOpenProfile={nav.showProfile} />
+          <ProfilePage key={profileId} employeeId={profileId} onOpenProfile={nav.showProfile} onOpenEvaluation={nav.showEvaluation} />
         ) : page ? (
           <div key={page.key}>{page.render(session, nav)}</div>
         ) : (

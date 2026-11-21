@@ -226,7 +226,7 @@ Podpis jest częścią flow oceny, bez osobnej zakładki. Na karcie oceny przy p
 
 ## Profil pracownika
 
-Układ jak w OrangeHRM: zdjęcie i zakładki po lewej, sekcja po prawej. Zakładki: dane osobowe, kontakt, kontakty alarmowe, członkowie rodziny, zatrudnienie, struktura (drzewko przełożonych), kwalifikacje (doświadczenie, wykształcenie, umiejętności, języki). Bez wynagrodzenia i danych imigracyjnych.
+Układ jak w OrangeHRM: zdjęcie i zakładki po lewej, sekcja po prawej. Zakładki: dane osobowe, kontakt, kontakty alarmowe, członkowie rodziny, zatrudnienie, struktura (drzewko przełożonych), oceny (historia z `GET /api/evaluations?employeeId=`, w zakresie `read_evaluations`, więc przełożony widzi oceny podwładnych), kwalifikacje (doświadczenie, wykształcenie, umiejętności, języki). Bez wynagrodzenia i danych imigracyjnych.
 
 - Dane w `employee_profiles` (1:1 z `employees`), listy w jsonb. Imię, nazwisko, daty, wydział i przełożony zostają w `employees`.
 - `GET /api/employees/{id}/profile`, `GET /api/employees/me/profile`, `PUT /api/employees/{id}/profile/{personal|contact|job|emergency-contacts|dependents|qualifications}`.

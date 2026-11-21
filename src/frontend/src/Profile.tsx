@@ -110,12 +110,17 @@ const TABS = [
   ['dependents', 'Członkowie rodziny'],
   ['job', 'Zatrudnienie'],
   ['structure', 'Struktura'],
+  ['evaluations', 'Oceny'],
   ['qualifications', 'Kwalifikacje'],
 ] as const
 type Tab = (typeof TABS)[number][0]
 
 /** Profil pracownika: lewa kolumna ze zdjęciem i zakładkami, po prawej sekcja (układ jak w OrangeHRM). */
-export function ProfilePage({ employeeId, onOpenProfile }: { employeeId: number | 'me'; onOpenProfile: (id: number) => void }) {
+export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation }: {
+  employeeId: number | 'me'
+  onOpenProfile: (id: number) => void
+  onOpenEvaluation: (id: number) => void
+}) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<Tab>('personal')
@@ -186,6 +191,12 @@ export function ProfilePage({ employeeId, onOpenProfile }: { employeeId: number 
               editable={profile.canEdit} hr={profile.canEdit} onSave={(v) => save('job', v)} />
           </>
         )}
+        {tab === 'evaluations' && (
+          <section className="card profile-section">
+            <h3>Historia ocen</h3>
+            <EvaluationHistory employeeId={e.id} onOpen={onOpenEvaluation} />
+          </section>
+        )}
         {tab === 'structure' && (
           <section className="card profile-section">
             <h3>Struktura</h3>
@@ -206,6 +217,46 @@ export function ProfilePage({ employeeId, onOpenProfile }: { employeeId: number 
           </>
         )}
       </div>
+    </div>
+  )
+}
+
+type EvaluationRow = {
+  id: number; templateTitle: string; statusLabel: string; isFinal: boolean; startDate: string
+  nextStageTitle: string | null; nextDueTo: string | null
+}
+
+/** Oceny pracownika (najnowsze pierwsze). API ocen pilnuje zakresu: przełożony widzi oceny swoich podwładnych. */
+function EvaluationHistory({ employeeId, onOpen }: { employeeId: number; onOpen: (id: number) => void }) {
+  const [rows, setRows] = useState<EvaluationRow[] | null>(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    api<EvaluationRow[]>(`evaluations?employeeId=${employeeId}`).then(setRows, (e: Error) => setError(e.message))
+  }, [employeeId])
+
+  if (error) return <p role="alert" className="error">{error}</p>
+  if (!rows) return <p>Ładowanie…</p>
+  if (!rows.length) return <p className="muted">Brak ocen.</p>
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Arkusz</th><th>Status</th><th>Początek</th><th>Najbliższy etap</th><th>Termin</th><th><span className="sr-only">Akcje</span></th></tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <td>{r.templateTitle}</td>
+              <td>{r.isFinal ? <strong>{r.statusLabel}</strong> : r.statusLabel}</td>
+              <td>{r.startDate}</td>
+              <td>{r.nextStageTitle ?? '—'}</td>
+              <td>{r.nextDueTo ?? '—'}</td>
+              <td className="actions"><button className="link" onClick={() => onOpen(r.id)}>Otwórz</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
