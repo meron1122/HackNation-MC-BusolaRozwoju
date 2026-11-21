@@ -42,6 +42,7 @@ public sealed class TokenService(BusolaDbContext db, UserManager<User> userManag
                 [BusolaClaims.Name] = user.UserName!,
                 [BusolaClaims.Role] = roleList,
                 [BusolaClaims.Permission] = permissions,
+                [BusolaClaims.SecurityStamp] = user.SecurityStamp!,
             },
         };
 

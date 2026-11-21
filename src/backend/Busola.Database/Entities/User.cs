@@ -10,4 +10,6 @@ public class User : IdentityUser
 {
     public int? EmployeeId { get; set; }
     public Employee? Employee { get; set; }
+
+    public UserAvatar? Avatar { get; set; }
 }

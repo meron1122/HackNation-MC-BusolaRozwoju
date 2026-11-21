@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
+import { AccountPage } from './Account'
 import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
+import { Avatar } from './Avatar'
 import { CrudPage, type Column, type Field } from './Crud'
 import { Login } from './Login'
 import { UsersPage } from './Users'
@@ -21,6 +23,9 @@ const employeeFields: Field[] = [
   },
 ]
 const employeeColumns: Column[] = [
+  ['Zdjęcie', (e) => (
+    <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={`${e.firstName} ${e.lastName}`} size={28} />
+  )],
   ['Nazwisko i imię', (e) => `${e.lastName} ${e.firstName}`],
   ['Urodzony', (e) => e.dateOfBirth],
   ['Zatrudniony', (e) => e.hireDate],
@@ -52,6 +57,9 @@ const serviceFields: Field[] = [{ name: 'name', label: 'Nazwa' }]
 const serviceColumns: Column[] = [['Nazwa', (s) => s.name]]
 
 type Page = { key: string; label: string; visible: (s: Session) => boolean; render: (s: Session) => ReactNode }
+
+// Dostępne dla każdego zalogowanego, otwierane z nagłówka (avatar + imię), nie z zakładek.
+const ACCOUNT_PAGE = 'account'
 
 const PAGES: Page[] = [
   {
@@ -101,6 +109,7 @@ const PAGES: Page[] = [
 export default function App() {
   const [token, setTokenState] = useState(getToken)
   const [pageKey, setPageKey] = useState(PAGES[0].key)
+  const [avatarVersion, setAvatarVersion] = useState(0)
   const session = token ? readSession(token) : null
 
   useEffect(() => {
@@ -122,7 +131,8 @@ export default function App() {
   if (!session) return <Login onLogin={login} />
 
   const pages = PAGES.filter((p) => p.visible(session))
-  const page = pages.find((p) => p.key === pageKey) ?? pages[0]
+  const onAccount = pageKey === ACCOUNT_PAGE
+  const page = onAccount ? undefined : pages.find((p) => p.key === pageKey) ?? pages[0]
 
   return (
     <>
@@ -137,12 +147,22 @@ export default function App() {
           ))}
         </nav>
         <span className="user">
-          {session.name}
+          <button className={onAccount ? 'tab active account-link' : 'tab account-link'} aria-current={onAccount ? 'page' : undefined}
+            onClick={() => setPageKey(ACCOUNT_PAGE)} title="Moje konto">
+            <Avatar path="account/avatar" name={session.name} size={28} version={avatarVersion} />
+            {session.name}
+          </button>
           <button className="secondary" onClick={logout}>Wyloguj</button>
         </span>
       </header>
       <main className="content">
-        {page ? <div key={page.key}>{page.render(session)}</div> : <p>Brak dostępnych modułów dla Twojej roli.</p>}
+        {onAccount ? (
+          <AccountPage onToken={login} avatarVersion={avatarVersion} onAvatarChange={() => setAvatarVersion((v) => v + 1)} />
+        ) : page ? (
+          <div key={page.key}>{page.render(session)}</div>
+        ) : (
+          <p>Brak dostępnych modułów dla Twojej roli.</p>
+        )}
       </main>
     </>
   )

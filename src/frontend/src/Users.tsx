@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api } from './api'
 import type { Row } from './Crud'
 
-type User = { id: string; email: string; employeeId: number | null; roles: string[] }
+type User = { id: string; email: string; employeeId: number | null; roles: string[]; twoFactorEnabled: boolean }
 
 // Employee i Supervisor wynikają z danych pracownika, API nie pozwala ich nadawać.
 const ROLES = ['Hr', 'ServiceAdmin', 'SuperAdmin']
@@ -55,6 +55,11 @@ export function UsersPage({ superAdmin }: { superAdmin: boolean }) {
     if (ok) setAdding(false)
   }
 
+  function resetTwoFactor(user: User) {
+    if (!confirm(`Wyłączyć weryfikację dwuetapową dla ${user.email}? Użytkownik zostanie wylogowany i będzie mógł skonfigurować ją od nowa.`)) return
+    run(() => api(`users/${user.id}/two-factor`, 'DELETE'))
+  }
+
   function saveRoles(e: FormEvent<HTMLFormElement>, user: User) {
     e.preventDefault()
     run(() => api(`users/${user.id}/roles`, 'PUT', { roles: checkedRoles(new FormData(e.currentTarget)) }))
@@ -94,12 +99,17 @@ export function UsersPage({ superAdmin }: { superAdmin: boolean }) {
       ) : (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>E-mail</th><th>Pracownik</th><th>Role</th></tr></thead>
+            <thead><tr><th>E-mail</th><th>Pracownik</th><th>2FA</th><th>Role</th></tr></thead>
             <tbody>
               {users.map((u) => (
                 <tr key={u.id}>
                   <td>{u.email}</td>
                   <td>{employeeName(u.employeeId)}</td>
+                  <td className="nowrap">
+                    {u.twoFactorEnabled ? (
+                      <>włączona <button className="link danger" onClick={() => resetTwoFactor(u)}>Resetuj</button></>
+                    ) : '—'}
+                  </td>
                   <td>
                     <form onSubmit={(e) => saveRoles(e, u)} className="inline" key={u.roles.join()}>
                       {roles.map((r) => (

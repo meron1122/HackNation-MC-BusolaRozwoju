@@ -20,4 +20,7 @@ public class Employee
 
     public ICollection<Employee> Subordinates { get; set; } = [];
     public ICollection<Absence> Absences { get; set; } = [];
+
+    /// <summary>Konto w systemie (opcjonalne).</summary>
+    public User? User { get; set; }
 }

@@ -33,7 +33,8 @@ public sealed class UsersController(BusolaDbContext db, UserManager<User> userMa
                 u.EmployeeId,
                 db.UserRoles.Where(ur => ur.UserId == u.Id)
                     .Join(db.Roles, ur => ur.RoleId, r => r.Id, (_, r) => r.Name!)
-                    .ToList()))
+                    .ToList(),
+                u.TwoFactorEnabled))
             .ToListAsync(ct);
     }
 
@@ -81,7 +82,7 @@ public sealed class UsersController(BusolaDbContext db, UserManager<User> userMa
             return IdentityErrors(result);
         }
 
-        return Created($"api/users/{user.Id}", new UserDto(user.Id, user.Email, user.EmployeeId, request.Roles));
+        return Created($"api/users/{user.Id}", new UserDto(user.Id, user.Email, user.EmployeeId, request.Roles, TwoFactorEnabled: false));
     }
 
     [HttpPut("{id}/roles")]
@@ -95,7 +96,7 @@ public sealed class UsersController(BusolaDbContext db, UserManager<User> userMa
         }
 
         var currentRoles = await userManager.GetRolesAsync(user);
-        if (!scope.All && await db.Roles.AnyAsync(r => currentRoles.Contains(r.Name!) && r.Scope == DataScope.All, ct))
+        if (!scope.All && await HoldsAllScopeRoleAsync(currentRoles, ct))
         {
             return Forbid();
         }
@@ -111,10 +112,40 @@ public sealed class UsersController(BusolaDbContext db, UserManager<User> userMa
             result = await userManager.AddToRolesAsync(user, request.Roles);
         }
 
+        if (result.Succeeded)
+        {
+            // Unieważnia tokeny użytkownika — odebrana rola przestaje działać od razu, a nie po 12 h.
+            result = await userManager.UpdateSecurityStampAsync(user);
+        }
+
         return result.Succeeded
-            ? new UserDto(user.Id, user.Email!, user.EmployeeId, request.Roles)
+            ? new UserDto(user.Id, user.Email!, user.EmployeeId, request.Roles, user.TwoFactorEnabled)
             : IdentityErrors(result);
     }
+
+    /// <summary>Gdy użytkownik zgubi telefon i kody odzyskiwania. Wylogowuje go wszędzie.</summary>
+    [HttpDelete("{id}/two-factor")]
+    public async Task<IActionResult> ResetTwoFactor(string id, CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.ManageUsers, ct);
+        var user = await UsersInScope(scope).SingleOrDefaultAsync(u => u.Id == id, ct);
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        if (!scope.All && await HoldsAllScopeRoleAsync(await userManager.GetRolesAsync(user), ct))
+        {
+            return Forbid();
+        }
+
+        await userManager.SetTwoFactorEnabledAsync(user, false);
+        await userManager.ResetAuthenticatorKeyAsync(user);
+        return NoContent();
+    }
+
+    private Task<bool> HoldsAllScopeRoleAsync(IList<string> roleNames, CancellationToken ct) =>
+        db.Roles.AnyAsync(r => roleNames.Contains(r.Name!) && r.Scope == DataScope.All, ct);
 
     private IQueryable<User> UsersInScope(AccessScope scope) =>
         scope.All

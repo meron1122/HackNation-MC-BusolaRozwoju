@@ -55,22 +55,40 @@ async function errorMessage(res: Response): Promise<string> {
   return STATUS_MESSAGES[res.status] ?? `Błąd serwera (${res.status}).`
 }
 
-export async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+// Dokleja token; 401 przy zalogowanym = sesja unieważniona (np. zmiana hasła na innym urządzeniu) → wylogowanie.
+async function request(path: string, init: RequestInit = {}): Promise<Response> {
   const token = getToken()
-  const headers: Record<string, string> = {}
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
-  if (token) headers.Authorization = `Bearer ${token}`
+  const headers = new Headers(init.headers)
+  if (token) headers.set('Authorization', `Bearer ${token}`)
 
-  const res = await fetch(`/api/${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  })
-
+  const res = await fetch(`/api/${path}`, { ...init, headers })
   if (res.status === 401 && token) {
     setToken(null)
     window.dispatchEvent(new Event(LOGOUT_EVENT))
   }
+  return res
+}
+
+export async function api<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
+  const res = await request(path, {
+    method,
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
   if (!res.ok) throw new Error(await errorMessage(res))
   return (res.status === 204 ? undefined : await res.json()) as T
+}
+
+/** Plik jako multipart; Content-Type z boundary ustawia przeglądarka. */
+export async function apiUpload(path: string, file: File, method = 'PUT'): Promise<void> {
+  const body = new FormData()
+  body.append('file', file)
+  const res = await request(path, { method, body })
+  if (!res.ok) throw new Error(await errorMessage(res))
+}
+
+/** Obrazek jako blob URL (null = brak). Wywołujący zwalnia go przez URL.revokeObjectURL. */
+export async function apiBlobUrl(path: string): Promise<string | null> {
+  const res = await request(path)
+  return res.ok ? URL.createObjectURL(await res.blob()) : null
 }
