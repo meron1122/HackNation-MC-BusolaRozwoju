@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Busola.Database;
 using Busola.Database.Entities;
+using Busola.Database.EvaluationTemplates;
 using Microsoft.EntityFrameworkCore;
 using SkiaSharp;
 
@@ -16,9 +17,22 @@ public sealed record SignatureRequestDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset LinkExpiresAt,
     DateTimeOffset? CompletedAt,
-    string? SignerUserAgent);
+    string? SignerUserAgent,
+    int? EvaluationId,
+    string? EvaluationFieldKey);
 
 public enum SignResult { Ok, NotFound, NotPending, InvalidImage }
+
+public sealed record SignatureFieldDto(string Key, string? Label, string Role, bool Signed);
+
+/// <summary>Pole podpisu w ocenie (klucz pola typu "signature" ze szablonu).</summary>
+public sealed record EvaluationTarget(int EvaluationId, string FieldKey);
+
+/// <summary>Nie da się zlecić podpisu dla tego pola oceny; StatusCode to 400 albo 409.</summary>
+public sealed class SignatureTargetException(int statusCode, string message) : Exception(message)
+{
+    public int StatusCode { get; } = statusCode;
+}
 
 /// <summary>
 /// Podpisy odręczne (demo, docelowo zastąpione dostawcą typu Autenti).
@@ -29,12 +43,17 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
 {
     public static readonly TimeSpan LinkLifetime = TimeSpan.FromHours(24);
     private const int MaxImageBytes = 1024 * 1024;
+
+    // Limit z check constraintu evaluation_signatures.
+    private const int MaxEvaluationImageBytes = 512 * 1024;
     private const int MaxWidth = 4000;
     private const int MaxHeight = 2000;
 
+    /// <exception cref="SignatureTargetException">Pole oceny nie istnieje, nie jest podpisem albo jest już podpisane.</exception>
     public async Task<(SignatureRequestDto Request, string Token)> CreateAsync(
-        string title, string signerName, string createdByUserId, CancellationToken ct)
+        string title, string signerName, string createdByUserId, EvaluationTarget? target, CancellationToken ct)
     {
+        var role = target is null ? (SignatureRole?)null : await ResolveTargetAsync(target, ct);
         var token = NewToken();
         var request = new SignatureRequest
         {
@@ -46,6 +65,9 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
             TokenHash = Hash(token),
             LinkExpiresAt = clock.GetUtcNow() + LinkLifetime,
             Status = SignatureStatus.Pending,
+            EvaluationId = target?.EvaluationId,
+            EvaluationFieldKey = target?.FieldKey,
+            EvaluationRole = role,
         };
         db.SignatureRequests.Add(request);
         await db.SaveChangesAsync(ct);
@@ -91,6 +113,34 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
             return SignResult.InvalidImage;
         }
 
+        if (request.EvaluationId is { } evaluationId)
+        {
+            if (image.Length > MaxEvaluationImageBytes)
+            {
+                return SignResult.InvalidImage;
+            }
+
+            // Pole mogło zostać podpisane inną drogą w międzyczasie; unikalny indeks i tak by to zablokował.
+            if (await db.EvaluationSignatures.AnyAsync(s => s.EvaluationId == evaluationId && s.FieldKey == request.EvaluationFieldKey, ct))
+            {
+                return SignResult.NotPending;
+            }
+
+            db.EvaluationSignatures.Add(new EvaluationSignature
+            {
+                EvaluationId = evaluationId,
+                FieldKey = request.EvaluationFieldKey!,
+                Role = request.EvaluationRole!.Value,
+                SignedById = request.CreatedByUserId,
+                SignerName = request.SignerName,
+                SignedOn = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(), Poland).DateTime),
+                CreatedAt = clock.GetUtcNow(),
+                ImageContent = image,
+                ImageContentType = "image/png",
+                ImageSha256 = SHA256.HashData(image),
+            });
+        }
+
         request.Status = SignatureStatus.Signed;
         request.CompletedAt = clock.GetUtcNow();
         request.Image = image;
@@ -126,7 +176,72 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
         r.Status == SignatureStatus.Pending && !IsOpen(r) ? "Expired" : r.Status.ToString();
 
     public SignatureRequestDto ToDto(SignatureRequest r) =>
-        new(r.Id, r.Title, r.SignerName, StatusOf(r), r.CreatedAt, r.LinkExpiresAt, r.CompletedAt, r.SignerUserAgent);
+        new(r.Id, r.Title, r.SignerName, StatusOf(r), r.CreatedAt, r.LinkExpiresAt, r.CompletedAt, r.SignerUserAgent,
+            r.EvaluationId, r.EvaluationFieldKey);
+
+    public async Task<IReadOnlyList<SignatureFieldDto>> GetEvaluationFieldsAsync(int evaluationId, CancellationToken ct)
+    {
+        var schemaJson = await db.Evaluations.Where(e => e.Id == evaluationId).Select(e => e.Template.Schema).SingleAsync(ct);
+        var signed = await db.EvaluationSignatures.Where(s => s.EvaluationId == evaluationId).Select(s => s.FieldKey).ToListAsync(ct);
+        return SignatureFields(schemaJson)
+            .Select(f => new SignatureFieldDto(f.Field.Key, f.Field.Label, f.Role.ToString(), signed.Contains(f.Field.Key)))
+            .ToList();
+    }
+
+    private static IEnumerable<(FieldDefinition Field, SignatureRole Role)> SignatureFields(string schemaJson) =>
+        TemplateSchema.Parse(schemaJson).Sections
+            .SelectMany(s => s.Fields)
+            .Where(f => f.Type == "signature")
+            .Select(f => (Field: f, Role: f.Extra?.GetValueOrDefault("role") is { ValueKind: System.Text.Json.JsonValueKind.String } r
+                && Enum.TryParse<SignatureRole>(r.GetString(), ignoreCase: true, out var role) ? role : (SignatureRole?)null))
+            .Where(x => x.Role is not null)
+            .Select(x => (x.Field, x.Role!.Value));
+
+    /// <summary>Rola podpisu z pola szablonu oceny. Sprawdza, że pole jest typu signature i nie czeka/nie ma już podpisu.</summary>
+    private async Task<SignatureRole> ResolveTargetAsync(EvaluationTarget target, CancellationToken ct)
+    {
+        var schemaJson = await db.Evaluations
+            .Where(e => e.Id == target.EvaluationId)
+            .Select(e => e.Template.Schema)
+            .SingleOrDefaultAsync(ct)
+            ?? throw new SignatureTargetException(StatusCodes.Status400BadRequest, "Nie ma takiej oceny.");
+
+        var match = SignatureFields(schemaJson).Where(f => f.Field.Key == target.FieldKey).Select(f => (SignatureRole?)f.Role).FirstOrDefault();
+        if (match is not { } role)
+        {
+            throw new SignatureTargetException(StatusCodes.Status400BadRequest, "Szablon tej oceny nie ma takiego pola podpisu.");
+        }
+
+        if (await db.EvaluationSignatures.AnyAsync(s => s.EvaluationId == target.EvaluationId && s.FieldKey == target.FieldKey, ct))
+        {
+            throw new SignatureTargetException(StatusCodes.Status409Conflict, "To pole oceny jest już podpisane.");
+        }
+
+        var now = clock.GetUtcNow();
+        if (await db.SignatureRequests.AnyAsync(
+                r => r.EvaluationId == target.EvaluationId && r.EvaluationFieldKey == target.FieldKey
+                    && r.Status == SignatureStatus.Pending && r.LinkExpiresAt > now,
+                ct))
+        {
+            throw new SignatureTargetException(StatusCodes.Status409Conflict, "Prośba o ten podpis już czeka. Użyj „Pokaż kod QR”.");
+        }
+
+        return role;
+    }
+
+    private static readonly TimeZoneInfo Poland = FindPoland();
+
+    private static TimeZoneInfo FindPoland()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Warsaw");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.Utc; // obraz bez tzdata: data podpisu w UTC
+        }
+    }
 
     private static string NewToken() => Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(32));
 

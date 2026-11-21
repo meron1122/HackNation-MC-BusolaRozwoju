@@ -200,7 +200,8 @@ Symulacja zbierania podpisu, docelowo zastąpiona dostawcą (np. Autenti). Zakł
 - `GET/POST /api/signatures`, `GET /api/signatures/{id}`, `POST /api/signatures/{id}/link` (nowy link, stary przestaje działać), `GET /api/signatures/{id}/image` (PNG). Każdy widzi swoje prośby, SuperAdmin wszystkie.
 - Publiczne, tylko z tokenem: `GET /api/sign/{token}`, `POST /api/sign/{token}` `{ image: "data:image/png;base64,..." }`, `POST /api/sign/{token}/decline`.
 - Link ważny 24 h, w bazie jest tylko hash tokenu. Podpis jest dekodowany i kodowany od nowa (SkiaSharp), zapisujemy IP i User-Agent podpisującego.
-- Z kodu (np. flow raportów): `SignatureService.CreateAsync`, potem status i obraz z `signature_requests`. Obraz podpisu można wstawić do PDF przez `PdfReport`.
+- **Podpis do oceny**: `POST /api/signatures` z `evaluationId` i `evaluationFieldKey` (pole typu `signature` ze szablonu; lista: `GET /api/signatures/evaluation-fields?evaluationId=`). Rolę bierze z szablonu. Po podpisaniu w tej samej transakcji powstaje wiersz `evaluation_signatures` z obrazem PNG i SHA-256; konto potwierdzające (`signed_by_id`) to zlecający, czyli osoba, która zebrała podpis. Zlecić może tylko ktoś, kto widzi ocenianego pracownika. Odrzucane: pole spoza szablonu (400), pole już podpisane albo czekająca prośba o to samo pole (409).
+- Z kodu (np. flow ocen): `SignatureService.CreateAsync(..., new EvaluationTarget(evaluationId, fieldKey), ...)`, a link/QR pokazuje się użytkownikowi jak wyżej.
 
 ## Migracje
 

@@ -905,6 +905,20 @@ namespace Busola.Database.Migrations
                         .HasColumnType("text")
                         .HasColumnName("created_by_user_id");
 
+                    b.Property<string>("EvaluationFieldKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("evaluation_field_key");
+
+                    b.Property<int?>("EvaluationId")
+                        .HasColumnType("integer")
+                        .HasColumnName("evaluation_id");
+
+                    b.Property<string>("EvaluationRole")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("evaluation_role");
+
                     b.Property<byte[]>("Image")
                         .HasColumnType("bytea")
                         .HasColumnName("image");
@@ -956,6 +970,9 @@ namespace Busola.Database.Migrations
                     b.HasIndex("TokenHash")
                         .IsUnique()
                         .HasDatabaseName("ix_signature_requests_token_hash");
+
+                    b.HasIndex("EvaluationId", "EvaluationFieldKey")
+                        .HasDatabaseName("ix_signature_requests_evaluation_id_evaluation_field_key");
 
                     b.ToTable("signature_requests", (string)null);
                 });
@@ -1386,7 +1403,15 @@ namespace Busola.Database.Migrations
                         .IsRequired()
                         .HasConstraintName("fk_signature_requests_users_created_by_user_id");
 
+                    b.HasOne("Busola.Database.Entities.Evaluation", "Evaluation")
+                        .WithMany()
+                        .HasForeignKey("EvaluationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_signature_requests_evaluations_evaluation_id");
+
                     b.Navigation("CreatedBy");
+
+                    b.Navigation("Evaluation");
                 });
 
             modelBuilder.Entity("Busola.Database.Entities.User", b =>

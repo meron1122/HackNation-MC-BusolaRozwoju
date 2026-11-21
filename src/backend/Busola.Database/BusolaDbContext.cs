@@ -190,6 +190,14 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
                 .WithMany()
                 .HasForeignKey(s => s.CreatedByUserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            b.Property(s => s.EvaluationFieldKey).HasMaxLength(100);
+            b.Property(s => s.EvaluationRole).HasConversion<string>().HasMaxLength(20);
+            b.HasIndex(s => new { s.EvaluationId, s.EvaluationFieldKey });
+            b.HasOne(s => s.Evaluation)
+                .WithMany()
+                .HasForeignKey(s => s.EvaluationId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Role>(b =>

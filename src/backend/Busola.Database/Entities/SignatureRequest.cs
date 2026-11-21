@@ -24,6 +24,15 @@ public class SignatureRequest
     public required string TokenHash { get; set; }
     public DateTimeOffset LinkExpiresAt { get; set; }
 
+    /// <summary>
+    /// Opcjonalnie: pole podpisu w ocenie. Po podpisaniu obraz trafia do evaluation_signatures
+    /// (konto potwierdzające = zlecający, czyli osoba, która zebrała podpis w systemie).
+    /// </summary>
+    public int? EvaluationId { get; set; }
+    public Evaluation? Evaluation { get; set; }
+    public string? EvaluationFieldKey { get; set; }
+    public SignatureRole? EvaluationRole { get; set; }
+
     public SignatureStatus Status { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
     public byte[]? Image { get; set; }

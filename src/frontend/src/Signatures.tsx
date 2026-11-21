@@ -10,6 +10,17 @@ type SignatureRequest = {
   createdAt: string
   completedAt: string | null
   signerUserAgent: string | null
+  evaluationId: number | null
+  evaluationFieldKey: string | null
+}
+
+type SignatureField = { key: string; label: string | null; role: string; signed: boolean }
+
+const ROLE_LABELS: Record<string, string> = {
+  Evaluated: 'oceniany',
+  Supervisor: 'przełożony',
+  UnitHead: 'kierujący komórką',
+  Evaluator: 'oceniający',
 }
 
 const STATUS_LABELS: Record<SignatureRequest['status'], string> = {
@@ -27,6 +38,7 @@ export function SignaturesPage() {
   const [items, setItems] = useState<SignatureRequest[] | null>(null)
   const [active, setActive] = useState<{ id: string; url: string } | null>(null)
   const [error, setError] = useState('')
+  const [fields, setFields] = useState<SignatureField[] | null>(null)
 
   const load = useCallback(() => api<SignatureRequest[]>('signatures').then(setItems, (e: Error) => setError(e.message)), [])
   useEffect(() => {
@@ -43,16 +55,31 @@ export function SignaturesPage() {
 
   const show = (id: string, token: string) => setActive({ id, url: `${location.origin}/podpis/${encodeURIComponent(token)}` })
 
+  async function loadFields(evaluationId: string) {
+    setFields(null)
+    if (!evaluationId) return
+    try {
+      setFields(await api<SignatureField[]>(`signatures/evaluation-fields?evaluationId=${encodeURIComponent(evaluationId)}`))
+      setError('')
+    } catch {
+      setError('Nie znaleziono oceny o tym numerze (albo nie masz do niej dostępu).')
+    }
+  }
+
   async function create(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const formElement = e.currentTarget
     const form = new FormData(formElement)
+    const evaluationId = String(form.get('evaluationId') ?? '')
     try {
       const res = await api<{ request: SignatureRequest; token: string }>('signatures', 'POST', {
         title: form.get('title'),
         signerName: form.get('signerName'),
+        evaluationId: evaluationId ? Number(evaluationId) : null,
+        evaluationFieldKey: evaluationId ? form.get('evaluationFieldKey') : null,
       })
       formElement.reset()
+      setFields(null)
       setError('')
       show(res.request.id, res.token)
       await load()
@@ -80,6 +107,23 @@ export function SignaturesPage() {
       <form onSubmit={create} className="form card">
         <label>Dokument<input name="title" required maxLength={200} placeholder="np. Raport kwartalny Q4" /></label>
         <label>Kto podpisuje<input name="signerName" required maxLength={200} placeholder="Imię i nazwisko" /></label>
+        <label>
+          Nr oceny (opcjonalnie)
+          <input name="evaluationId" type="number" min={1} placeholder="Podpis trafi do arkusza oceny" onBlur={(e) => loadFields(e.target.value)} />
+        </label>
+        {fields && (
+          <label>
+            Pole podpisu w ocenie
+            <select name="evaluationFieldKey" required defaultValue="">
+              <option value="" disabled>— wybierz —</option>
+              {fields.map((f) => (
+                <option key={f.key} value={f.key} disabled={f.signed}>
+                  {f.label ?? f.key} ({ROLE_LABELS[f.role] ?? f.role}){f.signed ? ' · podpisane' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <div className="buttons"><button type="submit">Poproś o podpis</button></div>
       </form>
 
@@ -125,7 +169,10 @@ export function SignaturesPage() {
             <tbody>
               {items.map((i) => (
                 <tr key={i.id}>
-                  <td>{i.title}</td>
+                  <td>
+                    {i.title}
+                    {i.evaluationId && <div className="muted">Ocena nr {i.evaluationId}</div>}
+                  </td>
                   <td>{i.signerName}</td>
                   <td>{STATUS_LABELS[i.status]}</td>
                   <td>{formatDate(i.createdAt)}</td>
