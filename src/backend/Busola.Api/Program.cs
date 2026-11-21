@@ -85,6 +85,7 @@ await using (var scope = app.Services.CreateAsyncScope())
     await scope.ServiceProvider.GetRequiredService<BusolaDbContext>().Database.MigrateAsync();
 }
 
+await ServiceSeeder.SeedAsync(app.Services);
 await SuperAdminSeeder.SeedAsync(app.Services, app.Configuration);
 
 app.Run();

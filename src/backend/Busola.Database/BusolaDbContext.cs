@@ -91,6 +91,7 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
         modelBuilder.Entity<Service>(b =>
         {
             b.Property(s => s.Name).HasMaxLength(200);
+            b.Property(s => s.LogoUrl).HasMaxLength(500);
             b.HasIndex(s => s.Name).IsUnique();
         });
 

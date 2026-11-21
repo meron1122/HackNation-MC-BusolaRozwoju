@@ -15,6 +15,7 @@ public sealed record EmployeeDto(
     string LocationName,
     int ServiceId,
     string ServiceName,
+    string? ServiceLogoUrl,
     int? SupervisorId,
     string? SupervisorName,
     bool HasAvatar)
@@ -31,6 +32,7 @@ public sealed record EmployeeDto(
         e.Department.Location.Name,
         e.Department.Location.ServiceId,
         e.Department.Location.Service.Name,
+        e.Department.Location.Service.LogoUrl,
         e.SupervisorId,
         e.Supervisor != null ? e.Supervisor.FirstName + " " + e.Supervisor.LastName : null,
         e.User != null && e.User.Avatar != null);
