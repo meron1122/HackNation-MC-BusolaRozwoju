@@ -1,0 +1,152 @@
+{
+  "schemaVersion": 1,
+  "title": "Arkusz pierwszej oceny w służbie cywilnej",
+  "legalBasis": "Rozporządzenie Prezesa Rady Ministrów z dnia 23 lipca 2015 r. w sprawie szczegółowych warunków i sposobu dokonywania pierwszej oceny w służbie cywilnej (Dz. U. poz. 1144), załącznik nr 2",
+  "initialStatus": "planned",
+  "statuses": [
+    { "key": "planned", "label": "Zaplanowana" },
+    { "key": "interview_done", "label": "Po rozmowie wstępnej" },
+    { "key": "report_submitted", "label": "Sprawozdanie złożone" },
+    { "key": "evaluated", "label": "Ocena sporządzona" },
+    { "key": "completed", "label": "Zakończona", "final": true },
+    { "key": "cancelled", "label": "Anulowana", "final": true }
+  ],
+  "stages": [
+    {
+      "key": "initial_interview",
+      "title": "Rozmowa wstępna",
+      "deadline": { "anchor": "start", "latest": { "days": 21 } },
+      "completesTo": "interview_done"
+    },
+    {
+      "key": "report",
+      "title": "Złożenie sprawozdania z zadań realizowanych w przepracowanym okresie",
+      "deadline": { "anchor": "start", "latest": { "months": 7 } },
+      "completesTo": "report_submitted"
+    },
+    {
+      "key": "evaluation",
+      "title": "Rozmowa oceniająca i pierwsza ocena",
+      "deadline": { "anchor": "start", "earliest": { "months": 8 }, "latest": { "months": 11 } },
+      "completesTo": "evaluated"
+    },
+    {
+      "key": "acknowledgement",
+      "title": "Zapoznanie ocenianego z pierwszą oceną",
+      "completesTo": "completed"
+    }
+  ],
+  "scales": {
+    "first": [
+      { "value": 3, "key": "below", "label": "Poniżej oczekiwań" },
+      { "value": 5, "key": "meets", "label": "Na poziomie oczekiwań" },
+      { "value": 7, "key": "above", "label": "Powyżej oczekiwań" }
+    ]
+  },
+  "scoring": {
+    "scores": "elements",
+    "average": "totalScore",
+    "result": "result",
+    "positiveWhen": [
+      { "rule": "fieldIn", "field": "exam", "values": ["yes", "not_applicable"] },
+      { "rule": "fieldIn", "field": "reportOnTime", "values": ["yes"] },
+      { "rule": "maxCountOfScore", "score": 3, "count": 1 },
+      { "rule": "minAverage", "value": 5 }
+    ]
+  },
+  "sections": [
+    {
+      "key": "general",
+      "part": "Część ogólna",
+      "title": "Dane",
+      "stage": "initial_interview",
+      "fields": [
+        { "key": "office", "type": "text", "label": "Nazwa urzędu", "required": true },
+        { "key": "evaluated", "type": "person", "label": "Dane ocenianego", "role": "evaluated", "required": true },
+        { "key": "hireDate", "type": "date", "label": "Data nawiązania stosunku pracy", "prefill": "employee.hireDate", "required": true,
+          "hint": "Przy zastępstwie: data ustalenia przez strony, że oceniany podlega pierwszej ocenie." },
+        { "key": "supervisor", "type": "person", "label": "Dane bezpośredniego przełożonego", "role": "supervisor", "required": true },
+        { "key": "unitHead", "type": "person", "label": "Dane kierującego komórką organizacyjną", "role": "unitHead", "required": true }
+      ]
+    },
+    {
+      "key": "initial_interview",
+      "title": "Rozmowa wstępna",
+      "stage": "initial_interview",
+      "fields": [
+        { "key": "initialInterviewDate", "type": "date", "label": "Data przeprowadzenia rozmowy wstępnej", "required": true },
+        { "key": "reportPeriod", "type": "dateRange", "label": "Termin wyznaczony na złożenie sprawozdania", "prefill": "stage:report", "required": true },
+        { "key": "evaluationPeriod", "type": "dateRange", "label": "Okres, w którym powinna zostać dokonana pierwsza ocena", "prefill": "stage:evaluation", "required": true },
+        { "key": "initialInterviewSupervisorSignature", "type": "signature", "role": "supervisor",
+          "label": "Potwierdzenie przeprowadzenia rozmowy wstępnej oraz wyznaczenia terminu na złożenie sprawozdania" },
+        { "key": "initialInterviewEvaluatedSignature", "type": "signature", "role": "evaluated" }
+      ]
+    },
+    {
+      "key": "evaluation_interview",
+      "title": "Rozmowa oceniająca",
+      "stage": "evaluation",
+      "fields": [
+        { "key": "evaluationInterviewDate", "type": "date", "label": "Data przeprowadzenia rozmowy oceniającej", "required": true },
+        { "key": "evaluationInterviewSupervisorSignature", "type": "signature", "role": "supervisor",
+          "label": "Potwierdzenie przeprowadzenia rozmowy oceniającej i omówienia wszystkich wymaganych zagadnień" },
+        { "key": "evaluationInterviewEvaluatedSignature", "type": "signature", "role": "evaluated" }
+      ]
+    },
+    {
+      "key": "elements",
+      "title": "Ocena postawy ocenianego, jego zaangażowania i postępów w pracy, relacji ze współpracownikami oraz terminowości wykonywania zadań",
+      "stage": "evaluation",
+      "fields": [
+        { "key": "elements", "type": "scores", "label": "Elementy oceny", "scale": "first", "required": true,
+          "items": [
+            { "key": "reliability", "label": "Rzetelność" },
+            { "key": "knowledge", "label": "Wykorzystywanie wiedzy i doskonalenie zawodowe" },
+            { "key": "organization", "label": "Organizacja pracy i orientacja na osiąganie celów" },
+            { "key": "communication", "label": "Komunikacja" },
+            { "key": "cooperation", "label": "Współpraca" }
+          ] },
+        { "key": "totalScore", "type": "average", "label": "Ocena łączna", "of": "elements" }
+      ]
+    },
+    {
+      "key": "result",
+      "title": "Pierwsza ocena w służbie cywilnej",
+      "stage": "evaluation",
+      "fields": [
+        { "key": "exam", "type": "choice", "label": "Oceniany zaliczył egzamin ze służby przygotowawczej", "required": true,
+          "options": [
+            { "value": "yes", "label": "Tak" },
+            { "value": "no", "label": "Nie" },
+            { "value": "not_applicable", "label": "Nie dotyczy" }
+          ] },
+        { "key": "reportOnTime", "type": "choice", "label": "Sprawozdanie zostało złożone w wyznaczonym terminie", "required": true,
+          "options": [ { "value": "yes", "label": "Tak" }, { "value": "no", "label": "Nie" } ] },
+        { "key": "result", "type": "choice", "label": "Pierwsza ocena w służbie cywilnej", "required": true,
+          "options": [ { "value": "positive", "label": "Pozytywna" }, { "value": "negative", "label": "Negatywna" } ] },
+        { "key": "justification", "type": "longText", "label": "Uzasadnienie przyznanej oceny",
+          "requiredWhen": { "field": "result", "in": ["negative"] } },
+        { "key": "developmentConclusions", "type": "longText", "label": "Wnioski dotyczące rozwoju zawodowego ocenianego",
+          "visibleWhen": { "field": "result", "in": ["positive"] } }
+      ]
+    },
+    {
+      "key": "confirmation",
+      "title": "Potwierdzenie dokonania pierwszej oceny w służbie cywilnej",
+      "stage": "evaluation",
+      "fields": [
+        { "key": "confirmationSupervisorSignature", "type": "signature", "role": "supervisor" },
+        { "key": "confirmationUnitHeadSignature", "type": "signature", "role": "unitHead" }
+      ]
+    },
+    {
+      "key": "acknowledgement",
+      "title": "Zapoznanie z oceną",
+      "stage": "acknowledgement",
+      "fields": [
+        { "key": "acknowledgementSignature", "type": "signature", "role": "evaluated",
+          "label": "Zapoznałam(-łem) się z pierwszą oceną w służbie cywilnej." }
+      ]
+    }
+  ]
+}

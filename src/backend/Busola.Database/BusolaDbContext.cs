@@ -1,5 +1,6 @@
 using Busola.Database.Authorization;
 using Busola.Database.Entities;
+using Busola.Database.EvaluationTemplates;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,11 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
     public DbSet<UserAvatar> UserAvatars => Set<UserAvatar>();
-
+    public DbSet<EvaluationTemplate> EvaluationTemplates => Set<EvaluationTemplate>();
+    public DbSet<Evaluation> Evaluations => Set<Evaluation>();
+    public DbSet<EvaluationStage> EvaluationStages => Set<EvaluationStage>();
+    public DbSet<EvaluationAnswer> EvaluationAnswers => Set<EvaluationAnswer>();
+    public DbSet<EvaluationSignature> EvaluationSignatures => Set<EvaluationSignature>();
     // Tu, a nie w AddDbContext, żeby snake_case obowiązywał zawsze — schemat i aplikacja nie mogą się rozjechać.
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) =>
         optionsBuilder.UseSnakeCaseNamingConvention();
@@ -53,6 +58,119 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
                 .WithOne(u => u.Avatar)
                 .HasForeignKey<UserAvatar>(a => a.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EvaluationTemplate>(b =>
+        {
+            // Seed ma Id 1..3, a Postgres nie przesuwa sekwencji przy jawnych Id — nowe wersje od 1000.
+            b.Property(t => t.Id).UseIdentityByDefaultColumn().HasIdentityOptions(startValue: 1000);
+            b.Property(t => t.Code).HasMaxLength(50);
+            b.Property(t => t.Title).HasMaxLength(300);
+            b.Property(t => t.Kind).HasConversion<string>().HasMaxLength(20);
+            b.Property(t => t.Schema).HasColumnType("jsonb");
+            b.HasIndex(t => new { t.Code, t.Version }).IsUnique();
+
+            // Najwyżej jedna aktywna wersja na kod — według niej zakłada się nowe oceny.
+            b.HasIndex(t => t.Code).IsUnique().HasFilter("is_active").HasDatabaseName("ix_evaluation_templates_active_code");
+            b.HasData(EvaluationTemplateSeed.Templates);
+        });
+
+        modelBuilder.Entity<Evaluation>(b =>
+        {
+            b.Property(e => e.Status).HasMaxLength(50);
+
+            b.HasOne(e => e.Employee)
+                .WithMany()
+                .HasForeignKey(e => e.EmployeeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(e => e.Evaluator)
+                .WithMany()
+                .HasForeignKey(e => e.EvaluatorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            b.HasOne(e => e.Template)
+                .WithMany()
+                .HasForeignKey(e => e.TemplateId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EvaluationStage>(b =>
+        {
+            b.ToTable(t => t.HasCheckConstraint("ck_evaluation_stages_due_window", "due_from IS NULL OR due_to IS NULL OR due_from <= due_to"));
+            b.Property(s => s.StageKey).HasMaxLength(50);
+            b.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+            b.HasIndex(s => new { s.EvaluationId, s.StageKey }).IsUnique();
+
+            // Pod listę „co się zbliża / co jest po terminie”.
+            b.HasIndex(s => new { s.Status, s.DueTo });
+
+            b.HasOne(s => s.Evaluation)
+                .WithMany(e => e.Stages)
+                .HasForeignKey(s => s.EvaluationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EvaluationAnswer>(b =>
+        {
+            b.ToTable(t =>
+            {
+                t.HasCheckConstraint("ck_evaluation_answers_has_value",
+                    "value_text IS NOT NULL OR value_number IS NOT NULL OR value_date IS NOT NULL");
+                t.HasCheckConstraint("ck_evaluation_answers_date_range",
+                    "value_date_to IS NULL OR (value_date IS NOT NULL AND value_date <= value_date_to)");
+            });
+
+            b.Property(a => a.FieldKey).HasMaxLength(100);
+            b.Property(a => a.ItemKey).HasMaxLength(100);
+            b.Property(a => a.ValueNumber).HasPrecision(10, 4);
+
+            // NULLS NOT DISTINCT: zwykłe pole (ItemKey = null) też ma tylko jedną wartość.
+            b.HasIndex(a => new { a.EvaluationId, a.FieldKey, a.ItemKey }).IsUnique().AreNullsDistinct(false);
+
+            b.HasOne(a => a.Evaluation)
+                .WithMany(e => e.Answers)
+                .HasForeignKey(a => a.EvaluationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(a => a.UpdatedBy)
+                .WithMany()
+                .HasForeignKey(a => a.UpdatedById)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EvaluationSignature>(b =>
+        {
+            b.ToTable(t =>
+            {
+                // Obraz jest opcjonalny, ale jak jest, to w komplecie: treść, typ i hash.
+                t.HasCheckConstraint("ck_evaluation_signatures_image_complete",
+                    "(image_content IS NULL AND image_content_type IS NULL AND image_sha256 IS NULL)"
+                    + " OR (image_content IS NOT NULL AND image_content_type IS NOT NULL AND image_sha256 IS NOT NULL)");
+                t.HasCheckConstraint("ck_evaluation_signatures_image_content_type",
+                    "image_content_type IN ('image/png', 'image/webp')");
+                t.HasCheckConstraint("ck_evaluation_signatures_image_sha256", "octet_length(image_sha256) = 32");
+
+                // Podpis to mały obraz; limit chroni przed przypadkowym wrzuceniem zdjęcia albo skanu.
+                t.HasCheckConstraint("ck_evaluation_signatures_image_size", "octet_length(image_content) BETWEEN 1 AND 524288");
+            });
+
+            b.Property(s => s.FieldKey).HasMaxLength(100);
+            b.Property(s => s.ImageContentType).HasMaxLength(50);
+            b.Property(s => s.Role).HasConversion<string>().HasMaxLength(20);
+            b.Property(s => s.SignerName).HasMaxLength(200);
+            b.Property(s => s.Place).HasMaxLength(100);
+            b.HasIndex(s => new { s.EvaluationId, s.FieldKey }).IsUnique();
+
+            b.HasOne(s => s.Evaluation)
+                .WithMany(e => e.Signatures)
+                .HasForeignKey(s => s.EvaluationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(s => s.SignedBy)
+                .WithMany()
+                .HasForeignKey(s => s.SignedById)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Role>(b =>

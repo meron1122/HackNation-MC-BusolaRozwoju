@@ -168,6 +168,351 @@ namespace Busola.Database.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Busola.Database.Entities.Evaluation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("employee_id");
+
+                    b.Property<int?>("EvaluatorId")
+                        .HasColumnType("integer")
+                        .HasColumnName("evaluator_id");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<int>("TemplateId")
+                        .HasColumnType("integer")
+                        .HasColumnName("template_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_evaluations");
+
+                    b.HasIndex("EmployeeId")
+                        .HasDatabaseName("ix_evaluations_employee_id");
+
+                    b.HasIndex("EvaluatorId")
+                        .HasDatabaseName("ix_evaluations_evaluator_id");
+
+                    b.HasIndex("TemplateId")
+                        .HasDatabaseName("ix_evaluations_template_id");
+
+                    b.ToTable("evaluations", (string)null);
+                });
+
+            modelBuilder.Entity("Busola.Database.Entities.EvaluationAnswer", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("EvaluationId")
+                        .HasColumnType("integer")
+                        .HasColumnName("evaluation_id");
+
+                    b.Property<string>("FieldKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("field_key");
+
+                    b.Property<string>("ItemKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("item_key");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("UpdatedById")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("updated_by_id");
+
+                    b.Property<DateOnly?>("ValueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("value_date");
+
+                    b.Property<DateOnly?>("ValueDateTo")
+                        .HasColumnType("date")
+                        .HasColumnName("value_date_to");
+
+                    b.Property<decimal?>("ValueNumber")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("numeric(10,4)")
+                        .HasColumnName("value_number");
+
+                    b.Property<string>("ValueText")
+                        .HasColumnType("text")
+                        .HasColumnName("value_text");
+
+                    b.HasKey("Id")
+                        .HasName("pk_evaluation_answers");
+
+                    b.HasIndex("UpdatedById")
+                        .HasDatabaseName("ix_evaluation_answers_updated_by_id");
+
+                    b.HasIndex("EvaluationId", "FieldKey", "ItemKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_evaluation_answers_evaluation_id_field_key_item_key");
+
+                    NpgsqlIndexBuilderExtensions.AreNullsDistinct(b.HasIndex("EvaluationId", "FieldKey", "ItemKey"), false);
+
+                    b.ToTable("evaluation_answers", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_evaluation_answers_date_range", "value_date_to IS NULL OR (value_date IS NOT NULL AND value_date <= value_date_to)");
+
+                            t.HasCheckConstraint("ck_evaluation_answers_has_value", "value_text IS NOT NULL OR value_number IS NOT NULL OR value_date IS NOT NULL");
+                        });
+                });
+
+            modelBuilder.Entity("Busola.Database.Entities.EvaluationSignature", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("EvaluationId")
+                        .HasColumnType("integer")
+                        .HasColumnName("evaluation_id");
+
+                    b.Property<string>("FieldKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("field_key");
+
+                    b.Property<byte[]>("ImageContent")
+                        .HasColumnType("bytea")
+                        .HasColumnName("image_content");
+
+                    b.Property<string>("ImageContentType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("image_content_type");
+
+                    b.Property<byte[]>("ImageSha256")
+                        .HasColumnType("bytea")
+                        .HasColumnName("image_sha256");
+
+                    b.Property<string>("Place")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("place");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("role");
+
+                    b.Property<string>("SignedById")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("signed_by_id");
+
+                    b.Property<DateOnly>("SignedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("signed_on");
+
+                    b.Property<string>("SignerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("signer_name");
+
+                    b.HasKey("Id")
+                        .HasName("pk_evaluation_signatures");
+
+                    b.HasIndex("SignedById")
+                        .HasDatabaseName("ix_evaluation_signatures_signed_by_id");
+
+                    b.HasIndex("EvaluationId", "FieldKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_evaluation_signatures_evaluation_id_field_key");
+
+                    b.ToTable("evaluation_signatures", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_evaluation_signatures_image_complete", "(image_content IS NULL AND image_content_type IS NULL AND image_sha256 IS NULL) OR (image_content IS NOT NULL AND image_content_type IS NOT NULL AND image_sha256 IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_evaluation_signatures_image_content_type", "image_content_type IN ('image/png', 'image/webp')");
+
+                            t.HasCheckConstraint("ck_evaluation_signatures_image_sha256", "octet_length(image_sha256) = 32");
+
+                            t.HasCheckConstraint("ck_evaluation_signatures_image_size", "octet_length(image_content) BETWEEN 1 AND 524288");
+                        });
+                });
+
+            modelBuilder.Entity("Busola.Database.Entities.EvaluationStage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly?>("CompletedOn")
+                        .HasColumnType("date")
+                        .HasColumnName("completed_on");
+
+                    b.Property<DateOnly?>("DueFrom")
+                        .HasColumnType("date")
+                        .HasColumnName("due_from");
+
+                    b.Property<DateOnly?>("DueTo")
+                        .HasColumnType("date")
+                        .HasColumnName("due_to");
+
+                    b.Property<int>("EvaluationId")
+                        .HasColumnType("integer")
+                        .HasColumnName("evaluation_id");
+
+                    b.Property<string>("StageKey")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("stage_key");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id")
+                        .HasName("pk_evaluation_stages");
+
+                    b.HasIndex("EvaluationId", "StageKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_evaluation_stages_evaluation_id_stage_key");
+
+                    b.HasIndex("Status", "DueTo")
+                        .HasDatabaseName("ix_evaluation_stages_status_due_to");
+
+                    b.ToTable("evaluation_stages", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_evaluation_stages_due_window", "due_from IS NULL OR due_to IS NULL OR due_from <= due_to");
+                        });
+                });
+
+            modelBuilder.Entity("Busola.Database.Entities.EvaluationTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+                    NpgsqlPropertyBuilderExtensions.HasIdentityOptions(b.Property<int>("Id"), 1000L, null, null, null, null, null);
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Schema")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("schema");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("title");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_evaluation_templates");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("ix_evaluation_templates_active_code")
+                        .HasFilter("is_active");
+
+                    b.HasIndex("Code", "Version")
+                        .IsUnique()
+                        .HasDatabaseName("ix_evaluation_templates_code_version");
+
+                    b.ToTable("evaluation_templates", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Code = "first",
+                            IsActive = true,
+                            Kind = "First",
+                            Schema = "{\"schemaVersion\":1,\"title\":\"Arkusz pierwszej oceny w służbie cywilnej\",\"legalBasis\":\"Rozporządzenie Prezesa Rady Ministrów z dnia 23 lipca 2015 r. w sprawie szczegółowych warunków i sposobu dokonywania pierwszej oceny w służbie cywilnej (Dz. U. poz. 1144), załącznik nr 2\",\"initialStatus\":\"planned\",\"statuses\":[{\"key\":\"planned\",\"label\":\"Zaplanowana\"},{\"key\":\"interview_done\",\"label\":\"Po rozmowie wstępnej\"},{\"key\":\"report_submitted\",\"label\":\"Sprawozdanie złożone\"},{\"key\":\"evaluated\",\"label\":\"Ocena sporządzona\"},{\"key\":\"completed\",\"label\":\"Zakończona\",\"final\":true},{\"key\":\"cancelled\",\"label\":\"Anulowana\",\"final\":true}],\"stages\":[{\"key\":\"initial_interview\",\"title\":\"Rozmowa wstępna\",\"deadline\":{\"anchor\":\"start\",\"latest\":{\"days\":21}},\"completesTo\":\"interview_done\"},{\"key\":\"report\",\"title\":\"Złożenie sprawozdania z zadań realizowanych w przepracowanym okresie\",\"deadline\":{\"anchor\":\"start\",\"latest\":{\"months\":7}},\"completesTo\":\"report_submitted\"},{\"key\":\"evaluation\",\"title\":\"Rozmowa oceniająca i pierwsza ocena\",\"deadline\":{\"anchor\":\"start\",\"earliest\":{\"months\":8},\"latest\":{\"months\":11}},\"completesTo\":\"evaluated\"},{\"key\":\"acknowledgement\",\"title\":\"Zapoznanie ocenianego z pierwszą oceną\",\"completesTo\":\"completed\"}],\"scales\":{\"first\":[{\"value\":3,\"key\":\"below\",\"label\":\"Poniżej oczekiwań\"},{\"value\":5,\"key\":\"meets\",\"label\":\"Na poziomie oczekiwań\"},{\"value\":7,\"key\":\"above\",\"label\":\"Powyżej oczekiwań\"}]},\"scoring\":{\"scores\":\"elements\",\"average\":\"totalScore\",\"result\":\"result\",\"positiveWhen\":[{\"rule\":\"fieldIn\",\"field\":\"exam\",\"values\":[\"yes\",\"not_applicable\"]},{\"rule\":\"fieldIn\",\"field\":\"reportOnTime\",\"values\":[\"yes\"]},{\"rule\":\"maxCountOfScore\",\"score\":3,\"count\":1},{\"rule\":\"minAverage\",\"value\":5}]},\"sections\":[{\"key\":\"general\",\"part\":\"Część ogólna\",\"title\":\"Dane\",\"stage\":\"initial_interview\",\"fields\":[{\"key\":\"office\",\"type\":\"text\",\"label\":\"Nazwa urzędu\",\"required\":true},{\"key\":\"evaluated\",\"type\":\"person\",\"label\":\"Dane ocenianego\",\"role\":\"evaluated\",\"required\":true},{\"key\":\"hireDate\",\"type\":\"date\",\"label\":\"Data nawiązania stosunku pracy\",\"prefill\":\"employee.hireDate\",\"required\":true,\"hint\":\"Przy zastępstwie: data ustalenia przez strony, że oceniany podlega pierwszej ocenie.\"},{\"key\":\"supervisor\",\"type\":\"person\",\"label\":\"Dane bezpośredniego przełożonego\",\"role\":\"supervisor\",\"required\":true},{\"key\":\"unitHead\",\"type\":\"person\",\"label\":\"Dane kierującego komórką organizacyjną\",\"role\":\"unitHead\",\"required\":true}]},{\"key\":\"initial_interview\",\"title\":\"Rozmowa wstępna\",\"stage\":\"initial_interview\",\"fields\":[{\"key\":\"initialInterviewDate\",\"type\":\"date\",\"label\":\"Data przeprowadzenia rozmowy wstępnej\",\"required\":true},{\"key\":\"reportPeriod\",\"type\":\"dateRange\",\"label\":\"Termin wyznaczony na złożenie sprawozdania\",\"prefill\":\"stage:report\",\"required\":true},{\"key\":\"evaluationPeriod\",\"type\":\"dateRange\",\"label\":\"Okres, w którym powinna zostać dokonana pierwsza ocena\",\"prefill\":\"stage:evaluation\",\"required\":true},{\"key\":\"initialInterviewSupervisorSignature\",\"type\":\"signature\",\"role\":\"supervisor\",\"label\":\"Potwierdzenie przeprowadzenia rozmowy wstępnej oraz wyznaczenia terminu na złożenie sprawozdania\"},{\"key\":\"initialInterviewEvaluatedSignature\",\"type\":\"signature\",\"role\":\"evaluated\"}]},{\"key\":\"evaluation_interview\",\"title\":\"Rozmowa oceniająca\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"evaluationInterviewDate\",\"type\":\"date\",\"label\":\"Data przeprowadzenia rozmowy oceniającej\",\"required\":true},{\"key\":\"evaluationInterviewSupervisorSignature\",\"type\":\"signature\",\"role\":\"supervisor\",\"label\":\"Potwierdzenie przeprowadzenia rozmowy oceniającej i omówienia wszystkich wymaganych zagadnień\"},{\"key\":\"evaluationInterviewEvaluatedSignature\",\"type\":\"signature\",\"role\":\"evaluated\"}]},{\"key\":\"elements\",\"title\":\"Ocena postawy ocenianego, jego zaangażowania i postępów w pracy, relacji ze współpracownikami oraz terminowości wykonywania zadań\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"elements\",\"type\":\"scores\",\"label\":\"Elementy oceny\",\"scale\":\"first\",\"required\":true,\"items\":[{\"key\":\"reliability\",\"label\":\"Rzetelność\"},{\"key\":\"knowledge\",\"label\":\"Wykorzystywanie wiedzy i doskonalenie zawodowe\"},{\"key\":\"organization\",\"label\":\"Organizacja pracy i orientacja na osiąganie celów\"},{\"key\":\"communication\",\"label\":\"Komunikacja\"},{\"key\":\"cooperation\",\"label\":\"Współpraca\"}]},{\"key\":\"totalScore\",\"type\":\"average\",\"label\":\"Ocena łączna\",\"of\":\"elements\"}]},{\"key\":\"result\",\"title\":\"Pierwsza ocena w służbie cywilnej\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"exam\",\"type\":\"choice\",\"label\":\"Oceniany zaliczył egzamin ze służby przygotowawczej\",\"required\":true,\"options\":[{\"value\":\"yes\",\"label\":\"Tak\"},{\"value\":\"no\",\"label\":\"Nie\"},{\"value\":\"not_applicable\",\"label\":\"Nie dotyczy\"}]},{\"key\":\"reportOnTime\",\"type\":\"choice\",\"label\":\"Sprawozdanie zostało złożone w wyznaczonym terminie\",\"required\":true,\"options\":[{\"value\":\"yes\",\"label\":\"Tak\"},{\"value\":\"no\",\"label\":\"Nie\"}]},{\"key\":\"result\",\"type\":\"choice\",\"label\":\"Pierwsza ocena w służbie cywilnej\",\"required\":true,\"options\":[{\"value\":\"positive\",\"label\":\"Pozytywna\"},{\"value\":\"negative\",\"label\":\"Negatywna\"}]},{\"key\":\"justification\",\"type\":\"longText\",\"label\":\"Uzasadnienie przyznanej oceny\",\"requiredWhen\":{\"field\":\"result\",\"in\":[\"negative\"]}},{\"key\":\"developmentConclusions\",\"type\":\"longText\",\"label\":\"Wnioski dotyczące rozwoju zawodowego ocenianego\",\"visibleWhen\":{\"field\":\"result\",\"in\":[\"positive\"]}}]},{\"key\":\"confirmation\",\"title\":\"Potwierdzenie dokonania pierwszej oceny w służbie cywilnej\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"confirmationSupervisorSignature\",\"type\":\"signature\",\"role\":\"supervisor\"},{\"key\":\"confirmationUnitHeadSignature\",\"type\":\"signature\",\"role\":\"unitHead\"}]},{\"key\":\"acknowledgement\",\"title\":\"Zapoznanie z oceną\",\"stage\":\"acknowledgement\",\"fields\":[{\"key\":\"acknowledgementSignature\",\"type\":\"signature\",\"role\":\"evaluated\",\"label\":\"Zapoznałam(-łem) się z pierwszą oceną w służbie cywilnej.\"}]}]}",
+                            Title = "Arkusz pierwszej oceny w służbie cywilnej",
+                            Version = 1
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Code = "periodic-b",
+                            IsActive = true,
+                            Kind = "Periodic",
+                            Schema = "{\"schemaVersion\":1,\"title\":\"Arkusz B – ocena okresowa urzędnika służby cywilnej lub pracownika służby cywilnej\",\"appliesTo\":\"Stanowiska, na których praca polega na bezpośrednim kierowaniu pracownikami.\",\"legalBasis\":\"Rozporządzenie Prezesa Rady Ministrów z dnia 4 kwietnia 2016 r. w sprawie warunków i sposobu przeprowadzania ocen okresowych urzędników służby cywilnej i pracowników służby cywilnej (Dz. U. poz. 470), załącznik nr 3\",\"initialStatus\":\"planned\",\"statuses\":[{\"key\":\"planned\",\"label\":\"Zaplanowana\"},{\"key\":\"criteria_set\",\"label\":\"Kryteria ustalone\"},{\"key\":\"evaluated\",\"label\":\"Ocena sporządzona\"},{\"key\":\"completed\",\"label\":\"Zakończona\",\"final\":true},{\"key\":\"objection_filed\",\"label\":\"Złożono sprzeciw\",\"final\":true},{\"key\":\"cancelled\",\"label\":\"Anulowana\",\"final\":true}],\"stages\":[{\"key\":\"criteria\",\"title\":\"Ustalenie kryteriów oceny i zapoznanie z nimi ocenianego\",\"deadline\":{\"anchor\":\"start\",\"latest\":{\"days\":30}},\"completesTo\":\"criteria_set\"},{\"key\":\"evaluation\",\"title\":\"Rozmowa oceniająca i sporządzenie oceny\",\"deadline\":{\"anchor\":\"start\",\"latest\":{\"months\":24}},\"completesTo\":\"evaluated\"},{\"key\":\"acknowledgement\",\"title\":\"Zapoznanie ocenianego z oceną\",\"completesTo\":\"completed\"},{\"key\":\"objection\",\"title\":\"Sprzeciw do dyrektora generalnego urzędu\",\"optional\":true,\"deadline\":{\"anchor\":\"stage:acknowledgement\",\"latest\":{\"days\":7}},\"completesTo\":\"objection_filed\"}],\"scales\":{\"periodic\":[{\"value\":1,\"key\":\"far_below\",\"label\":\"Znacznie poniżej oczekiwań\"},{\"value\":3,\"key\":\"below\",\"label\":\"Poniżej oczekiwań\"},{\"value\":5,\"key\":\"meets\",\"label\":\"Na poziomie oczekiwań\"},{\"value\":7,\"key\":\"above\",\"label\":\"Powyżej oczekiwań\"},{\"value\":9,\"key\":\"far_above\",\"label\":\"Znacznie powyżej oczekiwań\"}]},\"scoring\":{\"scores\":\"scores\",\"average\":\"averageScore\",\"level\":\"level\",\"result\":\"result\",\"levels\":[{\"key\":\"far_below\",\"label\":\"Znacznie poniżej oczekiwań\",\"min\":1,\"max\":2},{\"key\":\"below\",\"label\":\"Poniżej oczekiwań\",\"minExclusive\":2,\"max\":4},{\"key\":\"meets\",\"label\":\"Na poziomie oczekiwań\",\"minExclusive\":4,\"max\":6},{\"key\":\"above\",\"label\":\"Powyżej oczekiwań\",\"minExclusive\":6,\"max\":8},{\"key\":\"far_above\",\"label\":\"Znacznie powyżej oczekiwań\",\"minExclusive\":8,\"max\":9}],\"positiveWhen\":[{\"rule\":\"levelIn\",\"values\":[\"meets\",\"above\",\"far_above\"]},{\"rule\":\"maxCountOfScore\",\"score\":1,\"count\":0}]},\"sections\":[{\"key\":\"part1_general\",\"part\":\"Część I\",\"title\":\"Dane\",\"stage\":\"criteria\",\"fields\":[{\"key\":\"office\",\"type\":\"text\",\"label\":\"Nazwa urzędu\",\"required\":true},{\"key\":\"evaluated\",\"type\":\"person\",\"label\":\"Dane ocenianego\",\"role\":\"evaluated\",\"required\":true,\"hint\":\"Pełna nazwa stanowiska wraz z rozszerzeniem z opisu stanowiska pracy.\"},{\"key\":\"evaluator\",\"type\":\"person\",\"label\":\"Dane oceniającego\",\"role\":\"evaluator\",\"required\":true}]},{\"key\":\"part1_criteria\",\"part\":\"Część I\",\"title\":\"Kryteria oceny i termin sporządzenia oceny\",\"stage\":\"criteria\",\"fields\":[{\"key\":\"criteria\",\"type\":\"criteriaSelection\",\"label\":\"Kryteria oceny\",\"required\":true,\"mandatory\":[{\"key\":\"people_management\",\"label\":\"Zarządzanie ludźmi\"},{\"key\":\"decisions\",\"label\":\"Podejmowanie decyzji i odpowiedzialność\"},{\"key\":\"organization\",\"label\":\"Organizacja pracy i orientacja na osiąganie celów\"},{\"key\":\"cooperation\",\"label\":\"Współpraca\"},{\"key\":\"communication\",\"label\":\"Komunikacja\"}],\"additional\":{\"max\":3,\"catalog\":\"Załącznik nr 1 do rozporządzenia Prezesa Rady Ministrów z dnia 4 kwietnia 2016 r.\"}},{\"key\":\"evaluationDueDate\",\"type\":\"date\",\"label\":\"Termin sporządzenia oceny\",\"prefill\":\"stage:evaluation\",\"required\":true},{\"key\":\"criteriaEvaluatorSignature\",\"type\":\"signature\",\"role\":\"evaluator\",\"label\":\"Potwierdzenie przeprowadzenia rozmowy (§ 5 ust. 1 rozporządzenia) i zapoznania ocenianego z kryteriami oceny oraz terminem sporządzenia oceny\"},{\"key\":\"criteriaEvaluatedSignature\",\"type\":\"signature\",\"role\":\"evaluated\"}]},{\"key\":\"part2_interview\",\"part\":\"Część II\",\"title\":\"Rozmowa oceniająca\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"evaluationInterviewDate\",\"type\":\"date\",\"label\":\"Data przeprowadzenia rozmowy oceniającej\",\"required\":true},{\"key\":\"evaluationPeriod\",\"type\":\"dateRange\",\"label\":\"Okres, w którym oceniany podlegał ocenie\",\"required\":true,\"hint\":\"Od: data zapoznania z kryteriami (część I). Do: data sporządzenia oceny na piśmie.\"}]},{\"key\":\"part2_scores\",\"part\":\"Część II\",\"title\":\"Oceny cząstkowe\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"scores\",\"type\":\"scores\",\"label\":\"Kryteria obowiązkowe i dodatkowe\",\"scale\":\"periodic\",\"itemsFrom\":\"criteria\",\"required\":true},{\"key\":\"averageScore\",\"type\":\"average\",\"label\":\"Średnia arytmetyczna z ocen cząstkowych\",\"of\":\"scores\"}]},{\"key\":\"part2_result\",\"part\":\"Część II\",\"title\":\"Przyznanie oceny\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"level\",\"type\":\"level\",\"label\":\"Ogólny poziom spełnienia kryteriów oceny\",\"of\":\"averageScore\"},{\"key\":\"result\",\"type\":\"choice\",\"label\":\"Ocena okresowa w służbie cywilnej\",\"required\":true,\"options\":[{\"value\":\"positive\",\"label\":\"Pozytywna\"},{\"value\":\"negative\",\"label\":\"Negatywna\"}]},{\"key\":\"justification\",\"type\":\"longText\",\"label\":\"Uzasadnienie przyznanej oceny okresowej\",\"requiredWhen\":{\"field\":\"result\",\"in\":[\"negative\"]}},{\"key\":\"developmentConclusions\",\"type\":\"longText\",\"label\":\"Wnioski dotyczące indywidualnego programu rozwoju zawodowego\",\"required\":true}]},{\"key\":\"part2_previous\",\"part\":\"Część II\",\"title\":\"Dane dotyczące poprzedniej oceny okresowej urzędnika służby cywilnej\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"previousResult\",\"type\":\"choice\",\"label\":\"Ocena\",\"options\":[{\"value\":\"positive\",\"label\":\"Pozytywna\"},{\"value\":\"negative\",\"label\":\"Negatywna\"}]},{\"key\":\"previousLevel\",\"type\":\"choice\",\"label\":\"Poziom\",\"optionsFrom\":\"scoring.levels\"},{\"key\":\"previousDate\",\"type\":\"date\",\"label\":\"Data sporządzenia\"}]},{\"key\":\"part2_promotion\",\"part\":\"Część II\",\"title\":\"Wniosek o kolejny stopień służbowy\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"promotionRequest\",\"type\":\"choice\",\"label\":\"Czy do oceny okresowej dołączono wniosek o przyznanie kolejnego stopnia służbowego?\",\"required\":true,\"options\":[{\"value\":\"yes\",\"label\":\"Tak\"},{\"value\":\"no\",\"label\":\"Nie\"},{\"value\":\"not_applicable\",\"label\":\"Nie dotyczy (oceniany jest pracownikiem służby cywilnej)\"}]}]},{\"key\":\"part2_signature\",\"part\":\"Część II\",\"title\":\"Oceniający\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"finalEvaluator\",\"type\":\"person\",\"label\":\"Dane oceniającego\",\"role\":\"evaluator\",\"required\":true},{\"key\":\"evaluationEvaluatorSignature\",\"type\":\"signature\",\"role\":\"evaluator\"}]},{\"key\":\"acknowledgement\",\"part\":\"Część II\",\"title\":\"Zapoznanie z oceną\",\"stage\":\"acknowledgement\",\"fields\":[{\"key\":\"acknowledgementSignature\",\"type\":\"signature\",\"role\":\"evaluated\",\"label\":\"Przeprowadzono ze mną rozmowę oceniającą oraz zapoznałem(-łam) się z oceną okresową i wnioskami dotyczącymi indywidualnego programu rozwoju zawodowego.\"},{\"key\":\"objectionNotice\",\"type\":\"notice\",\"label\":\"Zgodnie z art. 83 ust. 1 ustawy z dnia 21 listopada 2008 r. o służbie cywilnej od oceny okresowej służy, w terminie 7 dni od dnia zapoznania się z oceną, sprzeciw do dyrektora generalnego urzędu.\"}]},{\"key\":\"part3_promotion\",\"part\":\"Część III\",\"title\":\"Wniosek o przyznanie urzędnikowi służby cywilnej kolejnego stopnia służbowego (art. 89 ust. 1 ustawy)\",\"stage\":\"evaluation\",\"visibleWhen\":{\"field\":\"promotionRequest\",\"in\":[\"yes\"]},\"fields\":[{\"key\":\"civilServant\",\"type\":\"person\",\"label\":\"Dane urzędnika służby cywilnej\",\"role\":\"evaluated\",\"required\":true},{\"key\":\"appointmentYear\",\"type\":\"year\",\"label\":\"Rok mianowania\",\"required\":true},{\"key\":\"currentRank\",\"type\":\"text\",\"label\":\"Posiadany stopień służbowy\",\"required\":true},{\"key\":\"currentRankDate\",\"type\":\"date\",\"label\":\"Data przyznania stopnia służbowego\",\"required\":true},{\"key\":\"requestedRank\",\"type\":\"text\",\"label\":\"Wnioskowany stopień służbowy\",\"required\":true},{\"key\":\"promotionMotivation\",\"type\":\"longText\",\"label\":\"Umotywowanie wniosku\",\"required\":true},{\"key\":\"promotionEvaluatorSignature\",\"type\":\"signature\",\"role\":\"evaluator\"}]}]}",
+                            Title = "Arkusz B – ocena okresowa urzędnika służby cywilnej lub pracownika służby cywilnej",
+                            Version = 1
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Code = "periodic-c",
+                            IsActive = true,
+                            Kind = "Periodic",
+                            Schema = "{\"schemaVersion\":1,\"title\":\"Arkusz C – ocena okresowa urzędnika służby cywilnej lub pracownika służby cywilnej\",\"appliesTo\":\"Stanowiska, które nie są stanowiskiem kierownika urzędu ani stanowiskiem, na którym praca polega na bezpośrednim kierowaniu pracownikami.\",\"legalBasis\":\"Rozporządzenie Prezesa Rady Ministrów z dnia 4 kwietnia 2016 r. w sprawie warunków i sposobu przeprowadzania ocen okresowych urzędników służby cywilnej i pracowników służby cywilnej (Dz. U. poz. 470), załącznik nr 4\",\"initialStatus\":\"planned\",\"statuses\":[{\"key\":\"planned\",\"label\":\"Zaplanowana\"},{\"key\":\"criteria_set\",\"label\":\"Kryteria ustalone\"},{\"key\":\"evaluated\",\"label\":\"Ocena sporządzona\"},{\"key\":\"completed\",\"label\":\"Zakończona\",\"final\":true},{\"key\":\"objection_filed\",\"label\":\"Złożono sprzeciw\",\"final\":true},{\"key\":\"cancelled\",\"label\":\"Anulowana\",\"final\":true}],\"stages\":[{\"key\":\"criteria\",\"title\":\"Ustalenie kryteriów oceny i zapoznanie z nimi ocenianego\",\"deadline\":{\"anchor\":\"start\",\"latest\":{\"days\":30}},\"completesTo\":\"criteria_set\"},{\"key\":\"evaluation\",\"title\":\"Rozmowa oceniająca i sporządzenie oceny\",\"deadline\":{\"anchor\":\"start\",\"latest\":{\"months\":24}},\"completesTo\":\"evaluated\"},{\"key\":\"acknowledgement\",\"title\":\"Zapoznanie ocenianego z oceną\",\"completesTo\":\"completed\"},{\"key\":\"objection\",\"title\":\"Sprzeciw do dyrektora generalnego urzędu\",\"optional\":true,\"deadline\":{\"anchor\":\"stage:acknowledgement\",\"latest\":{\"days\":7}},\"completesTo\":\"objection_filed\"}],\"scales\":{\"periodic\":[{\"value\":1,\"key\":\"far_below\",\"label\":\"Znacznie poniżej oczekiwań\"},{\"value\":3,\"key\":\"below\",\"label\":\"Poniżej oczekiwań\"},{\"value\":5,\"key\":\"meets\",\"label\":\"Na poziomie oczekiwań\"},{\"value\":7,\"key\":\"above\",\"label\":\"Powyżej oczekiwań\"},{\"value\":9,\"key\":\"far_above\",\"label\":\"Znacznie powyżej oczekiwań\"}]},\"scoring\":{\"scores\":\"scores\",\"average\":\"averageScore\",\"level\":\"level\",\"result\":\"result\",\"levels\":[{\"key\":\"far_below\",\"label\":\"Znacznie poniżej oczekiwań\",\"min\":1,\"max\":2},{\"key\":\"below\",\"label\":\"Poniżej oczekiwań\",\"minExclusive\":2,\"max\":4},{\"key\":\"meets\",\"label\":\"Na poziomie oczekiwań\",\"minExclusive\":4,\"max\":6},{\"key\":\"above\",\"label\":\"Powyżej oczekiwań\",\"minExclusive\":6,\"max\":8},{\"key\":\"far_above\",\"label\":\"Znacznie powyżej oczekiwań\",\"minExclusive\":8,\"max\":9}],\"positiveWhen\":[{\"rule\":\"levelIn\",\"values\":[\"meets\",\"above\",\"far_above\"]},{\"rule\":\"maxCountOfScore\",\"score\":1,\"count\":0}]},\"sections\":[{\"key\":\"part1_general\",\"part\":\"Część I\",\"title\":\"Dane\",\"stage\":\"criteria\",\"fields\":[{\"key\":\"office\",\"type\":\"text\",\"label\":\"Nazwa urzędu\",\"required\":true},{\"key\":\"evaluated\",\"type\":\"person\",\"label\":\"Dane ocenianego\",\"role\":\"evaluated\",\"required\":true,\"hint\":\"Pełna nazwa stanowiska wraz z rozszerzeniem z opisu stanowiska pracy.\"},{\"key\":\"evaluator\",\"type\":\"person\",\"label\":\"Dane oceniającego\",\"role\":\"evaluator\",\"required\":true}]},{\"key\":\"part1_criteria\",\"part\":\"Część I\",\"title\":\"Kryteria oceny i termin sporządzenia oceny\",\"stage\":\"criteria\",\"fields\":[{\"key\":\"criteria\",\"type\":\"criteriaSelection\",\"label\":\"Kryteria oceny\",\"required\":true,\"mandatory\":[{\"key\":\"knowledge\",\"label\":\"Wykorzystywanie wiedzy i doskonalenie zawodowe\"},{\"key\":\"reliability\",\"label\":\"Rzetelność\"},{\"key\":\"organization\",\"label\":\"Organizacja pracy i orientacja na osiąganie celów\"},{\"key\":\"cooperation\",\"label\":\"Współpraca\"},{\"key\":\"communication\",\"label\":\"Komunikacja\"}],\"additional\":{\"max\":3,\"catalog\":\"Załącznik nr 1 do rozporządzenia Prezesa Rady Ministrów z dnia 4 kwietnia 2016 r.\"}},{\"key\":\"evaluationDueDate\",\"type\":\"date\",\"label\":\"Termin sporządzenia oceny\",\"prefill\":\"stage:evaluation\",\"required\":true},{\"key\":\"criteriaEvaluatorSignature\",\"type\":\"signature\",\"role\":\"evaluator\",\"label\":\"Potwierdzenie przeprowadzenia rozmowy (§ 5 ust. 1 rozporządzenia) i zapoznania ocenianego z kryteriami oceny oraz terminem sporządzenia oceny\"},{\"key\":\"criteriaEvaluatedSignature\",\"type\":\"signature\",\"role\":\"evaluated\"}]},{\"key\":\"part2_interview\",\"part\":\"Część II\",\"title\":\"Rozmowa oceniająca\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"evaluationInterviewDate\",\"type\":\"date\",\"label\":\"Data przeprowadzenia rozmowy oceniającej\",\"required\":true},{\"key\":\"evaluationPeriod\",\"type\":\"dateRange\",\"label\":\"Okres, w którym oceniany podlegał ocenie\",\"required\":true,\"hint\":\"Od: data zapoznania z kryteriami (część I). Do: data sporządzenia oceny na piśmie.\"}]},{\"key\":\"part2_scores\",\"part\":\"Część II\",\"title\":\"Oceny cząstkowe\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"scores\",\"type\":\"scores\",\"label\":\"Kryteria obowiązkowe i dodatkowe\",\"scale\":\"periodic\",\"itemsFrom\":\"criteria\",\"required\":true},{\"key\":\"averageScore\",\"type\":\"average\",\"label\":\"Średnia arytmetyczna z ocen cząstkowych\",\"of\":\"scores\"}]},{\"key\":\"part2_result\",\"part\":\"Część II\",\"title\":\"Przyznanie oceny\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"level\",\"type\":\"level\",\"label\":\"Ogólny poziom spełnienia kryteriów oceny\",\"of\":\"averageScore\"},{\"key\":\"result\",\"type\":\"choice\",\"label\":\"Ocena okresowa w służbie cywilnej\",\"required\":true,\"options\":[{\"value\":\"positive\",\"label\":\"Pozytywna\"},{\"value\":\"negative\",\"label\":\"Negatywna\"}]},{\"key\":\"justification\",\"type\":\"longText\",\"label\":\"Uzasadnienie przyznanej oceny okresowej\",\"requiredWhen\":{\"field\":\"result\",\"in\":[\"negative\"]}},{\"key\":\"developmentConclusions\",\"type\":\"longText\",\"label\":\"Wnioski dotyczące indywidualnego programu rozwoju zawodowego\",\"required\":true}]},{\"key\":\"part2_previous\",\"part\":\"Część II\",\"title\":\"Dane dotyczące poprzedniej oceny okresowej urzędnika służby cywilnej\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"previousResult\",\"type\":\"choice\",\"label\":\"Ocena\",\"options\":[{\"value\":\"positive\",\"label\":\"Pozytywna\"},{\"value\":\"negative\",\"label\":\"Negatywna\"}]},{\"key\":\"previousLevel\",\"type\":\"choice\",\"label\":\"Poziom\",\"optionsFrom\":\"scoring.levels\"},{\"key\":\"previousDate\",\"type\":\"date\",\"label\":\"Data sporządzenia\"}]},{\"key\":\"part2_promotion\",\"part\":\"Część II\",\"title\":\"Wniosek o kolejny stopień służbowy\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"promotionRequest\",\"type\":\"choice\",\"label\":\"Czy do oceny okresowej dołączono wniosek o przyznanie kolejnego stopnia służbowego?\",\"required\":true,\"options\":[{\"value\":\"yes\",\"label\":\"Tak\"},{\"value\":\"no\",\"label\":\"Nie\"},{\"value\":\"not_applicable\",\"label\":\"Nie dotyczy (oceniany jest pracownikiem służby cywilnej)\"}]}]},{\"key\":\"part2_signature\",\"part\":\"Część II\",\"title\":\"Oceniający\",\"stage\":\"evaluation\",\"fields\":[{\"key\":\"finalEvaluator\",\"type\":\"person\",\"label\":\"Dane oceniającego\",\"role\":\"evaluator\",\"required\":true},{\"key\":\"evaluationEvaluatorSignature\",\"type\":\"signature\",\"role\":\"evaluator\"}]},{\"key\":\"acknowledgement\",\"part\":\"Część II\",\"title\":\"Zapoznanie z oceną\",\"stage\":\"acknowledgement\",\"fields\":[{\"key\":\"acknowledgementSignature\",\"type\":\"signature\",\"role\":\"evaluated\",\"label\":\"Przeprowadzono ze mną rozmowę oceniającą oraz zapoznałem(-łam) się z oceną okresową i wnioskami dotyczącymi indywidualnego programu rozwoju zawodowego.\"},{\"key\":\"objectionNotice\",\"type\":\"notice\",\"label\":\"Zgodnie z art. 83 ust. 1 ustawy z dnia 21 listopada 2008 r. o służbie cywilnej od oceny okresowej służy, w terminie 7 dni od dnia zapoznania się z oceną, sprzeciw do dyrektora generalnego urzędu.\"}]},{\"key\":\"part3_promotion\",\"part\":\"Część III\",\"title\":\"Wniosek o przyznanie urzędnikowi służby cywilnej kolejnego stopnia służbowego (art. 89 ust. 1 ustawy)\",\"stage\":\"evaluation\",\"visibleWhen\":{\"field\":\"promotionRequest\",\"in\":[\"yes\"]},\"fields\":[{\"key\":\"civilServant\",\"type\":\"person\",\"label\":\"Dane urzędnika służby cywilnej\",\"role\":\"evaluated\",\"required\":true},{\"key\":\"appointmentYear\",\"type\":\"year\",\"label\":\"Rok mianowania\",\"required\":true},{\"key\":\"currentRank\",\"type\":\"text\",\"label\":\"Posiadany stopień służbowy\",\"required\":true},{\"key\":\"currentRankDate\",\"type\":\"date\",\"label\":\"Data przyznania stopnia służbowego\",\"required\":true},{\"key\":\"requestedRank\",\"type\":\"text\",\"label\":\"Wnioskowany stopień służbowy\",\"required\":true},{\"key\":\"promotionMotivation\",\"type\":\"longText\",\"label\":\"Umotywowanie wniosku\",\"required\":true},{\"key\":\"promotionEvaluatorSignature\",\"type\":\"signature\",\"role\":\"evaluator\"}]}]}",
+                            Title = "Arkusz C – ocena okresowa urzędnika służby cywilnej lub pracownika służby cywilnej",
+                            Version = 1
+                        });
+                });
+
             modelBuilder.Entity("Busola.Database.Entities.Location", b =>
                 {
                     b.Property<int>("Id")
@@ -841,6 +1186,89 @@ namespace Busola.Database.Migrations
                     b.Navigation("Supervisor");
                 });
 
+            modelBuilder.Entity("Busola.Database.Entities.Evaluation", b =>
+                {
+                    b.HasOne("Busola.Database.Entities.Employee", "Employee")
+                        .WithMany()
+                        .HasForeignKey("EmployeeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_evaluations_employees_employee_id");
+
+                    b.HasOne("Busola.Database.Entities.Employee", "Evaluator")
+                        .WithMany()
+                        .HasForeignKey("EvaluatorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_evaluations_employees_evaluator_id");
+
+                    b.HasOne("Busola.Database.Entities.EvaluationTemplate", "Template")
+                        .WithMany()
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_evaluations_evaluation_templates_template_id");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("Evaluator");
+
+                    b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("Busola.Database.Entities.EvaluationAnswer", b =>
+                {
+                    b.HasOne("Busola.Database.Entities.Evaluation", "Evaluation")
+                        .WithMany("Answers")
+                        .HasForeignKey("EvaluationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_evaluation_answers_evaluations_evaluation_id");
+
+                    b.HasOne("Busola.Database.Entities.User", "UpdatedBy")
+                        .WithMany()
+                        .HasForeignKey("UpdatedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_evaluation_answers_users_updated_by_id");
+
+                    b.Navigation("Evaluation");
+
+                    b.Navigation("UpdatedBy");
+                });
+
+            modelBuilder.Entity("Busola.Database.Entities.EvaluationSignature", b =>
+                {
+                    b.HasOne("Busola.Database.Entities.Evaluation", "Evaluation")
+                        .WithMany("Signatures")
+                        .HasForeignKey("EvaluationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_evaluation_signatures_evaluations_evaluation_id");
+
+                    b.HasOne("Busola.Database.Entities.User", "SignedBy")
+                        .WithMany()
+                        .HasForeignKey("SignedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_evaluation_signatures_users_signed_by_id");
+
+                    b.Navigation("Evaluation");
+
+                    b.Navigation("SignedBy");
+                });
+
+            modelBuilder.Entity("Busola.Database.Entities.EvaluationStage", b =>
+                {
+                    b.HasOne("Busola.Database.Entities.Evaluation", "Evaluation")
+                        .WithMany("Stages")
+                        .HasForeignKey("EvaluationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_evaluation_stages_evaluations_evaluation_id");
+
+                    b.Navigation("Evaluation");
+                });
+
             modelBuilder.Entity("Busola.Database.Entities.Location", b =>
                 {
                     b.HasOne("Busola.Database.Entities.Service", "Service")
@@ -971,6 +1399,15 @@ namespace Busola.Database.Migrations
                     b.Navigation("Subordinates");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Busola.Database.Entities.Evaluation", b =>
+                {
+                    b.Navigation("Answers");
+
+                    b.Navigation("Signatures");
+
+                    b.Navigation("Stages");
                 });
 
             modelBuilder.Entity("Busola.Database.Entities.Location", b =>

@@ -20,4 +20,8 @@
     <Folder Include="Migrations\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="EvaluationTemplates\*.json" LogicalName="EvaluationTemplates.%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

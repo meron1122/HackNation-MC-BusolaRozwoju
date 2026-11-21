@@ -1,0 +1,204 @@
+{
+  "schemaVersion": 1,
+  "title": "Arkusz B – ocena okresowa urzędnika służby cywilnej lub pracownika służby cywilnej",
+  "appliesTo": "Stanowiska, na których praca polega na bezpośrednim kierowaniu pracownikami.",
+  "legalBasis": "Rozporządzenie Prezesa Rady Ministrów z dnia 4 kwietnia 2016 r. w sprawie warunków i sposobu przeprowadzania ocen okresowych urzędników służby cywilnej i pracowników służby cywilnej (Dz. U. poz. 470), załącznik nr 3",
+  "initialStatus": "planned",
+  "statuses": [
+    { "key": "planned", "label": "Zaplanowana" },
+    { "key": "criteria_set", "label": "Kryteria ustalone" },
+    { "key": "evaluated", "label": "Ocena sporządzona" },
+    { "key": "completed", "label": "Zakończona", "final": true },
+    { "key": "objection_filed", "label": "Złożono sprzeciw", "final": true },
+    { "key": "cancelled", "label": "Anulowana", "final": true }
+  ],
+  "stages": [
+    {
+      "key": "criteria",
+      "title": "Ustalenie kryteriów oceny i zapoznanie z nimi ocenianego",
+      "deadline": { "anchor": "start", "latest": { "days": 30 } },
+      "completesTo": "criteria_set"
+    },
+    {
+      "key": "evaluation",
+      "title": "Rozmowa oceniająca i sporządzenie oceny",
+      "deadline": { "anchor": "start", "latest": { "months": 24 } },
+      "completesTo": "evaluated"
+    },
+    {
+      "key": "acknowledgement",
+      "title": "Zapoznanie ocenianego z oceną",
+      "completesTo": "completed"
+    },
+    {
+      "key": "objection",
+      "title": "Sprzeciw do dyrektora generalnego urzędu",
+      "optional": true,
+      "deadline": { "anchor": "stage:acknowledgement", "latest": { "days": 7 } },
+      "completesTo": "objection_filed"
+    }
+  ],
+  "scales": {
+    "periodic": [
+      { "value": 1, "key": "far_below", "label": "Znacznie poniżej oczekiwań" },
+      { "value": 3, "key": "below", "label": "Poniżej oczekiwań" },
+      { "value": 5, "key": "meets", "label": "Na poziomie oczekiwań" },
+      { "value": 7, "key": "above", "label": "Powyżej oczekiwań" },
+      { "value": 9, "key": "far_above", "label": "Znacznie powyżej oczekiwań" }
+    ]
+  },
+  "scoring": {
+    "scores": "scores",
+    "average": "averageScore",
+    "level": "level",
+    "result": "result",
+    "levels": [
+      { "key": "far_below", "label": "Znacznie poniżej oczekiwań", "min": 1, "max": 2 },
+      { "key": "below", "label": "Poniżej oczekiwań", "minExclusive": 2, "max": 4 },
+      { "key": "meets", "label": "Na poziomie oczekiwań", "minExclusive": 4, "max": 6 },
+      { "key": "above", "label": "Powyżej oczekiwań", "minExclusive": 6, "max": 8 },
+      { "key": "far_above", "label": "Znacznie powyżej oczekiwań", "minExclusive": 8, "max": 9 }
+    ],
+    "positiveWhen": [
+      { "rule": "levelIn", "values": ["meets", "above", "far_above"] },
+      { "rule": "maxCountOfScore", "score": 1, "count": 0 }
+    ]
+  },
+  "sections": [
+    {
+      "key": "part1_general",
+      "part": "Część I",
+      "title": "Dane",
+      "stage": "criteria",
+      "fields": [
+        { "key": "office", "type": "text", "label": "Nazwa urzędu", "required": true },
+        { "key": "evaluated", "type": "person", "label": "Dane ocenianego", "role": "evaluated", "required": true,
+          "hint": "Pełna nazwa stanowiska wraz z rozszerzeniem z opisu stanowiska pracy." },
+        { "key": "evaluator", "type": "person", "label": "Dane oceniającego", "role": "evaluator", "required": true }
+      ]
+    },
+    {
+      "key": "part1_criteria",
+      "part": "Część I",
+      "title": "Kryteria oceny i termin sporządzenia oceny",
+      "stage": "criteria",
+      "fields": [
+        { "key": "criteria", "type": "criteriaSelection", "label": "Kryteria oceny", "required": true,
+          "mandatory": [
+            { "key": "people_management", "label": "Zarządzanie ludźmi" },
+            { "key": "decisions", "label": "Podejmowanie decyzji i odpowiedzialność" },
+            { "key": "organization", "label": "Organizacja pracy i orientacja na osiąganie celów" },
+            { "key": "cooperation", "label": "Współpraca" },
+            { "key": "communication", "label": "Komunikacja" }
+          ],
+          "additional": {
+            "max": 3,
+            "catalog": "Załącznik nr 1 do rozporządzenia Prezesa Rady Ministrów z dnia 4 kwietnia 2016 r."
+          } },
+        { "key": "evaluationDueDate", "type": "date", "label": "Termin sporządzenia oceny", "prefill": "stage:evaluation", "required": true },
+        { "key": "criteriaEvaluatorSignature", "type": "signature", "role": "evaluator",
+          "label": "Potwierdzenie przeprowadzenia rozmowy (§ 5 ust. 1 rozporządzenia) i zapoznania ocenianego z kryteriami oceny oraz terminem sporządzenia oceny" },
+        { "key": "criteriaEvaluatedSignature", "type": "signature", "role": "evaluated" }
+      ]
+    },
+    {
+      "key": "part2_interview",
+      "part": "Część II",
+      "title": "Rozmowa oceniająca",
+      "stage": "evaluation",
+      "fields": [
+        { "key": "evaluationInterviewDate", "type": "date", "label": "Data przeprowadzenia rozmowy oceniającej", "required": true },
+        { "key": "evaluationPeriod", "type": "dateRange", "label": "Okres, w którym oceniany podlegał ocenie", "required": true,
+          "hint": "Od: data zapoznania z kryteriami (część I). Do: data sporządzenia oceny na piśmie." }
+      ]
+    },
+    {
+      "key": "part2_scores",
+      "part": "Część II",
+      "title": "Oceny cząstkowe",
+      "stage": "evaluation",
+      "fields": [
+        { "key": "scores", "type": "scores", "label": "Kryteria obowiązkowe i dodatkowe", "scale": "periodic", "itemsFrom": "criteria", "required": true },
+        { "key": "averageScore", "type": "average", "label": "Średnia arytmetyczna z ocen cząstkowych", "of": "scores" }
+      ]
+    },
+    {
+      "key": "part2_result",
+      "part": "Część II",
+      "title": "Przyznanie oceny",
+      "stage": "evaluation",
+      "fields": [
+        { "key": "level", "type": "level", "label": "Ogólny poziom spełnienia kryteriów oceny", "of": "averageScore" },
+        { "key": "result", "type": "choice", "label": "Ocena okresowa w służbie cywilnej", "required": true,
+          "options": [ { "value": "positive", "label": "Pozytywna" }, { "value": "negative", "label": "Negatywna" } ] },
+        { "key": "justification", "type": "longText", "label": "Uzasadnienie przyznanej oceny okresowej",
+          "requiredWhen": { "field": "result", "in": ["negative"] } },
+        { "key": "developmentConclusions", "type": "longText", "label": "Wnioski dotyczące indywidualnego programu rozwoju zawodowego", "required": true }
+      ]
+    },
+    {
+      "key": "part2_previous",
+      "part": "Część II",
+      "title": "Dane dotyczące poprzedniej oceny okresowej urzędnika służby cywilnej",
+      "stage": "evaluation",
+      "fields": [
+        { "key": "previousResult", "type": "choice", "label": "Ocena",
+          "options": [ { "value": "positive", "label": "Pozytywna" }, { "value": "negative", "label": "Negatywna" } ] },
+        { "key": "previousLevel", "type": "choice", "label": "Poziom", "optionsFrom": "scoring.levels" },
+        { "key": "previousDate", "type": "date", "label": "Data sporządzenia" }
+      ]
+    },
+    {
+      "key": "part2_promotion",
+      "part": "Część II",
+      "title": "Wniosek o kolejny stopień służbowy",
+      "stage": "evaluation",
+      "fields": [
+        { "key": "promotionRequest", "type": "choice", "label": "Czy do oceny okresowej dołączono wniosek o przyznanie kolejnego stopnia służbowego?", "required": true,
+          "options": [
+            { "value": "yes", "label": "Tak" },
+            { "value": "no", "label": "Nie" },
+            { "value": "not_applicable", "label": "Nie dotyczy (oceniany jest pracownikiem służby cywilnej)" }
+          ] }
+      ]
+    },
+    {
+      "key": "part2_signature",
+      "part": "Część II",
+      "title": "Oceniający",
+      "stage": "evaluation",
+      "fields": [
+        { "key": "finalEvaluator", "type": "person", "label": "Dane oceniającego", "role": "evaluator", "required": true },
+        { "key": "evaluationEvaluatorSignature", "type": "signature", "role": "evaluator" }
+      ]
+    },
+    {
+      "key": "acknowledgement",
+      "part": "Część II",
+      "title": "Zapoznanie z oceną",
+      "stage": "acknowledgement",
+      "fields": [
+        { "key": "acknowledgementSignature", "type": "signature", "role": "evaluated",
+          "label": "Przeprowadzono ze mną rozmowę oceniającą oraz zapoznałem(-łam) się z oceną okresową i wnioskami dotyczącymi indywidualnego programu rozwoju zawodowego." },
+        { "key": "objectionNotice", "type": "notice",
+          "label": "Zgodnie z art. 83 ust. 1 ustawy z dnia 21 listopada 2008 r. o służbie cywilnej od oceny okresowej służy, w terminie 7 dni od dnia zapoznania się z oceną, sprzeciw do dyrektora generalnego urzędu." }
+      ]
+    },
+    {
+      "key": "part3_promotion",
+      "part": "Część III",
+      "title": "Wniosek o przyznanie urzędnikowi służby cywilnej kolejnego stopnia służbowego (art. 89 ust. 1 ustawy)",
+      "stage": "evaluation",
+      "visibleWhen": { "field": "promotionRequest", "in": ["yes"] },
+      "fields": [
+        { "key": "civilServant", "type": "person", "label": "Dane urzędnika służby cywilnej", "role": "evaluated", "required": true },
+        { "key": "appointmentYear", "type": "year", "label": "Rok mianowania", "required": true },
+        { "key": "currentRank", "type": "text", "label": "Posiadany stopień służbowy", "required": true },
+        { "key": "currentRankDate", "type": "date", "label": "Data przyznania stopnia służbowego", "required": true },
+        { "key": "requestedRank", "type": "text", "label": "Wnioskowany stopień służbowy", "required": true },
+        { "key": "promotionMotivation", "type": "longText", "label": "Umotywowanie wniosku", "required": true },
+        { "key": "promotionEvaluatorSignature", "type": "signature", "role": "evaluator" }
+      ]
+    }
+  ]
+}
