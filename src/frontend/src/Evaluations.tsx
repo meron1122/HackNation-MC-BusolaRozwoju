@@ -493,5 +493,5 @@ function SignatureImage({ path }: { path: string }) {
       if (created) URL.revokeObjectURL(created)
     }
   }, [path])
-  return url ? <img className="signature-image" src={url} alt="Podpis odręczny" /> : null
+  return url ? <img className="evaluation-signature-image" src={url} alt="Podpis odręczny" /> : null
 }

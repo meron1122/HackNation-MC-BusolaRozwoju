@@ -208,6 +208,15 @@ QuestPDF (licencja Community). `Busola.Api/Pdf/PdfReport.cs` daje wspólny ukła
 - **Inny dostawca LLM**: implementacja `ILlmClient` i podmiana rejestracji w `AddAgent`.
 - **Prompt systemowy**: `AgentPrompt.cs`.
 
+## Podpisy odręczne (demo)
+
+Symulacja zbierania podpisu, docelowo zastąpiona dostawcą (np. Autenti). Zakładka **Podpisy**: zlecający wpisuje dokument i osobę, dostaje kod QR (telefon) albo link „Podpisz na tym urządzeniu” (ekran dotykowy). Sygnatariusz otwiera `/podpis/{token}` bez logowania i podpisuje palcem, rysikiem albo myszą. Status u zlecającego odświeża się co 2 s.
+
+- `GET/POST /api/signatures`, `GET /api/signatures/{id}`, `POST /api/signatures/{id}/link` (nowy link, stary przestaje działać), `GET /api/signatures/{id}/image` (PNG). Każdy widzi swoje prośby, SuperAdmin wszystkie.
+- Publiczne, tylko z tokenem: `GET /api/sign/{token}`, `POST /api/sign/{token}` `{ image: "data:image/png;base64,..." }`, `POST /api/sign/{token}/decline`.
+- Link ważny 24 h, w bazie jest tylko hash tokenu. Podpis jest dekodowany i kodowany od nowa (SkiaSharp), zapisujemy IP i User-Agent podpisującego.
+- Z kodu (np. flow raportów): `SignatureService.CreateAsync`, potem status i obraz z `signature_requests`. Obraz podpisu można wstawić do PDF przez `PdfReport`.
+
 ## Migracje
 
 Narzędzie `dotnet-ef` jest w lokalnym manifeście, więc najpierw (jednorazowo):

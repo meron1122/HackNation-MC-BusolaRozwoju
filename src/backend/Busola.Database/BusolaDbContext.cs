@@ -23,6 +23,8 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
     public DbSet<EvaluationStage> EvaluationStages => Set<EvaluationStage>();
     public DbSet<EvaluationAnswer> EvaluationAnswers => Set<EvaluationAnswer>();
     public DbSet<EvaluationSignature> EvaluationSignatures => Set<EvaluationSignature>();
+    public DbSet<SignatureRequest> SignatureRequests => Set<SignatureRequest>();
+
     // Tu, a nie w AddDbContext, żeby snake_case obowiązywał zawsze — schemat i aplikacja nie mogą się rozjechać.
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) =>
         optionsBuilder.UseSnakeCaseNamingConvention();
@@ -171,6 +173,23 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
                 .WithMany()
                 .HasForeignKey(s => s.SignedById)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SignatureRequest>(b =>
+        {
+            b.Property(s => s.Title).HasMaxLength(200);
+            b.Property(s => s.SignerName).HasMaxLength(200);
+            b.Property(s => s.TokenHash).HasMaxLength(64);
+            b.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+            b.Property(s => s.SignerIp).HasMaxLength(64);
+            b.Property(s => s.SignerUserAgent).HasMaxLength(500);
+            b.HasIndex(s => s.TokenHash).IsUnique();
+            b.HasIndex(s => s.CreatedByUserId);
+
+            b.HasOne(s => s.CreatedBy)
+                .WithMany()
+                .HasForeignKey(s => s.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Role>(b =>

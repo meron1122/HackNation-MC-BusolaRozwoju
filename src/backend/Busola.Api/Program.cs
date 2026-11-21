@@ -2,6 +2,7 @@ using Busola.Api.Agent;
 using Busola.Api.Authorization;
 using Busola.Api.Infrastructure;
 using Busola.Api.Seeders;
+using Busola.Api.Signatures;
 using Busola.Database;
 using Busola.Database.Entities;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -57,6 +58,8 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AccessScopeService>();
 builder.Services.AddAgent(builder.Configuration);
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<SignatureService>();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddExceptionHandler<DbExceptionHandler>();
 builder.Services.AddProblemDetails();

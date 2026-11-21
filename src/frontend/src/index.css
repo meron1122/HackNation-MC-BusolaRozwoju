@@ -148,6 +148,28 @@ textarea { font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--borde
 .notice { font-size: 0.85rem; color: var(--muted); border-left: 3px solid var(--border); padding-left: 0.6rem; margin: 0; }
 .signature { border-top: 1px dashed var(--border); padding-top: 0.5rem; }
 .signature p { margin: 0 0 0.5rem; }
-.signature-pad { display: flex; align-items: end; gap: 0.5rem; flex-wrap: wrap; }
-.signature-pad canvas { width: min(480px, 100%); height: auto; aspect-ratio: 480 / 150; background: #fff; border: 1px solid var(--border); border-radius: 6px; touch-action: none; }
-.signature-image { max-width: 240px; background: #fff; border: 1px solid var(--border); border-radius: 4px; margin-top: 0.25rem; }
+.evaluation-signature-image { max-width: 240px; background: #fff; border: 1px solid var(--border); border-radius: 4px; margin-top: 0.25rem; }
+/* Podpisy */
+a.button {
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-text);
+  text-decoration: none;
+}
+a.button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sign-page { max-width: 640px; margin: 0 auto; padding: 1.5rem 1rem; display: grid; gap: 1rem; }
+.sign-details { display: block; }
+.sign-details p { margin: 0.25rem 0 0; }
+.sign-done { font-size: 1.1rem; }
+.signature-pad { display: grid; gap: 0.5rem; justify-items: start; }
+/* Tło zawsze białe, żeby atrament był widoczny także w trybie ciemnym. */
+.signature-pad canvas { width: 100%; background: #fff; border: 1px solid var(--border); border-radius: 8px; touch-action: none; cursor: crosshair; }
+.signature-line { width: 100%; margin-top: -2.75rem; padding: 0 1rem 0.5rem; border-bottom: 0; color: #9aa1ac; font-size: 0.8rem; pointer-events: none; }
+.sign-panel { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; }
+.sign-panel h3 { margin: 0 0 0.25rem; }
+.sign-panel p { margin: 0.25rem 0; }
+.sign-qr { display: grid; justify-items: center; gap: 0.25rem; }
+.signature-image { height: 40px; background: #fff; border-radius: 4px; }
+.signature-image.large { height: auto; width: 100%; max-width: 420px; border: 1px solid var(--border); margin: 0.5rem 0; }

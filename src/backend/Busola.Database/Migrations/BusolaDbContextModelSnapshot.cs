@@ -948,6 +948,81 @@ namespace Busola.Database.Migrations
                     b.ToTable("services", (string)null);
                 });
 
+            modelBuilder.Entity("Busola.Database.Entities.SignatureRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<byte[]>("Image")
+                        .HasColumnType("bytea")
+                        .HasColumnName("image");
+
+                    b.Property<DateTimeOffset>("LinkExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("link_expires_at");
+
+                    b.Property<string>("SignerIp")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("signer_ip");
+
+                    b.Property<string>("SignerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("signer_name");
+
+                    b.Property<string>("SignerUserAgent")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("signer_user_agent");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("token_hash");
+
+                    b.HasKey("Id")
+                        .HasName("pk_signature_requests");
+
+                    b.HasIndex("CreatedByUserId")
+                        .HasDatabaseName("ix_signature_requests_created_by_user_id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_signature_requests_token_hash");
+
+                    b.ToTable("signature_requests", (string)null);
+                });
+
             modelBuilder.Entity("Busola.Database.Entities.User", b =>
                 {
                     b.Property<string>("Id")
@@ -1363,6 +1438,18 @@ namespace Busola.Database.Migrations
                     b.Navigation("Permission");
 
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("Busola.Database.Entities.SignatureRequest", b =>
+                {
+                    b.HasOne("Busola.Database.Entities.User", "CreatedBy")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_signature_requests_users_created_by_user_id");
+
+                    b.Navigation("CreatedBy");
                 });
 
             modelBuilder.Entity("Busola.Database.Entities.User", b =>

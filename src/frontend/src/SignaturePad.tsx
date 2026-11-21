@@ -1,52 +1,79 @@
-import { useRef, type PointerEvent } from 'react'
+import { useEffect, useRef } from 'react'
 
-/** Pole do złożenia podpisu myszką/palcem. onChange dostaje PNG jako data URL albo null (puste). */
-export function SignaturePad({ onChange }: { onChange: (dataUrl: string | null) => void }) {
-  const canvas = useRef<HTMLCanvasElement>(null)
-  const drawing = useRef(false)
+const HEIGHT = 200
 
-  function point(e: PointerEvent<HTMLCanvasElement>) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    return { x: ((e.clientX - rect.left) * e.currentTarget.width) / rect.width, y: ((e.clientY - rect.top) * e.currentTarget.height) / rect.height }
-  }
+/**
+ * Pole podpisu odręcznego: mysz, palec, rysik albo tablet graficzny (pointer events, grubość z nacisku pióra).
+ * Po każdym pociągnięciu oddaje podpis jako PNG z przezroczystym tłem (data URL), po wyczyszczeniu null.
+ */
+export function SignaturePad({ onChange, disabled }: { onChange: (png: string | null) => void; disabled?: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const last = useRef<{ x: number; y: number } | null>(null)
+  const empty = useRef(true)
 
-  function down(e: PointerEvent<HTMLCanvasElement>) {
-    const ctx = e.currentTarget.getContext('2d')!
-    const { x, y } = point(e)
-    drawing.current = true
-    e.currentTarget.setPointerCapture(e.pointerId)
-    ctx.lineWidth = 2.5
+  useEffect(() => {
+    const canvas = canvasRef.current!
+    const ratio = window.devicePixelRatio || 1
+    canvas.width = canvas.clientWidth * ratio
+    canvas.height = HEIGHT * ratio
+    const ctx = canvas.getContext('2d')!
+    ctx.scale(ratio, ratio)
     ctx.lineCap = 'round'
-    ctx.strokeStyle = '#1c1f24'
-    ctx.beginPath()
-    ctx.moveTo(x, y)
+    ctx.lineJoin = 'round'
+    ctx.strokeStyle = '#1a2b6d'
+  }, [])
+
+  function point(e: React.PointerEvent<HTMLCanvasElement>) {
+    const rect = e.currentTarget.getBoundingClientRect()
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top }
   }
 
-  function move(e: PointerEvent<HTMLCanvasElement>) {
-    if (!drawing.current) return
+  function down(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (disabled) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    last.current = point(e)
+  }
+
+  function move(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (!last.current) return
     const ctx = e.currentTarget.getContext('2d')!
-    const { x, y } = point(e)
-    ctx.lineTo(x, y)
+    const p = point(e)
+    // Mysz zgłasza nacisk 0.5, pióro realny nacisk 0–1.
+    ctx.lineWidth = 1 + (e.pointerType === 'mouse' ? 0.5 : e.pressure || 0.5) * 2.5
+    ctx.beginPath()
+    ctx.moveTo(last.current.x, last.current.y)
+    ctx.lineTo(p.x, p.y)
     ctx.stroke()
+    last.current = p
+    empty.current = false
   }
 
   function up() {
-    if (!drawing.current) return
-    drawing.current = false
-    onChange(canvas.current!.toDataURL('image/png'))
+    if (!last.current) return
+    last.current = null
+    if (!empty.current) onChange(canvasRef.current!.toDataURL('image/png'))
   }
 
   function clear() {
-    const c = canvas.current!
-    c.getContext('2d')!.clearRect(0, 0, c.width, c.height)
+    const canvas = canvasRef.current!
+    canvas.getContext('2d')!.clearRect(0, 0, canvas.width, canvas.height)
+    empty.current = true
     onChange(null)
   }
 
   return (
     <div className="signature-pad">
-      <canvas ref={canvas} width={480} height={150} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerLeave={up}
-        aria-label="Pole podpisu" />
-      <button type="button" className="link" onClick={clear}>Wyczyść</button>
+      <canvas
+        ref={canvasRef}
+        style={{ height: HEIGHT }}
+        aria-label="Pole podpisu: podpisz się myszą, palcem lub rysikiem"
+        onPointerDown={down}
+        onPointerMove={move}
+        onPointerUp={up}
+        onPointerCancel={up}
+      />
+      <div className="signature-line" aria-hidden="true">Podpis</div>
+      <button type="button" className="secondary" onClick={clear} disabled={disabled}>Wyczyść</button>
     </div>
   )
 }
