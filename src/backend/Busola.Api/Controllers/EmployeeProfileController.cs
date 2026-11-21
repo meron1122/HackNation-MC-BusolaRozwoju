@@ -59,8 +59,6 @@ public sealed class EmployeeProfileController(BusolaDbContext db, AccessScopeSer
         [MaxLength(MaxListItems)] List<Skill> Skills,
         [MaxLength(MaxListItems)] List<LanguageSkill> Languages);
 
-    public sealed record PersonRef(int Id, string Name, string? JobTitle, bool HasAvatar);
-
     public sealed record ProfileDto(
         EmployeeDto Employee,
         PersonalSection Personal,
@@ -69,8 +67,6 @@ public sealed class EmployeeProfileController(BusolaDbContext db, AccessScopeSer
         List<EmergencyContact> EmergencyContacts,
         List<Dependent> Dependents,
         QualificationsSection Qualifications,
-        PersonRef? Supervisor,
-        List<PersonRef> Subordinates,
         bool CanEdit,
         bool IsOwn);
 
@@ -90,11 +86,9 @@ public sealed class EmployeeProfileController(BusolaDbContext db, AccessScopeSer
         }
 
         var employee = await db.Employees.Where(e => e.Id == id).Select(EmployeeDto.Projection).SingleAsync(ct);
-        var e = await db.Employees.Include(x => x.Supervisor).SingleAsync(x => x.Id == id, ct);
+        var e = await db.Employees.SingleAsync(x => x.Id == id, ct);
         var p = await db.EmployeeProfiles.AsNoTracking().SingleOrDefaultAsync(x => x.EmployeeId == id, ct) ?? new EmployeeProfile();
 
-        var supervisor = e.SupervisorId is { } sid ? await PersonRefs(db.Employees.Where(x => x.Id == sid)).SingleOrDefaultAsync(ct) : null;
-        var subordinates = await PersonRefs(db.Employees.Where(x => x.SupervisorId == id)).ToListAsync(ct);
 
         return new ProfileDto(
             employee,
@@ -106,8 +100,6 @@ public sealed class EmployeeProfileController(BusolaDbContext db, AccessScopeSer
             p.EmergencyContacts,
             p.Dependents,
             new QualificationsSection(p.WorkExperience, p.Education, p.Skills, p.Languages),
-            supervisor,
-            subordinates,
             rights.CanEditAll,
             rights.IsOwn);
     }
@@ -215,15 +207,6 @@ public sealed class EmployeeProfileController(BusolaDbContext db, AccessScopeSer
             && await db.Employees.InScope(await access.ResolveAsync(Permissions.EditEmployee, ct)).AnyAsync(e => e.Id == id, ct);
         return (canRead, canEditAll, isOwn);
     }
-
-    private IQueryable<PersonRef> PersonRefs(IQueryable<Employee> query) =>
-        query
-            .OrderBy(e => e.LastName).ThenBy(e => e.FirstName)
-            .Select(e => new PersonRef(
-                e.Id,
-                e.FirstName + " " + e.LastName,
-                db.EmployeeProfiles.Where(p => p.EmployeeId == e.Id).Select(p => p.JobTitle).FirstOrDefault(),
-                e.User != null && e.User.Avatar != null));
 
     private Task<int?> MyEmployeeIdAsync(CancellationToken ct)
     {

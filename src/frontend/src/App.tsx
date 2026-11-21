@@ -7,8 +7,8 @@ import { DeadlinesPage } from './Deadlines'
 import { DevPage } from './Dev'
 import { EvaluationsPage } from './Evaluations'
 import { Login } from './Login'
-import { OrgPage } from './Org'
 import { ProfilePage } from './Profile'
+import { UserMenu } from './UserMenu'
 import { UsersPage } from './Users'
 
 // shortcut: lista pracowników to pierwsze 200 rekordów (API stronicuje); przy większej bazie dodać stronicowanie
@@ -80,15 +80,15 @@ type Nav = {
   openEvaluation: number | null
   showEvaluation: (id: number | null) => void
   showProfile: (employeeId: number) => void
-  orgStart: number | null
-  showOrg: (employeeId: number | null) => void
 }
 type Page = { key: string; label: string; visible: (s: Session) => boolean; render: (s: Session, nav: Nav) => ReactNode }
 
 // Dostępne dla każdego zalogowanego, otwierane z nagłówka (avatar + imię), nie z zakładek.
 const ACCOUNT_PAGE = 'account'
-// Profil innego pracownika: otwierany z listy, drzewka albo z innego profilu.
+// Profil innego pracownika: otwierany z listy albo ze struktury w innym profilu.
 const PROFILE_PAGE = 'profile'
+// Własny profil: z menu pod loginem.
+const MY_PROFILE_PAGE = 'my-profile'
 
 const PAGES: Page[] = [
   {
@@ -112,18 +112,6 @@ const PAGES: Page[] = [
         canAdd={can(s, 'add_employee')} canEdit={can(s, 'edit_employee')} canDelete={can(s, 'delete_employee')}
         createdNotice={employeeCreatedNotice} />
     ),
-  },
-  {
-    key: 'myprofile',
-    label: 'Mój profil',
-    visible: () => true,
-    render: (_, nav) => <ProfilePage employeeId="me" onOpenProfile={nav.showProfile} onShowOrg={nav.showOrg} />,
-  },
-  {
-    key: 'org',
-    label: 'Struktura',
-    visible: () => true,
-    render: (_, nav) => <OrgPage key={nav.orgStart ?? 'me'} startId={nav.orgStart} onOpenProfile={nav.showProfile} />,
   },
   {
     key: 'departments',
@@ -172,7 +160,6 @@ export default function App() {
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [openEvaluation, setOpenEvaluation] = useState<number | null>(null)
   const [profileId, setProfileId] = useState<number | null>(null)
-  const [orgStart, setOrgStart] = useState<number | null>(null)
   const session = token ? readSession(token) : null
   const nav: Nav = {
     openEvaluation,
@@ -183,11 +170,6 @@ export default function App() {
     showProfile: (id) => {
       setProfileId(id)
       setPageKey(PROFILE_PAGE)
-    },
-    orgStart,
-    showOrg: (id) => {
-      setOrgStart(id)
-      setPageKey('org')
     },
   }
 
@@ -212,7 +194,8 @@ export default function App() {
   const pages = PAGES.filter((p) => p.visible(session))
   const onAccount = pageKey === ACCOUNT_PAGE
   const onProfile = pageKey === PROFILE_PAGE && profileId !== null
-  const page = onAccount || onProfile ? undefined : pages.find((p) => p.key === pageKey) ?? pages[0]
+  const onMyProfile = pageKey === MY_PROFILE_PAGE
+  const page = onAccount || onProfile || onMyProfile ? undefined : pages.find((p) => p.key === pageKey) ?? pages[0]
 
   return (
     <>
@@ -221,25 +204,21 @@ export default function App() {
         <nav>
           {pages.map((p) => (
             <button key={p.key} className={p === page ? 'tab active' : 'tab'} aria-current={p === page ? 'page' : undefined}
-              onClick={() => { setPageKey(p.key); setOpenEvaluation(null); setOrgStart(null) }}>
+              onClick={() => { setPageKey(p.key); setOpenEvaluation(null) }}>
               {p.label}
             </button>
           ))}
         </nav>
-        <span className="user">
-          <button className={onAccount ? 'tab active account-link' : 'tab account-link'} aria-current={onAccount ? 'page' : undefined}
-            onClick={() => setPageKey(ACCOUNT_PAGE)} title="Moje konto">
-            <Avatar path="account/avatar" name={session.name} size={28} version={avatarVersion} />
-            {session.name}
-          </button>
-          <button className="secondary" onClick={logout}>Wyloguj</button>
-        </span>
+        <UserMenu name={session.name} avatarVersion={avatarVersion} active={onAccount || onMyProfile}
+          onProfile={() => setPageKey(MY_PROFILE_PAGE)} onAccount={() => setPageKey(ACCOUNT_PAGE)} onLogout={logout} />
       </header>
       <main className="content">
         {onAccount ? (
           <AccountPage onToken={login} avatarVersion={avatarVersion} onAvatarChange={() => setAvatarVersion((v) => v + 1)} />
+        ) : onMyProfile ? (
+          <ProfilePage employeeId="me" onOpenProfile={nav.showProfile} />
         ) : onProfile ? (
-          <ProfilePage key={profileId} employeeId={profileId} onOpenProfile={nav.showProfile} onShowOrg={nav.showOrg} />
+          <ProfilePage key={profileId} employeeId={profileId} onOpenProfile={nav.showProfile} />
         ) : page ? (
           <div key={page.key}>{page.render(session, nav)}</div>
         ) : (

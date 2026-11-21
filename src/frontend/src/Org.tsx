@@ -5,14 +5,14 @@ import { Avatar } from './Avatar'
 type Card = { id: number; name: string; jobTitle: string | null; departmentName: string; hasAvatar: boolean; reportsCount: number; isMe: boolean }
 type OrgView = { focus: Card; managers: Card[]; reports: Card[] }
 
-/** Drzewko przełożonych: łańcuch w górę, wybrana osoba, jej podwładni. Kliknięcie karty przenosi na tę osobę. */
-export function OrgPage({ startId, onOpenProfile }: { startId: number | null; onOpenProfile: (id: number) => void }) {
-  const [focusId, setFocusId] = useState<number | null>(startId)
+/** Drzewko przełożonych (zakładka Struktura w profilu): łańcuch w górę, wybrana osoba, jej podwładni. Kliknięcie karty przenosi na tę osobę. */
+export function OrgChart({ startId, onOpenProfile }: { startId: number; onOpenProfile: (id: number) => void }) {
+  const [focusId, setFocusId] = useState(startId)
   const [view, setView] = useState<OrgView | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api<OrgView>(focusId ? `org?employeeId=${focusId}` : 'org').then(
+    api<OrgView>(`org?employeeId=${focusId}`).then(
       (v) => { setView(v); setError('') },
       (e: Error) => setError(e.message),
     )
@@ -39,11 +39,10 @@ export function OrgPage({ startId, onOpenProfile }: { startId: number | null; on
   )
 
   return (
-    <section>
-      <div className="toolbar">
-        <h2>Struktura</h2>
-        {!view.focus.isMe && <button className="secondary" onClick={() => setFocusId(null)}>Wróć do mnie</button>}
-      </div>
+    <div>
+      {focusId !== startId && (
+        <div className="org-back"><button className="secondary" onClick={() => setFocusId(startId)}>Wróć na początek</button></div>
+      )}
       {error && <p role="alert" className="error">{error}</p>}
       <div className="org">
         {view.managers.length > 0 && (
@@ -61,6 +60,6 @@ export function OrgPage({ startId, onOpenProfile }: { startId: number | null; on
           <p className="muted">Brak podwładnych.</p>
         )}
       </div>
-    </section>
+    </div>
   )
 }

@@ -226,7 +226,7 @@ Podpis jest częścią flow oceny, bez osobnej zakładki. Na karcie oceny przy p
 
 ## Profil pracownika
 
-Układ jak w OrangeHRM: zdjęcie i zakładki po lewej, sekcja po prawej. Zakładki: dane osobowe, kontakt, kontakty alarmowe, członkowie rodziny, zatrudnienie, przełożeni i podwładni, kwalifikacje (doświadczenie, wykształcenie, umiejętności, języki). Bez wynagrodzenia i danych imigracyjnych.
+Układ jak w OrangeHRM: zdjęcie i zakładki po lewej, sekcja po prawej. Zakładki: dane osobowe, kontakt, kontakty alarmowe, członkowie rodziny, zatrudnienie, struktura (drzewko przełożonych), kwalifikacje (doświadczenie, wykształcenie, umiejętności, języki). Bez wynagrodzenia i danych imigracyjnych.
 
 - Dane w `employee_profiles` (1:1 z `employees`), listy w jsonb. Imię, nazwisko, daty, wydział i przełożony zostają w `employees`.
 - `GET /api/employees/{id}/profile`, `GET /api/employees/me/profile`, `PUT /api/employees/{id}/profile/{personal|contact|job|emergency-contacts|dependents|qualifications}`.
@@ -234,7 +234,7 @@ Układ jak w OrangeHRM: zdjęcie i zakładki po lewej, sekcja po prawej. Zakład
 
 ## Drzewko przełożonych
 
-Zakładka **Struktura**: łańcuch przełożonych w górę, wybrana osoba i jej podwładni; kliknięcie karty przenosi widok na tę osobę. `GET /api/org?employeeId=` (domyślnie ja), `GET /api/org/{id}/avatar`. Każdy widzi tylko osoby ze swojej służby (SuperAdmin wszystkich), a karta ma tylko imię i nazwisko, stanowisko i komórkę.
+Zakładka **Struktura** w profilu (własny profil: menu pod loginem → „Mój profil”): łańcuch przełożonych w górę, wybrana osoba i jej podwładni; kliknięcie karty przenosi widok na tę osobę. `GET /api/org?employeeId=` (domyślnie ja), `GET /api/org/{id}/avatar`. Każdy widzi tylko osoby ze swojej służby (SuperAdmin wszystkich), a karta ma tylko imię i nazwisko, stanowisko i komórkę.
 
 ## Migracje
 

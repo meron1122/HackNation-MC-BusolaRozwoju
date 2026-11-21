@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api } from './api'
 import { Avatar } from './Avatar'
+import { OrgChart } from './Org'
 
 type Values = Record<string, string | number | null>
-type Person = { id: number; name: string; jobTitle: string | null; hasAvatar: boolean }
 type Profile = {
   employee: {
     id: number; firstName: string; lastName: string; hireDate: string; departmentName: string; locationName: string
@@ -15,8 +15,6 @@ type Profile = {
   emergencyContacts: Values[]
   dependents: Values[]
   qualifications: { workExperience: Values[]; education: Values[]; skills: Values[]; languages: Values[] }
-  supervisor: Person | null
-  subordinates: Person[]
   canEdit: boolean
   isOwn: boolean
 }
@@ -111,17 +109,13 @@ const TABS = [
   ['emergency', 'Kontakty alarmowe'],
   ['dependents', 'Członkowie rodziny'],
   ['job', 'Zatrudnienie'],
-  ['reportTo', 'Przełożeni i podwładni'],
+  ['structure', 'Struktura'],
   ['qualifications', 'Kwalifikacje'],
 ] as const
 type Tab = (typeof TABS)[number][0]
 
 /** Profil pracownika: lewa kolumna ze zdjęciem i zakładkami, po prawej sekcja (układ jak w OrangeHRM). */
-export function ProfilePage({ employeeId, onOpenProfile, onShowOrg }: {
-  employeeId: number | 'me'
-  onOpenProfile: (id: number) => void
-  onShowOrg: (id: number) => void
-}) {
+export function ProfilePage({ employeeId, onOpenProfile }: { employeeId: number | 'me'; onOpenProfile: (id: number) => void }) {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<Tab>('personal')
@@ -192,16 +186,10 @@ export function ProfilePage({ employeeId, onOpenProfile, onShowOrg }: {
               editable={profile.canEdit} hr={profile.canEdit} onSave={(v) => save('job', v)} />
           </>
         )}
-        {tab === 'reportTo' && (
+        {tab === 'structure' && (
           <section className="card profile-section">
-            <div className="toolbar">
-              <h3>Przełożeni i podwładni</h3>
-              <button className="secondary" onClick={() => onShowOrg(e.id)}>Pokaż w drzewku</button>
-            </div>
-            <h4>Przełożony</h4>
-            {profile.supervisor ? <PeopleTable people={[profile.supervisor]} onOpen={onOpenProfile} /> : <p className="muted">Brak.</p>}
-            <h4>Podwładni ({profile.subordinates.length})</h4>
-            {profile.subordinates.length ? <PeopleTable people={profile.subordinates} onOpen={onOpenProfile} /> : <p className="muted">Brak.</p>}
+            <h3>Struktura</h3>
+            <OrgChart key={e.id} startId={e.id} onOpenProfile={onOpenProfile} />
           </section>
         )}
         {tab === 'qualifications' && (
@@ -218,26 +206,6 @@ export function ProfilePage({ employeeId, onOpenProfile, onShowOrg }: {
           </>
         )}
       </div>
-    </div>
-  )
-}
-
-function PeopleTable({ people, onOpen }: { people: Person[]; onOpen: (id: number) => void }) {
-  return (
-    <div className="table-wrap">
-      <table>
-        <thead><tr><th>Imię i nazwisko</th><th>Stanowisko</th></tr></thead>
-        <tbody>
-          {people.map((p) => (
-            <tr key={p.id}>
-              <td><button className="link person-link" onClick={() => onOpen(p.id)}>
-                <Avatar path={p.hasAvatar ? `org/${p.id}/avatar` : null} name={p.name} size={28} />{p.name}
-              </button></td>
-              <td>{p.jobTitle ?? '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   )
 }
