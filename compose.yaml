@@ -1,0 +1,14 @@
+# Lokalny Postgres: `docker compose up -d`. Dane zgodne z domyślnym connection stringiem w appsettings.Development.json.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: busola
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

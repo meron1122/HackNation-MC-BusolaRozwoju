@@ -69,11 +69,9 @@ Nowe uprawnienie: stała w `Permissions.cs`, wiersz w `PermissionSeed.cs` (kolej
 
 ## Uruchomienie API
 
-Konfiguracja nie jest w repo. Lokalnie trzymaj ją w user secrets (lub w zmiennych środowiskowych, np. `ConnectionStrings__Busola`):
+Lokalna baza: `docker compose up -d` w katalogu głównym repo. `appsettings.Development.json` ma pasujący connection string, więc nic nie trzeba ustawiać. Inną bazę ustawisz w user secrets albo w zmiennej `ConnectionStrings__Busola` (działa też format URL `postgresql://user:hasło@host:port/baza`). Migracje wykonują się same przy starcie API.
 
-```powershell
-dotnet user-secrets set "ConnectionStrings:Busola" "Host=localhost;Port=5432;Database=busola;Username=postgres;Password=<hasło>" --project Busola.Api
-```
+Sekrety nie są w repo. Lokalnie trzymaj je w user secrets:
 
 ```powershell
 dotnet user-secrets set "Jwt:Secret" "<losowy ciąg, min. 32 znaki>" --project Busola.Api
@@ -104,6 +102,12 @@ Endpointy (wszystkie poza logowaniem wymagają `Authorization: Bearer <token>`):
 | `GET/POST /api/users`, `PUT /api/users/{id}/roles` | konta i role |
 
 Rekord spoza zakresu zwraca 404, a operacja na danych spoza zakresu 403. Naruszenie ograniczeń bazy (duplikat, usuwanie rekordu, na który coś wskazuje) zwraca 409.
+
+Frontend (`npm run dev` w `src/frontend`) przekierowuje `/api` na `http://localhost:5283`.
+
+## Hosting (Render)
+
+`render.yaml` w katalogu głównym: jeden serwis Docker (API serwuje też zbudowany frontend z `wwwroot`) i Postgres, oba w darmowym planie. Na Renderze: **New → Blueprint** → to repo. Render pyta o `Seed__SuperAdmin__Email` i `Seed__SuperAdmin__Password`, a `Jwt__Secret` generuje sam. Darmowy serwis usypia się po ~15 min bez ruchu, a darmowa baza wygasa po 30 dniach.
 
 ## Migracje
 

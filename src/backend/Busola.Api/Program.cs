@@ -14,6 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("Busola")
     ?? throw new InvalidOperationException(
         "Brak ConnectionStrings:Busola. Ustaw przez user secrets albo zmienną środowiskową ConnectionStrings__Busola.");
+connectionString = NormalizeConnectionString(connectionString);
 var jwt = JwtOptions.Load(builder.Configuration);
 
 builder.Services.AddDbContext<BusolaDbContext>(options => options.UseNpgsql(connectionString));
@@ -69,10 +70,39 @@ if (app.Environment.IsDevelopment())
 
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
+app.UseStaticFiles(); // zbudowany frontend w wwwroot (wrzuca go Dockerfile)
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+app.MapFallback("api/{**path}", () => Results.NotFound()).AllowAnonymous();
+app.MapFallbackToFile("index.html").AllowAnonymous();
+
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    await scope.ServiceProvider.GetRequiredService<BusolaDbContext>().Database.MigrateAsync();
+}
 
 await SuperAdminSeeder.SeedAsync(app.Services, app.Configuration);
 
 app.Run();
+
+// Render podaje URL (postgresql://user:pass@host[:port]/db), a Npgsql przyjmuje tylko Host=...;Port=...
+static string NormalizeConnectionString(string value)
+{
+    if (!value.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
+        && !value.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+    {
+        return value;
+    }
+
+    var uri = new Uri(value);
+    var userInfo = uri.UserInfo.Split(':', 2);
+    return new Npgsql.NpgsqlConnectionStringBuilder
+    {
+        Host = uri.Host,
+        Port = uri.Port > 0 ? uri.Port : 5432,
+        Database = uri.AbsolutePath.TrimStart('/'),
+        Username = Uri.UnescapeDataString(userInfo[0]),
+        Password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : null,
+    }.ConnectionString;
+}

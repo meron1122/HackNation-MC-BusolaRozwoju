@@ -1,7 +1,31 @@
+# Jeden serwis: API .NET serwuje też zbudowany frontend (Dockerfile). Oba w darmowym planie.
 services:
   - type: web
-    runtime: static
-    name: busola-frontend
-    rootDir: src/frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: dist
+    runtime: docker
+    name: busola
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: ConnectionStrings__Busola
+        fromDatabase:
+          name: busola-db
+          property: connectionString
+      - key: Jwt__Secret
+        generateValue: true
+      - key: Seed__SuperAdmin__Email
+        sync: false
+      - key: Seed__SuperAdmin__Password
+        sync: false
+      - key: ASPNETCORE_HTTP_PORTS
+        value: "10000"
+      - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+        value: "true"
+
+databases:
+  # Darmowy Postgres na Renderze wygasa po 30 dniach (dane przepadają).
+  - name: busola-db
+    plan: free
+    region: frankfurt
+    databaseName: busola
+    user: busola
