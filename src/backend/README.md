@@ -106,7 +106,6 @@ Endpointy (wszystkie poza logowaniem wymagają `Authorization: Bearer <token>`):
 | `GET/POST /api/departments`, `GET/PUT/DELETE /api/departments/{id}` | `GET` przyjmuje `locationId` |
 | `GET/POST /api/users`, `PUT /api/users/{id}/roles` | konta i role |
 | `DELETE /api/users/{id}/two-factor` | reset 2FA, gdy ktoś zgubi telefon i kody odzyskiwania |
-| `GET /api/employees/report.pdf` | lista pracowników w zakresie użytkownika jako PDF |
 
 ## Konto: avatar, hasło, 2FA
 
@@ -125,7 +124,7 @@ Frontend (`npm run dev` w `src/frontend`) przekierowuje `/api` na `http://localh
 
 ## PDF
 
-QuestPDF (licencja Community). `Busola.Api/Pdf/PdfReport.cs` daje wspólny układ (A4, nagłówek, numeracja stron) i tabelę. Nowy raport: `PdfReport.Render("Tytuł", c => PdfReport.Table(c, nagłówki, wiersze))` i `File(bytes, "application/pdf", "nazwa.pdf")`. Przykład: `EmployeesController.Report`.
+QuestPDF (licencja Community). `Busola.Api/Pdf/PdfReport.cs` daje wspólny układ (A4, nagłówek, numeracja stron) i tabelę. Nowy raport: `PdfReport.Render("Tytuł", c => PdfReport.Table(c, nagłówki, wiersze))` i `File(bytes, "application/pdf", "nazwa.pdf")`.
 
 ## Migracje
 
