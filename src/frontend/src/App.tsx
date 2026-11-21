@@ -4,6 +4,7 @@ import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type 
 import { Avatar } from './Avatar'
 import { CrudPage, ServiceName, type Column, type Field } from './Crud'
 import { Login } from './Login'
+import { SignaturesPage } from './Signatures'
 import { UsersPage } from './Users'
 
 // shortcut: lista pracowników to pierwsze 200 rekordów (API stronicuje); przy większej bazie dodać stronicowanie
@@ -106,6 +107,12 @@ const PAGES: Page[] = [
     label: 'Konta',
     visible: (s) => can(s, 'manage_users'),
     render: (s) => <UsersPage superAdmin={isSuperAdmin(s)} />,
+  },
+  {
+    key: 'signatures',
+    label: 'Podpisy',
+    visible: () => true,
+    render: () => <SignaturesPage />,
   },
 ]
 
