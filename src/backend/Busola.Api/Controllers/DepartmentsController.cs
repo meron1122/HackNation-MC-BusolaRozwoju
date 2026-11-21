@@ -1,0 +1,115 @@
+using Busola.Api.Authorization;
+using Busola.Api.Models;
+using Busola.Database;
+using Busola.Database.Authorization;
+using Busola.Database.Entities;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace Busola.Api.Controllers;
+
+[ApiController]
+[Route("api/departments")]
+public sealed class DepartmentsController(BusolaDbContext db, AccessScopeService access) : ControllerBase
+{
+    [HttpGet]
+    [Authorize(Policy = Permissions.ReadDepartments)]
+    public async Task<IReadOnlyList<DepartmentDto>> GetAll(int? locationId, CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.ReadDepartments, ct);
+        var query = db.Departments.InScope(scope);
+        if (locationId is not null)
+        {
+            query = query.Where(d => d.LocationId == locationId);
+        }
+
+        return await query
+            .OrderBy(d => d.Name)
+            .Select(DepartmentDto.Projection)
+            .ToListAsync(ct);
+    }
+
+    [HttpGet("{id:int}")]
+    [Authorize(Policy = Permissions.ReadDepartments)]
+    public async Task<ActionResult<DepartmentDto>> Get(int id, CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.ReadDepartments, ct);
+        var department = await db.Departments
+            .InScope(scope)
+            .Where(d => d.Id == id)
+            .Select(DepartmentDto.Projection)
+            .SingleOrDefaultAsync(ct);
+
+        return department is null ? NotFound() : department;
+    }
+
+    [HttpPost]
+    [Authorize(Policy = Permissions.AddDepartment)]
+    public async Task<ActionResult<DepartmentDto>> Create(DepartmentRequest request, CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.AddDepartment, ct);
+        if (await ValidateLocationAsync(request.LocationId, scope, ct) is { } error)
+        {
+            return error;
+        }
+
+        var department = new Department { Name = request.Name, LocationId = request.LocationId };
+        db.Departments.Add(department);
+        await db.SaveChangesAsync(ct);
+
+        return CreatedAtAction(nameof(Get), new { id = department.Id }, await LoadDtoAsync(department.Id, ct));
+    }
+
+    [HttpPut("{id:int}")]
+    [Authorize(Policy = Permissions.EditDepartment)]
+    public async Task<ActionResult<DepartmentDto>> Update(int id, DepartmentRequest request, CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.EditDepartment, ct);
+        var department = await db.Departments.InScope(scope).SingleOrDefaultAsync(d => d.Id == id, ct);
+        if (department is null)
+        {
+            return NotFound();
+        }
+
+        if (request.LocationId != department.LocationId
+            && await ValidateLocationAsync(request.LocationId, scope, ct) is { } error)
+        {
+            return error;
+        }
+
+        department.Name = request.Name;
+        department.LocationId = request.LocationId;
+        await db.SaveChangesAsync(ct);
+
+        return await LoadDtoAsync(id, ct);
+    }
+
+    [HttpDelete("{id:int}")]
+    [Authorize(Policy = Permissions.DeleteDepartment)]
+    public async Task<IActionResult> Delete(int id, CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.DeleteDepartment, ct);
+        var deleted = await db.Departments.InScope(scope).Where(d => d.Id == id).ExecuteDeleteAsync(ct);
+
+        return deleted == 0 ? NotFound() : NoContent();
+    }
+
+    private async Task<ActionResult?> ValidateLocationAsync(int locationId, AccessScope scope, CancellationToken ct)
+    {
+        var serviceId = await db.Locations
+            .Where(l => l.Id == locationId)
+            .Select(l => (int?)l.ServiceId)
+            .SingleOrDefaultAsync(ct);
+
+        if (serviceId is null)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Nie ma takiej lokalizacji.");
+        }
+
+        return scope.CoversService(serviceId.Value) ? null : Forbid();
+    }
+
+    private Task<DepartmentDto> LoadDtoAsync(int id, CancellationToken ct) =>
+        db.Departments.Where(d => d.Id == id).Select(DepartmentDto.Projection).SingleAsync(ct);
+}
