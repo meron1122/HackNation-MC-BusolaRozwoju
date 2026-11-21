@@ -24,8 +24,6 @@ public sealed record SignatureRequestDto(
 
 public enum SignResult { Ok, NotFound, NotPending, InvalidImage }
 
-public sealed record SignatureFieldDto(string Key, string? Label, string Role, bool Signed);
-
 /// <summary>Pole podpisu w ocenie (klucz pola typu "signature" ze szablonu).</summary>
 public sealed record EvaluationTarget(int EvaluationId, string FieldKey);
 
@@ -54,10 +52,28 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
     private const int MaxHeight = 2000;
 
     /// <param name="target">Z <see cref="ResolveTargetAsync"/>, po sprawdzeniu, że zlecający może zlecić ten podpis.</param>
+    /// <remarks>Jeśli na to pole oceny już czeka prośba, dostaje nowy link (stary przestaje działać), np. żeby znów pokazać QR.</remarks>
     public async Task<(SignatureRequestDto Request, string Token)> CreateAsync(
         string title, string signerName, string createdByUserId, ResolvedTarget? target, CancellationToken ct)
     {
         var token = NewToken();
+        if (target is not null)
+        {
+            var now = clock.GetUtcNow();
+            var pending = await db.SignatureRequests.FirstOrDefaultAsync(
+                r => r.EvaluationId == target.EvaluationId && r.EvaluationFieldKey == target.FieldKey && r.Status == SignatureStatus.Pending,
+                ct);
+            if (pending is not null)
+            {
+                // Zbiera teraz ten użytkownik: on potwierdza podpis w systemie i widzi status prośby.
+                pending.CreatedByUserId = createdByUserId;
+                pending.TokenHash = Hash(token);
+                pending.LinkExpiresAt = now + LinkLifetime;
+                await db.SaveChangesAsync(ct);
+                return (ToDto(pending), token);
+            }
+        }
+
         var request = new SignatureRequest
         {
             Id = Guid.NewGuid(),
@@ -75,22 +91,6 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
         db.SignatureRequests.Add(request);
         await db.SaveChangesAsync(ct);
         return (ToDto(request), token);
-    }
-
-    /// <summary>Nowy link (stary przestaje działać), np. żeby znowu pokazać kod QR. Tylko dla oczekujących.</summary>
-    public async Task<string?> RenewLinkAsync(Guid id, CancellationToken ct)
-    {
-        var request = await db.SignatureRequests.SingleOrDefaultAsync(r => r.Id == id, ct);
-        if (request is not { Status: SignatureStatus.Pending })
-        {
-            return null;
-        }
-
-        var token = NewToken();
-        request.TokenHash = Hash(token);
-        request.LinkExpiresAt = clock.GetUtcNow() + LinkLifetime;
-        await db.SaveChangesAsync(ct);
-        return token;
     }
 
     public Task<SignatureRequest?> FindByTokenAsync(string token, CancellationToken ct) =>
@@ -186,15 +186,6 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
         new(r.Id, r.Title, r.SignerName, StatusOf(r), r.CreatedAt, r.LinkExpiresAt, r.CompletedAt, r.SignerUserAgent,
             r.EvaluationId, r.EvaluationFieldKey);
 
-    public async Task<IReadOnlyList<SignatureFieldDto>> GetEvaluationFieldsAsync(int evaluationId, CancellationToken ct)
-    {
-        var schemaJson = await db.Evaluations.Where(e => e.Id == evaluationId).Select(e => e.Template.Schema).SingleAsync(ct);
-        var signed = await db.EvaluationSignatures.Where(s => s.EvaluationId == evaluationId).Select(s => s.FieldKey).ToListAsync(ct);
-        return SignatureFields(schemaJson)
-            .Select(f => new SignatureFieldDto(f.Field.Key, f.Field.Label, f.Role.ToString(), signed.Contains(f.Field.Key)))
-            .ToList();
-    }
-
     private static IEnumerable<(FieldDefinition Field, SignatureRole Role)> SignatureFields(string schemaJson) =>
         TemplateSchema.Parse(schemaJson).Sections
             .SelectMany(s => s.Fields)
@@ -205,8 +196,8 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
             .Select(x => (x.Field, x.Role!.Value));
 
     /// <summary>
-    /// Sprawdza pole oceny: istnieje w szablonie jako signature, ocena nie jest zamknięta, pole nie jest podpisane
-    /// i nie czeka na nie inna prośba. Nie sprawdza, kto zleca — to robi wywołujący (reguły jak przy podpisie w systemie).
+    /// Sprawdza pole oceny: istnieje w szablonie jako signature, ocena nie jest zamknięta i pole nie jest podpisane.
+    /// Nie sprawdza, kto zleca — to robi wywołujący (reguły jak przy podpisie w systemie).
     /// </summary>
     /// <exception cref="SignatureTargetException">400 albo 409 z komunikatem dla użytkownika.</exception>
     public async Task<ResolvedTarget> ResolveTargetAsync(EvaluationTarget target, CancellationToken ct)
@@ -232,15 +223,6 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
         if (await db.EvaluationSignatures.AnyAsync(s => s.EvaluationId == target.EvaluationId && s.FieldKey == target.FieldKey, ct))
         {
             throw new SignatureTargetException(StatusCodes.Status409Conflict, "To pole oceny jest już podpisane.");
-        }
-
-        var now = clock.GetUtcNow();
-        if (await db.SignatureRequests.AnyAsync(
-                r => r.EvaluationId == target.EvaluationId && r.EvaluationFieldKey == target.FieldKey
-                    && r.Status == SignatureStatus.Pending && r.LinkExpiresAt > now,
-                ct))
-        {
-            throw new SignatureTargetException(StatusCodes.Status409Conflict, "Prośba o ten podpis już czeka. Użyj „Pokaż kod QR”.");
         }
 
         return new ResolvedTarget(target.EvaluationId, target.FieldKey, role, evaluation.EmployeeId);

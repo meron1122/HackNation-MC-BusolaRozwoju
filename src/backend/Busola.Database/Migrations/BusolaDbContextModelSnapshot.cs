@@ -172,6 +172,130 @@ namespace Busola.Database.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Busola.Database.Entities.EmployeeProfile", b =>
+                {
+                    b.Property<int>("EmployeeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("employee_id");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("city");
+
+                    b.Property<DateOnly?>("ContractEnd")
+                        .HasColumnType("date")
+                        .HasColumnName("contract_end");
+
+                    b.Property<DateOnly?>("ContractStart")
+                        .HasColumnType("date")
+                        .HasColumnName("contract_start");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("country");
+
+                    b.Property<DateOnly?>("DriverLicenseExpiry")
+                        .HasColumnType("date")
+                        .HasColumnName("driver_license_expiry");
+
+                    b.Property<string>("DriverLicenseNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("driver_license_number");
+
+                    b.Property<string>("EmployeeNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("employee_number");
+
+                    b.Property<string>("EmploymentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("employment_type");
+
+                    b.Property<string>("Gender")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("gender");
+
+                    b.Property<string>("JobTitle")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("job_title");
+
+                    b.Property<string>("MaritalStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("marital_status");
+
+                    b.Property<string>("MiddleName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("middle_name");
+
+                    b.Property<string>("Nationality")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("nationality");
+
+                    b.Property<string>("OtherEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("other_email");
+
+                    b.Property<string>("OtherId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("other_id");
+
+                    b.Property<string>("PhoneHome")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("phone_home");
+
+                    b.Property<string>("PhoneMobile")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("phone_mobile");
+
+                    b.Property<string>("PhoneWork")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("phone_work");
+
+                    b.Property<string>("PostalCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("postal_code");
+
+                    b.Property<string>("Province")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("province");
+
+                    b.Property<string>("Street1")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("street1");
+
+                    b.Property<string>("Street2")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("street2");
+
+                    b.Property<string>("WorkEmail")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("work_email");
+
+                    b.HasKey("EmployeeId")
+                        .HasName("pk_employee_profiles");
+
+                    b.ToTable("employee_profiles", (string)null);
+                });
+
             modelBuilder.Entity("Busola.Database.Entities.Evaluation", b =>
                 {
                     b.Property<int>("Id")
@@ -1373,6 +1497,200 @@ namespace Busola.Database.Migrations
                     b.Navigation("Department");
 
                     b.Navigation("Supervisor");
+                });
+
+            modelBuilder.Entity("Busola.Database.Entities.EmployeeProfile", b =>
+                {
+                    b.HasOne("Busola.Database.Entities.Employee", "Employee")
+                        .WithOne()
+                        .HasForeignKey("Busola.Database.Entities.EmployeeProfile", "EmployeeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_employee_profiles_employees_employee_id");
+
+                    b.OwnsMany("Busola.Database.Entities.Dependent", "Dependents", b1 =>
+                        {
+                            b1.Property<int>("EmployeeProfileEmployeeId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<DateOnly?>("DateOfBirth");
+
+                            b1.Property<string>("Name")
+                                .IsRequired();
+
+                            b1.Property<string>("Relationship");
+
+                            b1.HasKey("EmployeeProfileEmployeeId", "__synthesizedOrdinal");
+
+                            b1.ToTable("employee_profiles");
+
+                            b1
+                                .ToJson("dependents")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("EmployeeProfileEmployeeId")
+                                .HasConstraintName("fk_employee_profiles_employee_profiles_employee_profile_employee");
+                        });
+
+                    b.OwnsMany("Busola.Database.Entities.Education", "Education", b1 =>
+                        {
+                            b1.Property<int>("EmployeeProfileEmployeeId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<string>("Institution");
+
+                            b1.Property<string>("Level")
+                                .IsRequired();
+
+                            b1.Property<string>("Specialization");
+
+                            b1.Property<int?>("Year");
+
+                            b1.HasKey("EmployeeProfileEmployeeId", "__synthesizedOrdinal");
+
+                            b1.ToTable("employee_profiles");
+
+                            b1
+                                .ToJson("education")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("EmployeeProfileEmployeeId")
+                                .HasConstraintName("fk_employee_profiles_employee_profiles_employee_profile_employee");
+                        });
+
+                    b.OwnsMany("Busola.Database.Entities.EmergencyContact", "EmergencyContacts", b1 =>
+                        {
+                            b1.Property<int>("EmployeeProfileEmployeeId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<string>("Name")
+                                .IsRequired();
+
+                            b1.Property<string>("PhoneHome");
+
+                            b1.Property<string>("PhoneMobile");
+
+                            b1.Property<string>("PhoneWork");
+
+                            b1.Property<string>("Relationship");
+
+                            b1.HasKey("EmployeeProfileEmployeeId", "__synthesizedOrdinal");
+
+                            b1.ToTable("employee_profiles");
+
+                            b1
+                                .ToJson("emergency_contacts")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("EmployeeProfileEmployeeId")
+                                .HasConstraintName("fk_employee_profiles_employee_profiles_employee_profile_employee");
+                        });
+
+                    b.OwnsMany("Busola.Database.Entities.LanguageSkill", "Languages", b1 =>
+                        {
+                            b1.Property<int>("EmployeeProfileEmployeeId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<string>("Language")
+                                .IsRequired();
+
+                            b1.Property<string>("Level");
+
+                            b1.HasKey("EmployeeProfileEmployeeId", "__synthesizedOrdinal");
+
+                            b1.ToTable("employee_profiles");
+
+                            b1
+                                .ToJson("languages")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("EmployeeProfileEmployeeId")
+                                .HasConstraintName("fk_employee_profiles_employee_profiles_employee_profile_employee");
+                        });
+
+                    b.OwnsMany("Busola.Database.Entities.Skill", "Skills", b1 =>
+                        {
+                            b1.Property<int>("EmployeeProfileEmployeeId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<string>("Comment");
+
+                            b1.Property<string>("Name")
+                                .IsRequired();
+
+                            b1.Property<int?>("YearsOfExperience");
+
+                            b1.HasKey("EmployeeProfileEmployeeId", "__synthesizedOrdinal");
+
+                            b1.ToTable("employee_profiles");
+
+                            b1
+                                .ToJson("skills")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("EmployeeProfileEmployeeId")
+                                .HasConstraintName("fk_employee_profiles_employee_profiles_employee_profile_employee");
+                        });
+
+                    b.OwnsMany("Busola.Database.Entities.WorkExperience", "WorkExperience", b1 =>
+                        {
+                            b1.Property<int>("EmployeeProfileEmployeeId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<string>("Comment");
+
+                            b1.Property<string>("Company")
+                                .IsRequired();
+
+                            b1.Property<DateOnly?>("From");
+
+                            b1.Property<string>("JobTitle");
+
+                            b1.Property<DateOnly?>("To");
+
+                            b1.HasKey("EmployeeProfileEmployeeId", "__synthesizedOrdinal");
+
+                            b1.ToTable("employee_profiles");
+
+                            b1
+                                .ToJson("work_experience")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("EmployeeProfileEmployeeId")
+                                .HasConstraintName("fk_employee_profiles_employee_profiles_employee_profile_employee");
+                        });
+
+                    b.Navigation("Dependents");
+
+                    b.Navigation("Education");
+
+                    b.Navigation("EmergencyContacts");
+
+                    b.Navigation("Employee");
+
+                    b.Navigation("Languages");
+
+                    b.Navigation("Skills");
+
+                    b.Navigation("WorkExperience");
                 });
 
             modelBuilder.Entity("Busola.Database.Entities.Evaluation", b =>

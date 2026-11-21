@@ -10,7 +10,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Busola.Api.Controllers;
 
-/// <summary>Prośby o podpis zlecającego. Każdy zalogowany widzi swoje, SuperAdmin wszystkie.</summary>
+/// <summary>Prośby o podpis (z karty oceny). Zlecający widzi swoje, SuperAdmin wszystkie.</summary>
 [ApiController]
 [Route("api/signatures")]
 public sealed class SignaturesController(BusolaDbContext db, SignatureService signatures, AccessScopeService access) : ControllerBase
@@ -22,13 +22,7 @@ public sealed class SignaturesController(BusolaDbContext db, SignatureService si
         int? EvaluationId = null,
         [MaxLength(100)] string? EvaluationFieldKey = null);
 
-    public sealed record LinkResponse(string Token, DateTimeOffset LinkExpiresAt);
-
     public sealed record CreateResponse(SignatureRequestDto Request, string Token);
-
-    [HttpGet]
-    public async Task<IReadOnlyList<SignatureRequestDto>> GetAll(CancellationToken ct) =>
-        (await Mine().OrderByDescending(r => r.CreatedAt).Take(100).ToListAsync(ct)).Select(signatures.ToDto).ToList();
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<SignatureRequestDto>> Get(Guid id, CancellationToken ct) =>
@@ -69,37 +63,11 @@ public sealed class SignaturesController(BusolaDbContext db, SignatureService si
         return Created($"api/signatures/{dto.Id}", new CreateResponse(dto, token));
     }
 
-    [HttpPost("{id:guid}/link")]
-    public async Task<ActionResult<LinkResponse>> RenewLink(Guid id, CancellationToken ct)
-    {
-        if (!await Mine().AnyAsync(r => r.Id == id, ct))
-        {
-            return NotFound();
-        }
-
-        var token = await signatures.RenewLinkAsync(id, ct);
-        return token is null
-            ? Problem(statusCode: StatusCodes.Status409Conflict, detail: "Prośba jest już zakończona.")
-            : new LinkResponse(token, DateTimeOffset.UtcNow + SignatureService.LinkLifetime);
-    }
-
     [HttpGet("{id:guid}/image")]
     public async Task<IActionResult> Image(Guid id, CancellationToken ct)
     {
         var image = await Mine().Where(r => r.Id == id).Select(r => r.Image).SingleOrDefaultAsync(ct);
         return image is null ? NotFound() : File(image, "image/png");
-    }
-
-    /// <summary>Pola podpisu w ocenie (do wyboru w formularzu), z informacją, czy już podpisane.</summary>
-    [HttpGet("evaluation-fields")]
-    public async Task<ActionResult<IReadOnlyList<SignatureFieldDto>>> EvaluationFields(int evaluationId, CancellationToken ct)
-    {
-        if (!await CanSeeEvaluationAsync(evaluationId, ct))
-        {
-            return NotFound();
-        }
-
-        return Ok(await signatures.GetEvaluationFieldsAsync(evaluationId, ct));
     }
 
     // Ocenę widzi oceniany albo ktoś z read_evaluations w swoim zakresie (jak w EvaluationsController).

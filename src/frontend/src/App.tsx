@@ -7,7 +7,8 @@ import { DeadlinesPage } from './Deadlines'
 import { DevPage } from './Dev'
 import { EvaluationsPage } from './Evaluations'
 import { Login } from './Login'
-import { SignaturesPage } from './Signatures'
+import { ProfilePage } from './Profile'
+import { UserMenu } from './UserMenu'
 import { UsersPage } from './Users'
 
 // shortcut: lista pracowników to pierwsze 200 rekordów (API stronicuje); przy większej bazie dodać stronicowanie
@@ -67,11 +68,11 @@ const employeeCreatedNotice = (created: { email: string; temporaryPassword: stri
   </p>
 )
 
-const employeeColumns: Column[] = [
+const employeeColumns = (nav: Nav): Column[] => [
   ['Zdjęcie', (e) => (
     <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={`${e.firstName} ${e.lastName}`} size={28} />
   )],
-  ['Nazwisko i imię', (e) => `${e.lastName} ${e.firstName}`],
+  ['Nazwisko i imię', (e) => <button className="link person-link" onClick={() => nav.showProfile(e.id)}>{e.lastName} {e.firstName}</button>],
   ['E-mail', (e) => e.email ?? '—'],
   ['Urodzony', (e) => e.dateOfBirth],
   ['Zatrudniony', (e) => e.hireDate],
@@ -107,11 +108,19 @@ const serviceFields: Field[] = [
 const serviceColumns: Column[] = [['Nazwa', (s) => <ServiceName name={s.name} logoUrl={s.logoUrl} />]]
 
 /** Przejścia między stronami, np. z listy terminów prosto do karty oceny. */
-type Nav = { openEvaluation: number | null; showEvaluation: (id: number | null) => void }
+type Nav = {
+  openEvaluation: number | null
+  showEvaluation: (id: number | null) => void
+  showProfile: (employeeId: number) => void
+}
 type Page = { key: string; label: string; visible: (s: Session) => boolean; render: (s: Session, nav: Nav) => ReactNode }
 
 // Dostępne dla każdego zalogowanego, otwierane z nagłówka (avatar + imię), nie z zakładek.
 const ACCOUNT_PAGE = 'account'
+// Profil innego pracownika: otwierany z listy albo ze struktury w innym profilu.
+const PROFILE_PAGE = 'profile'
+// Własny profil: z menu pod loginem.
+const MY_PROFILE_PAGE = 'my-profile'
 
 const PAGES: Page[] = [
   {
@@ -130,8 +139,8 @@ const PAGES: Page[] = [
     key: 'employees',
     label: 'Pracownicy',
     visible: (s) => can(s, 'read_employees'),
-    render: (s) => (
-      <CrudPage title="Pracownicy" path="employees" query={EMPLOYEES_QUERY} fields={employeeFields} columns={employeeColumns}
+    render: (s, nav) => (
+      <CrudPage title="Pracownicy" path="employees" query={EMPLOYEES_QUERY} fields={employeeFields} columns={employeeColumns(nav)}
         canAdd={can(s, 'add_employee')} canEdit={can(s, 'edit_employee')} canDelete={can(s, 'delete_employee')}
         createdNotice={employeeCreatedNotice} />
     ),
@@ -170,12 +179,6 @@ const PAGES: Page[] = [
     render: (s) => <UsersPage superAdmin={isSuperAdmin(s)} />,
   },
   {
-    key: 'signatures',
-    label: 'Podpisy',
-    visible: () => true,
-    render: () => <SignaturesPage />,
-  },
-  {
     key: 'dev',
     label: 'Dev',
     visible: isSuperAdmin,
@@ -188,12 +191,17 @@ export default function App() {
   const [pageKey, setPageKey] = useState(PAGES[0].key)
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [openEvaluation, setOpenEvaluation] = useState<number | null>(null)
+  const [profileId, setProfileId] = useState<number | null>(null)
   const session = token ? readSession(token) : null
   const nav: Nav = {
     openEvaluation,
     showEvaluation: (id) => {
       setOpenEvaluation(id)
       setPageKey('evaluations')
+    },
+    showProfile: (id) => {
+      setProfileId(id)
+      setPageKey(PROFILE_PAGE)
     },
   }
 
@@ -217,7 +225,9 @@ export default function App() {
 
   const pages = PAGES.filter((p) => p.visible(session))
   const onAccount = pageKey === ACCOUNT_PAGE
-  const page = onAccount ? undefined : pages.find((p) => p.key === pageKey) ?? pages[0]
+  const onProfile = pageKey === PROFILE_PAGE && profileId !== null
+  const onMyProfile = pageKey === MY_PROFILE_PAGE
+  const page = onAccount || onProfile || onMyProfile ? undefined : pages.find((p) => p.key === pageKey) ?? pages[0]
 
   return (
     <>
@@ -231,18 +241,16 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <span className="user">
-          <button className={onAccount ? 'tab active account-link' : 'tab account-link'} aria-current={onAccount ? 'page' : undefined}
-            onClick={() => setPageKey(ACCOUNT_PAGE)} title="Moje konto">
-            <Avatar path="account/avatar" name={session.name} size={28} version={avatarVersion} />
-            {session.name}
-          </button>
-          <button className="secondary" onClick={logout}>Wyloguj</button>
-        </span>
+        <UserMenu name={session.name} avatarVersion={avatarVersion} active={onAccount || onMyProfile}
+          onProfile={() => setPageKey(MY_PROFILE_PAGE)} onAccount={() => setPageKey(ACCOUNT_PAGE)} onLogout={logout} />
       </header>
       <main className="content">
         {onAccount ? (
           <AccountPage onToken={login} avatarVersion={avatarVersion} onAvatarChange={() => setAvatarVersion((v) => v + 1)} />
+        ) : onMyProfile ? (
+          <ProfilePage employeeId="me" onOpenProfile={nav.showProfile} />
+        ) : onProfile ? (
+          <ProfilePage key={profileId} employeeId={profileId} onOpenProfile={nav.showProfile} />
         ) : page ? (
           <div key={page.key}>{page.render(session, nav)}</div>
         ) : (

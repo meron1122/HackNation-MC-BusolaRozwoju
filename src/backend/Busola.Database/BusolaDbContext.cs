@@ -24,6 +24,7 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
     public DbSet<EvaluationAnswer> EvaluationAnswers => Set<EvaluationAnswer>();
     public DbSet<EvaluationSignature> EvaluationSignatures => Set<EvaluationSignature>();
     public DbSet<SignatureRequest> SignatureRequests => Set<SignatureRequest>();
+    public DbSet<EmployeeProfile> EmployeeProfiles => Set<EmployeeProfile>();
 
     // Tu, a nie w AddDbContext, żeby snake_case obowiązywał zawsze — schemat i aplikacja nie mogą się rozjechać.
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) =>
@@ -173,6 +174,36 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
                 .WithMany()
                 .HasForeignKey(s => s.SignedById)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EmployeeProfile>(b =>
+        {
+            b.HasKey(p => p.EmployeeId);
+            b.HasOne(p => p.Employee)
+                .WithOne()
+                .HasForeignKey<EmployeeProfile>(p => p.EmployeeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            foreach (var name in new[] { "MiddleName", "EmployeeNumber", "OtherId", "Nationality", "DriverLicenseNumber", "City",
+                         "Province", "PostalCode", "Country", "PhoneHome", "PhoneMobile", "PhoneWork", "JobTitle", "EmploymentType" })
+            {
+                b.Property<string?>(name).HasMaxLength(100);
+            }
+
+            b.Property(p => p.Gender).HasMaxLength(20);
+            b.Property(p => p.MaritalStatus).HasMaxLength(20);
+            b.Property(p => p.Street1).HasMaxLength(200);
+            b.Property(p => p.Street2).HasMaxLength(200);
+            b.Property(p => p.WorkEmail).HasMaxLength(256);
+            b.Property(p => p.OtherEmail).HasMaxLength(256);
+
+            // Listy pokazywane tylko w profilu, więc jako jsonb zamiast osobnych tabel.
+            b.OwnsMany(p => p.EmergencyContacts, o => o.ToJson());
+            b.OwnsMany(p => p.Dependents, o => o.ToJson());
+            b.OwnsMany(p => p.WorkExperience, o => o.ToJson());
+            b.OwnsMany(p => p.Education, o => o.ToJson());
+            b.OwnsMany(p => p.Skills, o => o.ToJson());
+            b.OwnsMany(p => p.Languages, o => o.ToJson());
         });
 
         modelBuilder.Entity<SignatureRequest>(b =>
