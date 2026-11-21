@@ -1,3 +1,4 @@
+using Busola.Api.Agent;
 using Busola.Api.Authorization;
 using Busola.Api.Infrastructure;
 using Busola.Api.Seeders;
@@ -55,6 +56,7 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AccessScopeService>();
+builder.Services.AddAgent(builder.Configuration);
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddExceptionHandler<DbExceptionHandler>();
 builder.Services.AddProblemDetails();

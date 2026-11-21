@@ -126,6 +126,17 @@ Frontend (`npm run dev` w `src/frontend`) przekierowuje `/api` na `http://localh
 
 QuestPDF (licencja Community). `Busola.Api/Pdf/PdfReport.cs` daje wspólny układ (A4, nagłówek, numeracja stron) i tabelę. Nowy raport: `PdfReport.Render("Tytuł", c => PdfReport.Table(c, nagłówki, wiersze))` i `File(bytes, "application/pdf", "nazwa.pdf")`.
 
+## Agent AI (harness)
+
+`Busola.Api/Agent`: szkielet agenta, bez gotowej logiki biznesowej. LLM przez OpenRouter (`OpenRouter__ApiKey`, `OpenRouter__Model`, slug z openrouter.ai/models). Bez klucza endpoint zwraca 503.
+
+- `POST /api/agent/chat` `{ messages: [{ role: "user"|"assistant", content }] }` zwraca `{ reply }`. Bezstanowy: klient przysyła całą rozmowę.
+- **Uprawnienia**: agent działa w żądaniu zalogowanego użytkownika. Narzędzie z `RequiredPermission` jest pokazywane modelowi tylko, gdy użytkownik ma to uprawnienie, a dane filtruje tak jak kontrolery (`AccessScopeService` + `InScope`). Wzór: `Tools/ListEmployeesTool.cs`.
+- **Nowe narzędzie**: klasa implementująca `IAgentTool` (nazwa, opis, JSON Schema argumentów, uprawnienie, `ExecuteAsync`) i jedna linia `AddScoped<IAgentTool, ...>()` w `AgentServiceCollectionExtensions`.
+- **Baza wiedzy (RAG)**: pliki `*.md` w `Busola.Api/Agent/Knowledge` (np. opis flow raportów), cięte po nagłówkach i przeszukiwane narzędziem `search_knowledge`. Wyszukiwanie po słowach. Na embeddingi podmienia się implementację `IKnowledgeBase`.
+- **Inny dostawca LLM**: implementacja `ILlmClient` i podmiana rejestracji w `AddAgent`.
+- **Prompt systemowy**: `AgentPrompt.cs`.
+
 ## Migracje
 
 Narzędzie `dotnet-ef` jest w lokalnym manifeście, więc najpierw (jednorazowo):
