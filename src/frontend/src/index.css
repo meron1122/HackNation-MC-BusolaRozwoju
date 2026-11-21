@@ -100,3 +100,37 @@ td.actions { white-space: nowrap; text-align: right; }
 .service { display: inline-flex; align-items: center; gap: 0.6rem; }
 .service img { object-fit: contain; flex-shrink: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.avatar { display: inline-block; flex: none; border-radius: 50%; object-fit: cover; vertical-align: middle; background: var(--border); }
+.avatar.initials { display: inline-flex; align-items: center; justify-content: center; font-weight: 600; color: var(--muted); }
+.account-link { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0.6rem 0.25rem 0.25rem; }
+
+.account { display: grid; gap: 1rem; }
+.account .toolbar { margin-bottom: 0; }
+.panel { display: grid; gap: 0.75rem; grid-template-columns: 1fr; margin-bottom: 0; max-width: 640px; }
+h3 { margin: 0; font-size: 1.05rem; }
+.avatar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+.stack { display: grid; gap: 0.5rem; }
+.small { font-size: 0.85rem; }
+label.button {
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-text);
+  cursor: pointer;
+}
+label.button:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+label.button.disabled { opacity: 0.6; cursor: default; }
+button.secondary.danger { color: var(--danger); border-color: var(--danger); }
+.success { color: var(--accent); margin: 0; }
+.steps { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.25rem; }
+.qr { justify-self: start; padding: 0.5rem; background: #fff; border-radius: 8px; line-height: 0; }
+.inline-form { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.recovery { display: grid; gap: 0.75rem; padding: 0.75rem; border: 1px solid var(--accent); border-radius: 8px; }
+.recovery p { margin: 0; }
+.codes { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.4rem; }
+code { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+td.nowrap { white-space: nowrap; }
+@media (max-width: 480px) { .inline-form { grid-template-columns: 1fr; } }

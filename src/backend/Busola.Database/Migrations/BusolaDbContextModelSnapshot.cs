@@ -628,6 +628,33 @@ namespace Busola.Database.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("Busola.Database.Entities.UserAvatar", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasColumnType("text")
+                        .HasColumnName("user_id");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("content");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("UserId")
+                        .HasName("pk_user_avatars");
+
+                    b.ToTable("user_avatars", (string)null);
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.Property<int>("Id")
@@ -850,12 +877,24 @@ namespace Busola.Database.Migrations
             modelBuilder.Entity("Busola.Database.Entities.User", b =>
                 {
                     b.HasOne("Busola.Database.Entities.Employee", "Employee")
-                        .WithOne()
+                        .WithOne("User")
                         .HasForeignKey("Busola.Database.Entities.User", "EmployeeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .HasConstraintName("fk_users_employees_employee_id");
 
                     b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("Busola.Database.Entities.UserAvatar", b =>
+                {
+                    b.HasOne("Busola.Database.Entities.User", "User")
+                        .WithOne("Avatar")
+                        .HasForeignKey("Busola.Database.Entities.UserAvatar", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_avatars_users_user_id");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -930,6 +969,8 @@ namespace Busola.Database.Migrations
                     b.Navigation("Absences");
 
                     b.Navigation("Subordinates");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Busola.Database.Entities.Location", b =>
@@ -945,6 +986,11 @@ namespace Busola.Database.Migrations
             modelBuilder.Entity("Busola.Database.Entities.Service", b =>
                 {
                     b.Navigation("Locations");
+                });
+
+            modelBuilder.Entity("Busola.Database.Entities.User", b =>
+                {
+                    b.Navigation("Avatar");
                 });
 #pragma warning restore 612, 618
         }

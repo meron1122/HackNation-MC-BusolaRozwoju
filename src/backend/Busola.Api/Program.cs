@@ -26,7 +26,9 @@ builder.Services
     .AddIdentityCore<User>(options => options.User.RequireUniqueEmail = true)
     .AddRoles<Role>()
     .AddSignInManager()
-    .AddEntityFrameworkStores<BusolaDbContext>();
+    .AddEntityFrameworkStores<BusolaDbContext>()
+    .AddTokenProvider<AuthenticatorTokenProvider<User>>(TokenOptions.DefaultAuthenticatorProvider)
+    .AddErrorDescriber<PolishIdentityErrorDescriber>();
 
 builder.Services.AddSingleton(jwt);
 builder.Services
@@ -42,6 +44,7 @@ builder.Services
             NameClaimType = BusolaClaims.Name,
             RoleClaimType = BusolaClaims.Role,
         };
+        options.Events = new JwtBearerEvents { OnTokenValidated = SecurityStampValidation.ValidateAsync };
     });
 
 builder.Services.AddAuthorization(options =>

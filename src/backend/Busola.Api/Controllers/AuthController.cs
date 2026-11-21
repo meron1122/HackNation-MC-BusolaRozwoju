@@ -10,10 +10,13 @@ namespace Busola.Api.Controllers;
 [ApiController]
 [Route("api/auth")]
 [AllowAnonymous]
-public sealed class AuthController(UserManager<User> userManager, SignInManager<User> signInManager, TokenService tokens)
-    : ControllerBase
+public sealed class AuthController(UserManager<User> userManager, TokenService tokens) : ControllerBase
 {
-    /// <summary>Token zawiera role i uprawnienia z chwili logowania — po zmianie ról trzeba zalogować się ponownie.</summary>
+    /// <summary>
+    /// Bez 2FA: e-mail + hasło → token. Z 2FA: pierwsza odpowiedź ma RequiresTwoFactor, potem klient
+    /// wysyła e-mail + hasło + kod z aplikacji (albo kod odzyskiwania). Nieudane hasło i nieudany kod liczą
+    /// się do wspólnej blokady konta (5 prób → 5 minut).
+    /// </summary>
     [HttpPost("login")]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken ct)
     {
@@ -23,12 +26,37 @@ public sealed class AuthController(UserManager<User> userManager, SignInManager<
             return Unauthorized();
         }
 
-        var result = await signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
-        if (!result.Succeeded)
+        if (await userManager.IsLockedOutAsync(user))
+        {
+            return Problem(
+                statusCode: StatusCodes.Status401Unauthorized,
+                detail: "Konto jest czasowo zablokowane po zbyt wielu nieudanych próbach. Spróbuj za kilka minut.");
+        }
+
+        if (!await userManager.CheckPasswordWithLockoutAsync(user, request.Password))
         {
             return Unauthorized();
         }
 
+        if (user.TwoFactorEnabled)
+        {
+            if (string.IsNullOrWhiteSpace(request.TwoFactorCode) && string.IsNullOrWhiteSpace(request.RecoveryCode))
+            {
+                return new LoginResponse(Token: null, RequiresTwoFactor: true);
+            }
+
+            var valid = !string.IsNullOrWhiteSpace(request.TwoFactorCode)
+                ? await userManager.VerifyAuthenticatorCodeAsync(user, request.TwoFactorCode)
+                : (await userManager.RedeemTwoFactorRecoveryCodeAsync(user, request.RecoveryCode!.Trim().ToUpperInvariant())).Succeeded;
+
+            if (!valid)
+            {
+                await userManager.AccessFailedAsync(user);
+                return Problem(statusCode: StatusCodes.Status401Unauthorized, detail: "Nieprawidłowy kod.");
+            }
+        }
+
+        await userManager.ResetAccessFailedCountAsync(user);
         return new LoginResponse(await tokens.CreateTokenAsync(user, ct));
     }
 }

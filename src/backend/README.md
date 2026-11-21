@@ -62,7 +62,7 @@ Model jak w PIM: ASP.NET Identity + JWT, tabele `permissions` i `role_permission
 - Uprawnienia użytkownika to suma ról, a zakres liczy się per rola. Np. przełożony, który jest też w HR, widzi całą służbę.
 - Służba użytkownika wynika z jego wydziału (pracownik → wydział → lokalizacja → służba).
 - Struktura organizacyjna (lokalizacje, wydziały) jest widoczna tylko w zakresie `Service` albo `All`.
-- Rola zapisana w tokenie obowiązuje do wygaśnięcia (domyślnie 12 h). Po zmianie ról trzeba zalogować się ponownie.
+- Token zawiera role z chwili logowania (ważny 12 h) i `SecurityStamp` konta. API sprawdza stamp przy każdym żądaniu, więc zmiana ról, zmiana hasła i włączenie/wyłączenie/reset 2FA natychmiast unieważniają stare tokeny (użytkownik loguje się ponownie, a przy własnych zmianach API od razu odsyła nowy token).
 - `ServiceAdmin` nie może nadać ani odebrać roli o zakresie `All`, a konta bez pracownika zakłada tylko `SuperAdmin`.
 
 Nowe uprawnienie: stała w `Permissions.cs`, wiersz w `PermissionSeed.cs` (kolejne Id), przypisanie do ról, nowa migracja.
@@ -95,16 +95,25 @@ Endpointy (wszystkie poza logowaniem wymagają `Authorization: Bearer <token>`):
 
 | | |
 |---|---|
-| `POST /api/auth/login` | `{ email, password }` → `{ token }` |
+| `POST /api/auth/login` | `{ email, password }` → `{ token }`, przy 2FA `{ requiresTwoFactor: true }` i ponownie z `twoFactorCode` albo `recoveryCode` |
+| `GET /api/account` | własne konto: e-mail, pracownik, avatar, stan 2FA |
+| `POST /api/account/password` | `{ currentPassword, newPassword }` → nowy token |
+| `GET/PUT/DELETE /api/account/avatar` | `PUT` jako multipart z polem `file` |
+| `POST /api/account/two-factor/setup`, `…/enable`, `…/disable`, `…/recovery-codes` | konfiguracja 2FA (TOTP) |
 | `GET/POST /api/employees`, `GET/PUT/DELETE /api/employees/{id}` | `GET` przyjmuje `page`, `pageSize` |
+| `GET /api/employees/{id}/avatar` | zdjęcie widzi ten, kto widzi pracownika |
 | `GET/POST /api/locations`, `GET/PUT/DELETE /api/locations/{id}` | |
 | `GET/POST /api/departments`, `GET/PUT/DELETE /api/departments/{id}` | `GET` przyjmuje `locationId` |
 | `GET/POST /api/users`, `PUT /api/users/{id}/roles` | konta i role |
+| `DELETE /api/users/{id}/two-factor` | reset 2FA, gdy ktoś zgubi telefon i kody odzyskiwania |
 | `GET /api/employees/report.pdf` | lista pracowników w zakresie użytkownika jako PDF |
 
-## PDF
+## Konto: avatar, hasło, 2FA
 
-QuestPDF (licencja Community). `Busola.Api/Pdf/PdfReport.cs` daje wspólny układ (A4, nagłówek, numeracja stron) i tabelę. Nowy raport: `PdfReport.Render("Tytuł", c => PdfReport.Table(c, nagłówki, wiersze))` i `File(bytes, "application/pdf", "nazwa.pdf")`. Przykład: `EmployeesController.Report`.
+- **Avatar** jest w bazie (`user_avatars`), bo dysk kontenera na Renderze jest ulotny. Upload do 2 MB (JPG, PNG, WebP, GIF). Obraz jest dekodowany, obracany według EXIF, zmniejszany do 256 px i kodowany od nowa do WebP. Nie zapisujemy więc nic, co przysłał użytkownik (np. SVG ze skryptem), i znikają metadane, np. GPS ze zdjęć z telefonu. `<img>` nie wysyła tokenu, więc frontend pobiera zdjęcia przez `fetch` i pokazuje jako blob URL.
+- **Zmiana hasła** wymaga obecnego hasła i wylogowuje pozostałe sesje.
+- **2FA** to TOTP z aplikacji (Microsoft/Google Authenticator) plus 10 jednorazowych kodów odzyskiwania. Kod jest zawsze sprawdzany razem z hasłem w jednym żądaniu: nie ma osobnego kroku „sam kod dla userId”, którym dałoby się pominąć hasło. Wyłączenie 2FA i nowe kody wymagają hasła.
+- **Blokada**: 5 nieudanych prób (hasło albo kod) blokuje konto na 5 minut. Poprawne hasło nie zeruje licznika, dopóki nie przejdzie też kod, inaczej kod dałoby się zgadywać bez końca.
 
 Rekord spoza zakresu zwraca 404, a operacja na danych spoza zakresu 403. Naruszenie ograniczeń bazy (duplikat, usuwanie rekordu, na który coś wskazuje) zwraca 409.
 
@@ -113,6 +122,10 @@ Frontend (`npm run dev` w `src/frontend`) przekierowuje `/api` na `http://localh
 ## Hosting (Render)
 
 `render.yaml` w katalogu głównym: jeden serwis Docker (API serwuje też zbudowany frontend z `wwwroot`) i Postgres, oba w darmowym planie. Na Renderze: **New → Blueprint** → to repo. Render pyta o `Seed__SuperAdmin__Email` i `Seed__SuperAdmin__Password`, a `Jwt__Secret` generuje sam. Darmowy serwis usypia się po ~15 min bez ruchu, a darmowa baza wygasa po 30 dniach.
+
+## PDF
+
+QuestPDF (licencja Community). `Busola.Api/Pdf/PdfReport.cs` daje wspólny układ (A4, nagłówek, numeracja stron) i tabelę. Nowy raport: `PdfReport.Render("Tytuł", c => PdfReport.Table(c, nagłówki, wiersze))` i `File(bytes, "application/pdf", "nazwa.pdf")`. Przykład: `EmployeesController.Report`.
 
 ## Migracje
 

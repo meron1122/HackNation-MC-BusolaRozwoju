@@ -1,4 +1,5 @@
 using Busola.Api.Authorization;
+using Busola.Api.Infrastructure;
 using Busola.Api.Models;
 using Busola.Api.Pdf;
 using Busola.Database;
@@ -67,6 +68,22 @@ public sealed class EmployeesController(BusolaDbContext db, AccessScopeService a
             .SingleOrDefaultAsync(ct);
 
         return employee is null ? NotFound() : employee;
+    }
+
+    /// <summary>Zdjęcie widzi ten, kto widzi pracownika.</summary>
+    [HttpGet("{id:int}/avatar")]
+    [Authorize(Policy = Permissions.ReadEmployees)]
+    public async Task<IActionResult> GetAvatar(int id, CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.ReadEmployees, ct);
+        var avatar = await db.Employees
+            .InScope(scope)
+            .Where(e => e.Id == id && e.User != null && e.User.Avatar != null)
+            .Select(e => e.User!.Avatar!)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(ct);
+
+        return avatar is null ? NotFound() : avatar.ToFileResult(this);
     }
 
     [HttpPost]

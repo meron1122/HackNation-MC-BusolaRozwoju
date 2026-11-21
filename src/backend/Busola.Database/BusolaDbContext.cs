@@ -16,6 +16,7 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
     public DbSet<AbsenceReason> AbsenceReasons => Set<AbsenceReason>();
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+    public DbSet<UserAvatar> UserAvatars => Set<UserAvatar>();
 
     // Tu, a nie w AddDbContext, żeby snake_case obowiązywał zawsze — schemat i aplikacja nie mogą się rozjechać.
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) =>
@@ -38,9 +39,20 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
 
             // Jedno konto na pracownika; pracownika z kontem nie da się usunąć — najpierw konto.
             b.HasOne(u => u.Employee)
-                .WithOne()
+                .WithOne(e => e.User)
                 .HasForeignKey<User>(u => u.EmployeeId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<UserAvatar>(b =>
+        {
+            b.HasKey(a => a.UserId);
+            b.Property(a => a.ContentType).HasMaxLength(50);
+
+            b.HasOne(a => a.User)
+                .WithOne(u => u.Avatar)
+                .HasForeignKey<UserAvatar>(a => a.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Role>(b =>
