@@ -101,7 +101,10 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
     <div className="step">
       <div className="step-head">
         <h2>{detail.schema.stages?.find((s) => s.key === data.stageKey)?.phase === 'Sprawozdanie' ? 'Sprawozdanie i samoocena' : 'Samoocena'}</h2>
-        {data.submitted ? <Pill tone="ok">{closesStage ? 'złożone' : 'przekazana'} {fmtDate(data.submittedAt)}</Pill> : stage?.dueTo && <Pill tone="warn">do {fmtDate(stage.dueTo)}</Pill>}
+        {/* Termin samooceny z API (przy okresowej 30 dni przed terminem oceny); po terminie przekazać nadal można. */}
+        {data.submitted
+          ? <Pill tone="ok">{closesStage ? 'złożone' : 'przekazana'} {fmtDate(data.submittedAt)}</Pill>
+          : (data.dueTo ?? stage?.dueTo) && <Pill tone={data.overdue ? 'warn' : 'neutral'}>do {fmtDate(data.dueTo ?? stage?.dueTo)}{data.overdue && ' · po terminie'}</Pill>}
       </div>
       {!data.stageOpen && !data.submitted && <p className="callout info">Samoocena będzie dostępna w etapie „{stage?.title ?? data.stageKey}”.</p>}
       <p className="muted small">Oceń, jak w tym okresie wyglądała Twoja praca w każdym kryterium. Przełożony zobaczy samoocenę dopiero po jej przekazaniu i omówi ją na rozmowie oceniającej.</p>

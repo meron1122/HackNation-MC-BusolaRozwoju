@@ -149,6 +149,15 @@ export function signatureState(detail: Detail, field: Field): SignatureState {
   return field.role === 'evaluated' && evaluatorUnsigned ? 'waitingForEvaluator' : 'open'
 }
 
+/** Blokada terminowa z backendu (signatureSlots): etap zamknięty / wcześniejszy otwarty / przed dueFrom. Null = można. */
+export function slotBlock(detail: Detail, field: Field): string | null {
+  const slot = detail.signatureSlots?.find((s) => s.fieldKey === field.key)
+  return slot && !slot.signed && !slot.canSign ? slot.reason ?? 'Tego pola nie można teraz podpisać.' : null
+}
+
+/** Pole można podpisać teraz: kolejność podpisów frontu (signatureState) i termin z backendu (signatureSlots). */
+export const canSignNow = (detail: Detail, field: Field) => signatureState(detail, field) === 'open' && !slotBlock(detail, field)
+
 /** Braki blokujące, które uzupełni samo zamknięcie etapu (podpowiedzi), nie blokują przycisku. */
 export function withoutAutoFilled(detail: Detail, stageKey: string, issues: CheckIssue[]): CheckIssue[] {
   const auto = new Set(unsavedPrefills(detail, stageKey).map((a) => a.fieldKey))

@@ -51,7 +51,10 @@ export type Detail = {
    * Backend traktuje je w /check jako wypełnione i zapisuje przy zamknięciu etapu. Brak pola = starsze API.
    */
   prefill?: Answer[]
+  /** Czy pole podpisu można podpisać teraz (termin etapu, kolejność etapów); reason = dlaczego nie. Nie uwzględnia roli. */
+  signatureSlots?: SignatureSlot[]
 }
+export type SignatureSlot = { fieldKey: string; role: string; signed: boolean; canSign: boolean; reason: string | null }
 
 export type CheckIssue = { stageKey: string; sectionKey: string | null; fieldKey: string | null; message: string; legalRef: string | null; blocking: boolean }
 /** canSkip: etap opcjonalny albo sprawozdanie po terminie (oznaczenie jako niezłożone). */
@@ -82,6 +85,12 @@ export type WorkContext = { indicators: IndicatorContext[]; criteria: { criterio
 export type SelfAssessment = {
   stageKey: string | null; stageOpen: boolean; canEdit: boolean; submitted: boolean; submittedAt: string | null; updatedAt: string | null
   scale: ScaleOption[]; criteria: { key: string; label: string; level: string | null; comment: string | null }[]; developmentNeeds: string | null
+  /**
+   * Termin samooceny: przy pierwszej ocenie termin sprawozdania, przy okresowej 30 dni przed terminem oceny (organizacyjny).
+   * overdue: nieprzekazana po terminie — przekazać nadal można.
+   */
+  dueTo?: string | null
+  overdue?: boolean
 }
 
 export type Progress = {

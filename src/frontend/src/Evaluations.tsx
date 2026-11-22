@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { api, apiBlobUrl } from './api'
 import { Avatar } from './Avatar'
 import type { Row } from './Crud'
-import { initialValues, signatureState } from './evaluation/data'
+import { initialValues, signatureState, slotBlock } from './evaluation/data'
 import { EvaluationWizard } from './evaluation/Wizard'
 import {
   RESULT_LABELS, emptyAnswer, fmtDate, keyOf, pathLabel, today,
@@ -629,8 +629,11 @@ export function SignatureField({ field, detail, onSigned, locked = false, blocke
   // Kolejność: etap, który jeszcze nie nadszedł, czeka; oceniany podpisuje po podpisie przełożonego w tej samej części.
   const state = locked ? 'closed' : signatureState(detail, field)
   const stageKey = detail.schema.sections.find((s) => s.fields.some((f) => f.key === field.key))?.stage
-  const notYet = state === 'laterStage' ? detail.stages.find((s) => s.key === stageKey) : undefined
-  const open = state === 'open'
+  const stage = detail.stages.find((s) => s.key === stageKey)
+  const notYet = state === 'laterStage' ? stage : undefined
+  // Termin z backendu (signatureSlots): poza oknem etapu nie da się podpisać — ani tu, ani przez link/QR.
+  const blockedByDeadline = !signature && !locked ? slotBlock(detail, field) : null
+  const open = state === 'open' && !blockedByDeadline
   const canSign = open && (mine ? detail.isOwn : detail.canEdit)
   const waitsForEvaluated = open && mine && !detail.isOwn && detail.canEdit
   const waitsForEvaluator = state === 'waitingForEvaluator'
@@ -692,7 +695,8 @@ export function SignatureField({ field, detail, onSigned, locked = false, blocke
       ) : canSign ? (
         <form onSubmit={sign} className="form">
           <div className="inline">
-            <label className="check">Data <input name="signedOn" type="date" defaultValue={today()} required /></label>
+            {/* Data podpisu: nie z przyszłości i nie przed początkiem okna etapu (backend odrzuca takie daty). */}
+            <label className="check">Data <input name="signedOn" type="date" defaultValue={today()} required max={today()} min={stage?.dueFrom ?? undefined} /></label>
             <label className="check">Miejscowość <input name="place" /></label>
           </div>
           <SignaturePad onChange={setImage} />
@@ -705,6 +709,8 @@ export function SignatureField({ field, detail, onSigned, locked = false, blocke
           </div>
           {linkPanel}
         </form>
+      ) : blockedByDeadline && (mine ? detail.isOwn || detail.canEdit : detail.canEdit) ? (
+        <p className="muted">{blockedByDeadline}</p>
       ) : waitsForEvaluated ? (
         <div className="stack">
           <p><span className="pill warn">Czeka na podpis ocenianego</span></p>

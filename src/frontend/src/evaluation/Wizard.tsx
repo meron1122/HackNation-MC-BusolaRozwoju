@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { api } from '../api'
 import { Avatar } from '../Avatar'
 import { PdfButton, type Step, type StepProps } from './common'
-import { signatureState } from './data'
+import { canSignNow } from './data'
 import { AcknowledgementStep, ResultStep, ReviewStep, SectionStep } from './FinalSteps'
 import { NotesStep, StageStep } from './NotesStep'
 import { OwnCriteriaStep, OwnSignaturesStep, SelfAssessmentStep } from './OwnSteps'
@@ -134,12 +134,12 @@ function buildSteps(detail: Detail, check: Check | null): Step[] {
 
 function defaultStep(detail: Detail, steps: Step[]): string {
   if (detail.isOwn) {
-    // Najpierw podpis bieżącego etapu (np. część I), potem samoocena w jej etapie, inaczej kryteria i oczekiwania.
+    // Najpierw podpis, który można złożyć teraz (kolejność i termin), potem samoocena, gdy można ją edytować.
     const unsignedNow = detail.schema.sections.flatMap((s) => s.fields)
-      .some((f) => f.type === 'signature' && f.role === 'evaluated' && signatureState(detail, f) === 'open')
+      .some((f) => f.type === 'signature' && f.role === 'evaluated' && canSignNow(detail, f))
     if (unsignedNow) return 'own-sign'
     const self = steps.find((s) => s.id === 'self')
-    if (detail.canEditSelfAssessment && self?.stageKey === detail.currentStageKey) return self.id
+    if (detail.canEditSelfAssessment && self) return self.id
     return 'own-criteria'
   }
   if (detail.isFinal) return steps.find((s) => s.id === 'ack')?.id ?? steps[steps.length - 1].id
