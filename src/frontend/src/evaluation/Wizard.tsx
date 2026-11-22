@@ -8,6 +8,7 @@ import { PdfButton, type Step, type StepProps } from './common'
 import { canSignNow } from './data'
 import { AcknowledgementStep, ResultStep, ReviewStep, SectionStep } from './FinalSteps'
 import { NotesStep, StageStep } from './NotesStep'
+import { ObjectionStep } from './objection-step'
 import { OwnCriteriaStep, OwnSignaturesStep, SelfAssessmentStep } from './OwnSteps'
 import { IndicatorsStep, InterviewStep } from './RatingSteps'
 import { CriteriaStep, KickoffStep, PartOneStep, StartStep } from './StartSteps'
@@ -129,6 +130,11 @@ function buildSteps(detail: Detail, check: Check | null): Step[] {
     take(ackSections)
     steps.push({ id: 'ack', group: GROUP_RATING, title: 'Zapoznanie', done: closed(ackStage), stageKey: ackStage, sections: ackSections })
   }
+  // Sprzeciw (art. 83 ustawy): etap opcjonalny bez sekcji — krok H16 w etapie „Okno sprzeciwu”.
+  const objection = detail.stages.find((s) => s.key === 'objection')
+  if (objection) {
+    steps.push({ id: 'objection', group: GROUP_RATING, title: 'Sprzeciw', done: closed(objection.key), stageKey: objection.key, sections: [] })
+  }
 
   // Sekcje spoza znanych kroków (inne szablony) — każda jako osobny krok, żeby nic nie zginęło.
   for (const section of schema.sections.filter((s) => !used.has(s.key))) {
@@ -148,7 +154,7 @@ function defaultStep(detail: Detail, steps: Step[]): string {
     if (detail.canEditSelfAssessment && self) return self.id
     return 'own-criteria'
   }
-  if (detail.isFinal) return steps.find((s) => s.id === 'ack')?.id ?? steps[steps.length - 1].id
+  if (detail.isFinal) return steps.find((s) => s.id === (detail.status === 'objection_filed' ? 'objection' : 'ack'))?.id ?? steps[steps.length - 1].id
   if (detail.phase === 'Oczekuje na start') return 'start'
   const current = detail.currentStageKey
   const ratingStarted = detail.answers.some((a) => steps.some((s) => s.id === 'indicators') && a.fieldKey === indicatorFieldOf(detail.schema, scoresFieldOf(detail.schema)?.field.key ?? '')?.key)
@@ -261,6 +267,7 @@ function StepView({ step, props }: { step: Step; props: StepProps }): ReactNode 
     case 'result': return <ResultStep {...props} sections={step.sections} title={step.title} />
     case 'review': return <ReviewStep {...props} sections={step.sections} />
     case 'ack': return <AcknowledgementStep {...props} sections={step.sections} />
+    case 'objection': return <ObjectionStep {...props} />
     case 'own-criteria': return <OwnCriteriaStep {...props} />
     case 'self': return <SelfAssessmentStep {...props} />
     case 'own-sign': return <OwnSignaturesStep {...props} sections={step.sections} />

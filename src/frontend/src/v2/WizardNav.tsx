@@ -1,7 +1,7 @@
 import type { Step } from '../evaluation/common'
 import { daysUntil, fmtDate, type Detail } from '../evaluation/types'
 
-/** Pięć etapów v5 (H08 v2). Ostatni — okno sprzeciwu — tylko informacyjnie, bez kroków. */
+/** Pięć etapów v5 (H08 v2). Ostatni — okno sprzeciwu — z krokiem „Sprzeciw” (H16), gdy szablon ma etap objection. */
 export const STAGES = ['Start cyklu', 'Obserwacja', 'Przygotowanie oceny', 'Czeka na zapoznanie', 'Okno sprzeciwu'] as const
 
 /**
@@ -12,6 +12,7 @@ export function stageIndexOf(step: Step): number {
   if (['start', 'criteria', 'kickoff', 'part1', 'own-criteria'].includes(step.id)) return 0
   if (step.id === 'notes' || step.id.startsWith('stage:')) return 1
   if (step.id === 'ack' || step.id === 'own-sign') return 3
+  if (step.id === 'objection') return 4
   return 2
 }
 

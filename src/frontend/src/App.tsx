@@ -13,6 +13,7 @@ import { EvaluationsPage } from './Evaluations'
 import { fmtDate } from './evaluation/types'
 import { HrPanel } from './HrPanel'
 import { MyEvaluationPage } from './MyEvaluation'
+import { NavMore } from './NavMore'
 import { EmptyState } from './EmptyState'
 import { Login } from './Login'
 import { LoginHandoff, type LoginPhase } from './LoginHandoff'
@@ -176,6 +177,9 @@ type Nav = {
   showProfile: (employeeId: number) => void
 }
 type Page = { key: string; label: string; visible: (s: Session) => boolean; render: (s: Session, nav: Nav) => ReactNode }
+
+// Strony administracyjne (kartoteki, słowniki, konta) trafiają do menu „Więcej ▾”, żeby główne zakładki mieściły się w nagłówku.
+const MORE_PAGES = new Set(['employees', 'absences', 'departments', 'positions', 'locations', 'services', 'users', 'dev'])
 
 // Profil innego pracownika: otwierany z listy albo ze struktury w innym profilu.
 const PROFILE_PAGE = 'profile'
@@ -411,12 +415,14 @@ export default function App() {
       <header className="topbar">
         <Logo width={128} />
         <nav>
-          {pages.map((p) => (
+          {pages.filter((p) => !MORE_PAGES.has(p.key)).map((p) => (
             <button key={p.key} className={p === page ? 'tab active' : 'tab'} aria-current={p === page ? 'page' : undefined}
               onClick={() => go({ pageKey: p.key, openEvaluation: null, evaluationReturn: null })}>
               {p.label}
             </button>
           ))}
+          <NavMore items={pages.filter((p) => MORE_PAGES.has(p.key))} activeKey={page?.key ?? null}
+            onPick={(key) => go({ pageKey: key, openEvaluation: null, evaluationReturn: null })} />
         </nav>
         <UserMenu name={session.name} avatarVersion={avatarVersion} active={onMyProfile}
           onProfile={() => openMyProfile('personal')} onStructure={() => openMyProfile('structure')} onLogout={logout} />

@@ -1,0 +1,22 @@
+/* Menu „Więcej ▾” w nagłówku (NavMore.tsx). Nav nie może przycinać rozwijanej listy, więc bez overflow-x. */
+.topbar nav:has(.nav-more) { overflow: visible; align-items: center; min-width: 0; }
+.nav-more { position: relative; }
+.nav-more-trigger { display: inline-flex; align-items: center; gap: 6px; }
+.nav-more-caret { font-size: 14px; transition: transform .15s var(--ease, ease); }
+.nav-more-trigger[aria-expanded='true'] .nav-more-caret { transform: rotate(180deg); }
+.nav-more-menu {
+  position: absolute; left: 0; top: calc(100% + 6px); z-index: 30; min-width: 220px;
+  display: grid; gap: 2px; padding: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(31, 42, 90, .16);
+  animation: nav-more-in .15s var(--ease, ease);
+}
+.nav-more-item {
+  background: transparent; color: var(--text); border: 0; border-radius: 8px;
+  text-align: left; padding: 9px 12px; font-size: 16px; font-weight: 500;
+}
+.nav-more-item:hover, .nav-more-item:focus-visible { background: var(--blue-soft); box-shadow: none; }
+.nav-more-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.nav-more-item.current { font-weight: 650; box-shadow: inset 3px 0 0 var(--state, #2b6cb0); }
+@keyframes nav-more-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .nav-more-menu { animation: none; } .nav-more-caret { transition: none; } }

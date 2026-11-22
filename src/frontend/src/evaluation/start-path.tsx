@@ -3,12 +3,13 @@
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { api } from '../api'
 import { Info, Source } from '../v2'
+import { FirstOverview } from './first-overview'
 import { StartHead } from './start-head'
-import { Pill, type StepProps } from './common'
+import type { StepProps } from './common'
 import { useApi } from './data'
 import { UiIcon } from './start-icons'
 import { PERIODIC_REGULATION_URL, firstNameOf, nameCase, ospKey, reg, useLocalState, useOrg } from './start-model'
-import { answerOf, fmtDate, isFirstTemplate, scoresFieldOf, sheetLetter, type Detail } from './types'
+import { answerOf, fmtDate, isFirstTemplate, sheetLetter, type Detail } from './types'
 
 /** Nazwa stanowiska sugeruje kierowanie lub koordynację pracy (zasada Busoli: wtedy pytamy, a nie zgadujemy). */
 const COORDINATION = /koordyn|kieru|kierown|zastępc/i
@@ -60,7 +61,8 @@ export function StartStep({ detail, steps, go, reload }: StepProps) {
   const mismatch = reports != null && ((reports > 0 && letter === 'C') || (reports === 0 && letter === 'B'))
   const coordination = !!position && COORDINATION.test(position) && reports === 0
   const question = !first && (letter === 'B' || letter === 'C') && canSwitch && (mismatch || coordination || askOpen)
-  const confirmed = !notStarted || !detail.canEdit || current
+  // Opis stanowiska (i jego potwierdzenie) dotyczy tylko oceny okresowej — przy pierwszej ocenie karty OSP nie ma.
+  const confirmed = first || !notStarted || !detail.canEdit || current
   const blockedReason = !confirmed ? 'Potwierdź, że opis stanowiska jest aktualny.'
     : question && !answer ? `Odpowiedz, czy ${name} kieruje pracownikami.` : ''
 
@@ -195,39 +197,21 @@ export function StartStep({ detail, steps, go, reload }: StepProps) {
         </>
       )}
 
-      {first && <FirstPathCard detail={detail} />}
+      {first && (
+        <FirstOverview detail={detail} next={next ? {
+          label: detail.currentStageKey === detail.stages[0]?.key && notStarted ? 'Przygotuj rozmowę wstępną' : `Dalej: ${next.title.toLowerCase()}`,
+          onGo: () => go(next.id),
+        } : null} />
+      )}
 
-      <div className="step-actions sv2-actions">
+      {!first && <div className="step-actions sv2-actions">
         <span className="grow" />
         {blockedReason && <span id="sv2-next-why" className="sv2-why">{blockedReason}</span>}
         {next && (
           <button type="button" disabled={!!blockedReason} aria-describedby={blockedReason ? 'sv2-next-why' : undefined}
             onClick={() => go(next.id)}>Dalej: {next.title.toLowerCase()}</button>
         )}
-      </div>
+      </div>}
     </div>
-  )
-}
-
-/** Pierwsza ocena: skala i warunek wyniku z szablonu, kierujący komórką (współtworzy ocenę). */
-function FirstPathCard({ detail }: { detail: Detail }) {
-  const scores = scoresFieldOf(detail.schema)
-  return (
-    <section className="card sv2-first" aria-label="Pierwsza ocena">
-      <div className="sv2-first-row">
-        <span className="sv2-muted">Skala</span>
-        <span className="sv2-first-scale">{scores?.scale.map((o) => <Pill key={o.key}>{o.value} · {o.label.toLowerCase()}</Pill>)}</span>
-      </div>
-      <div className="sv2-first-row">
-        <span className="sv2-muted">Elementy oceny</span>
-        <strong>{scores?.field.items?.length ?? 0}</strong>
-      </div>
-      <div className="sv2-first-row">
-        <span className="sv2-muted">Kierujący komórką</span>
-        <strong>{detail.unitHeadName ?? '—'}</strong>
-        <Info label="Kierujący komórką">Współtworzy pierwszą ocenę i podpisuje jej potwierdzenie.</Info>
-      </div>
-      {!detail.unitHeadName && <p className="sv2-muted">Wskaż kierującego komórką w module Wydziały.</p>}
-    </section>
   )
 }

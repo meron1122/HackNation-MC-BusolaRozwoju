@@ -1,0 +1,65 @@
+/* H15 v2 · przegląd pierwszej oceny (first-overview.tsx). Prefiks fo-. Obrysy stanu #2B6CB0, bez lawendy (to nie AI). */
+.fo { display: grid; gap: 20px; min-width: 0; container-type: inline-size; container-name: fo; }
+.fo .v2-tip { white-space: normal; }
+.fo .grow { flex: 1 1 auto; }
+.fo-muted { color: var(--muted); font-size: 14px; }
+.fo-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.fo-person { display: inline-flex; align-items: center; gap: 10px; }
+.fo-person > span:last-child { display: grid; line-height: 1.25; }
+.fo-card { margin: 0; display: grid; gap: 8px; }
+
+.fo-hero { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+.fo-hero-text h3 { margin: 0; font-size: 22px; }
+.fo-hero-text p { margin: 2px 0 0; display: flex; align-items: center; gap: 6px; font-size: 16px; }
+
+/* --- oś 12 miesięcy --- */
+.fo-axiswrap { position: relative; padding: 40px 34px 0 14px; }
+.fo-axis { position: relative; height: 96px; }
+.fo-track { position: absolute; left: 0; right: 0; top: 12px; height: 6px; border-radius: 3px; background: var(--border); }
+.fo-window {
+  position: absolute; top: 5px; height: 20px; border-radius: 10px;
+  border: 2px solid var(--state, #2b6cb0); background: color-mix(in srgb, var(--blue-soft) 70%, transparent);
+}
+.fo-band { position: absolute; top: 11px; height: 8px; border-radius: 4px; background: var(--text); }
+.fo-today { position: absolute; top: -34px; height: 52px; border-left: 2px solid var(--text); }
+.fo-today span {
+  position: absolute; top: 0; left: 0; transform: translateX(-50%);
+  padding: 2px 9px; border-radius: 999px; background: var(--text); color: #fff; font-size: 14px; font-weight: 650; white-space: nowrap;
+}
+.fo-dot {
+  position: absolute; top: 15px; transform: translate(-50%, -50%); display: grid; place-items: center;
+  width: 26px; height: 26px; border-radius: 50%; background: var(--text); color: #fff; z-index: 1;
+}
+.fo-dot.fo-flag { background: var(--surface); color: var(--text); border: 2px solid var(--text); }
+.fo-tick { position: absolute; top: 30px; transform: translateX(-50%); border-left: 1px solid var(--border); height: 6px; }
+.fo-tick span { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); font-size: 14px; color: var(--muted); }
+.fo-label { position: absolute; top: 60px; display: grid; font-size: 14px; line-height: 1.3; white-space: nowrap; }
+.fo-label span { color: var(--muted); }
+.fo-label.end { transform: translateX(-100%); text-align: right; }
+.fo-above { position: absolute; top: 4px; display: inline-flex; align-items: center; gap: 4px; font-size: 14px; white-space: nowrap; }
+
+/* --- warunki --- */
+.fo-cond-head { display: flex; align-items: center; gap: 8px; }
+.fo-cond-head h3 { margin: 0; font-size: 18px; }
+.fo-count { padding: 3px 10px; border-radius: 999px; background: var(--blue-soft); font-size: 14px; font-weight: 700; }
+.fo-cond { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: start; margin-top: 8px; }
+@container fo (min-width: 940px) { .fo-cond { grid-template-columns: minmax(0, 1fr) 240px; } }
+.fo-tiles { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.fo-tile {
+  display: grid; align-content: start; gap: 6px; min-height: 128px; padding: 14px;
+  border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--blue-soft) 25%, var(--surface));
+}
+.fo-tile.met { border-color: var(--state, #2b6cb0); }
+.fo-tile-title { display: inline-flex; align-items: center; gap: 4px; font-weight: 650; }
+.fo-tile-state { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 650; }
+.fo-ibox { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 10px; background: var(--blue-soft); color: var(--text); }
+.fo-big { font-size: 26px; font-weight: 750; line-height: 40px; color: var(--text); }
+.fo-scale { display: grid; grid-template-columns: auto 280px; align-items: center; gap: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+.fo-scale-head { margin: 0; display: flex; align-items: center; gap: 4px; }
+.fo-scale svg text { font-size: 14px; fill: var(--text); font-weight: 600; }
+.fo-scale-line { fill: none; stroke: var(--text); stroke-width: 1.5; opacity: .6; }
+.fo-scale-from { fill: var(--surface); stroke: var(--muted); stroke-width: 1.3; }
+.fo-scale-to { fill: var(--blue-soft); stroke: var(--text); stroke-width: 2; }
+.fo-scale-to-text { font-weight: 750; }
+
+@container fo (min-width: 940px) { .fo-scale { grid-template-columns: 1fr; border-top: 0; border-left: 1px solid var(--border); padding: 0 0 0 18px; } }
