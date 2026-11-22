@@ -2,7 +2,7 @@ namespace Busola.Database.Entities;
 
 /// <summary>
 /// Wpis dziennika audytu: zmiana encji (create/update/delete, z <see cref="Changes"/>) albo dostęp do API
-/// (read/write, login_*, logout itd., ze <see cref="StatusCode"/>). Tylko dopisywany: aplikacja odrzuca edycję
+/// (write, login_*, logout itd., bez odczytów GET; ze <see cref="StatusCode"/>). Tylko dopisywany: aplikacja odrzuca edycję
 /// i usuwanie (AuditInterceptor), a baza ma trigger blokujący UPDATE, DELETE i TRUNCATE.
 /// </summary>
 public class AuditEntry
