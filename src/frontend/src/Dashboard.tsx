@@ -8,7 +8,6 @@ import { progressReason } from './hifi-helpers'
 import './hifi-pages.css'
 import './dash-v2.css'
 import { Avatar } from './Avatar'
-import { Person } from './Person'
 import { DuePill, Pill, StatusPill, type EvaluationStatus } from './evaluation/common'
 import { fmtDate, isFirstTemplate, pathLabel, sheetLetter, type Progress } from './evaluation/types'
 import { Ring } from './v2/charts'
@@ -202,35 +201,67 @@ function QueueRow({ m, i, onOpen }: { m: TeamMember; i: number; onOpen: (id: num
   )
 }
 
-/** „Mój zespół”: tabela podwładnych z fazą, etapem i terminem oceny. */
+type OrgCard = { id: number; name: string; jobTitle: string | null; departmentName: string; hasAvatar: boolean }
+
+/** „Mój zespół”: drzewko — ja na górze, pod spodem kafelki podwładnych z fazą, etapem i terminem oceny. */
 export function TeamPage({ onOpenEvaluation, onOpenProfile }: { onOpenEvaluation: (id: number) => void; onOpenProfile: (employeeId: number) => void }) {
   const { team, error } = useTeam()
+  const [me, setMe] = useState<OrgCard | null>(null)
+  useEffect(() => {
+    // Konto bez pracownika (np. SuperAdmin) dostaje 404 — wtedy drzewko bez korzenia.
+    api<{ focus: OrgCard }>('org').then((v) => setMe(v.focus), () => setMe(null))
+  }, [])
   if (error) return <p role="alert" className="error">{error}</p>
   if (!team) return <p>Ładowanie…</p>
   return (
     <section>
       <div className="toolbar"><h2>Mój zespół</h2><span className="muted">{team.departmentName}</span></div>
       {team.members.length === 0 ? <EmptyState title="W zespole nie ma jeszcze pracowników">Gdy kadry przypiszą Ci pracowników, pojawią się tutaj, a Busola policzy ich terminy ocen.</EmptyState> : (
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Osoba</th><th>Ścieżka</th><th>Faza</th><th>Etap</th><th>Termin</th><th>Status</th><th /></tr></thead>
-            <tbody>
-              {team.members.map((m) => {
-                const p = m.evaluation
-                return (
-                  <tr key={m.employeeId}>
-                    <td><Person id={m.employeeId} name={fullName(m)} detail={m.positionName} onOpen={() => onOpenProfile(m.employeeId)} /></td>
-                    <td>{p ? pathLabel(p.templateCode) : '—'}</td>
-                    <td><PhasePill progress={p} /></td>
-                    <td>{p?.stageTitle ?? '—'}</td>
-                    <td className="nowrap">{p?.dueTo ? fmtDate(p.dueTo) : '—'}</td>
-                    <td>{p && !p.isFinal && p.stageKey ? <DuePill daysLeft={p.daysLeft} overdue={p.overdue} /> : '—'}</td>
-                    <td className="actions">{p && <button type="button" className="link" onClick={() => onOpenEvaluation(p.evaluationId)}>Otwórz ocenę</button>}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        <div className="org">
+          {me && (
+            <div className="org-focus">
+              <div className="org-card focus me">
+                <button type="button" className="org-card-main" onClick={() => onOpenProfile(me.id)}>
+                  <Avatar path={me.hasAvatar ? `org/${me.id}/avatar` : null} name={me.name} size={72} />
+                  <span>
+                    <strong>{me.name} <span className="badge">Ja</span></strong>
+                    <span className="muted">{me.jobTitle ?? 'Stanowisko nieuzupełnione'}</span>
+                    <span className="muted small">{me.departmentName}</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
+          <h3 className="org-reports-title">Podwładni ({team.members.length})</h3>
+          <ul className="org-reports">
+            {team.members.map((m) => {
+              const p = m.evaluation
+              return (
+                <li key={m.employeeId} className={`org-card team-tile${m.needsAttention ? ' attention' : ''}`}>
+                  <button type="button" className="org-card-main" onClick={() => onOpenProfile(m.employeeId)}
+                    aria-label={`Profil: ${fullName(m)}`}>
+                    <Avatar path={`org/${m.employeeId}/avatar`} name={fullName(m)} size={56} decorative />
+                    <span>
+                      <strong>{fullName(m)}</strong>
+                      <span className="muted">{m.positionName ?? 'Stanowisko nieuzupełnione'}</span>
+                    </span>
+                  </button>
+                  <dl className="team-tile-info">
+                    <div><dt>Ścieżka</dt><dd>{p ? pathLabel(p.templateCode) : '—'}</dd></div>
+                    <div><dt>Etap</dt><dd>{p?.stageTitle ?? '—'}</dd></div>
+                    <div><dt>Faza</dt><dd><PhasePill progress={p} /></dd></div>
+                    <div><dt>Termin</dt><dd>{p?.dueTo ? fmtDate(p.dueTo) : '—'}{p && !p.isFinal && p.stageKey && <DuePill daysLeft={p.daysLeft} overdue={p.overdue} />}</dd></div>
+                  </dl>
+                  {p && (
+                    <div className="org-card-footer">
+                      <button type="button" className="link" onClick={() => onOpenEvaluation(p.evaluationId)}
+                        aria-label={`Otwórz ocenę: ${fullName(m)}`}>Otwórz ocenę</button>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
         </div>
       )}
     </section>

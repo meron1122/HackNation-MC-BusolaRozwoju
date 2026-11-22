@@ -255,3 +255,11 @@
 .dash-median-need { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-radius: 12px; background: var(--bg); font-weight: 600; }
 .dash-median-need strong { font-size: 28px; }
 @media (max-width: 1360px) and (min-width: 1200px) { .dash-hr-grid.with-radar { grid-template-columns: minmax(0, 1fr) 340px; } }
+
+/* ---------- Mój zespół: kafelki podwładnych pod kartą przełożonego ---------- */
+.org-reports .team-tile { width: 300px; display: flex; flex-direction: column; }
+.team-tile.attention { border-color: var(--accent); }
+.team-tile-info { margin: 0; padding: 0.5rem 0.75rem 0.75rem; display: grid; gap: 0.4rem; flex: 1; }
+.team-tile-info > div { display: grid; grid-template-columns: 4.5rem 1fr; gap: 0.5rem; align-items: center; }
+.team-tile-info dt { font-size: 0.8rem; color: var(--muted); }
+.team-tile-info dd { margin: 0; display: flex; flex-wrap: wrap; gap: 0.25rem; min-width: 0; }
