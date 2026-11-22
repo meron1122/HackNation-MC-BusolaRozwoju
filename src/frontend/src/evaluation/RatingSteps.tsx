@@ -417,21 +417,6 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
 
   const devField = detail.schema.sections.filter((s) => s.stage === section?.stage).flatMap((s) => s.fields)
     .find((f) => f.type === 'longText' && f.key.toLowerCase().includes('development'))
-  const devSection = devField && detail.schema.sections.find((s) => s.fields.includes(devField))
-  const canCopyNeeds = !!devField && !!self.data?.developmentNeeds && detail.canEdit && !detail.lockedSections.includes(devSection!.key)
-  const [copyStatus, setCopyStatus] = useState('')
-  async function copyNeeds() {
-    const current = answerOf(detail, devField!.key)?.valueText ?? ''
-    const needs = self.data!.developmentNeeds!.trim()
-    if (current.includes(needs)) { setCopyStatus('Już są we wnioskach.'); return }
-    try {
-      await saveAnswers(detail.id, [{ ...emptyAnswer(devField!.key, null), valueText: current ? `${current}\n${needs}` : needs }])
-      setCopyStatus('Dopisano do wniosków.')
-      reload()
-    } catch (e) {
-      setCopyStatus((e as Error).message)
-    }
-  }
 
   // Data rozmowy: pole daty z sekcji rozmowy (oficjalne pole arkusza, § 10). Pozostałe pola sekcji — formularz niżej.
   const dateField = section?.fields.find((f) => f.type === 'date')
@@ -551,7 +536,7 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
               </section>
             )}
             <CriterionTalk detail={detail} criterionKey={criteria[index].key} label={criteria[index].label}
-              work={work} notes={notes.data?.notes ?? []} notesData={notes.data} self={self.data} selfError={self.error} firstName={firstName}
+              work={work} notes={notes.data?.notes ?? []} notesData={notes.data}
               reload={reload} />
           </div>
         )}
@@ -577,17 +562,8 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
 
         {current.kind === 'development' && (
           <div className="card rh-card">
-            <h3>Potrzeby zgłoszone przez {firstName}{devField ? ' → wnioski IPRZ' : ''}</h3>
-            {self.error ? <p className="rh-muted">Samoocena niedostępna: {self.error}</p>
-              : !self.data ? <p className="rh-muted">Ładowanie…</p>
-              : !self.data.submitted ? <p className="rh-muted">Samoocena nieprzekazana. Potrzeby z rozmowy wpiszesz we wnioskach.</p>
-              : <p>{self.data.developmentNeeds || <span className="rh-muted">Nie zgłoszono.</span>}</p>}
-            {canCopyNeeds && (
-              <div className="buttons">
-                <button type="button" className="secondary" onClick={copyNeeds}>Dopisz do wniosków</button>
-                {copyStatus && <span className="rh-muted" role="status">{copyStatus}</span>}
-              </div>
-            )}
+            <h3>Kierunki rozwoju i potrzeby</h3>
+            <p className="rh-muted">Omów z {firstName} kierunki rozwoju i potrzebne kwalifikacje. Ustalenia wpiszesz we wnioskach do IPRZ{devField ? ' w kroku „Przyznanie oceny”' : ''}.</p>
           </div>
         )}
       </div>
@@ -610,16 +586,13 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
   )
 }
 
-function CriterionTalk({ detail, criterionKey, label, work, notes, notesData, self, selfError, firstName, reload }: {
+function CriterionTalk({ detail, criterionKey, label, work, notes, notesData, reload }: {
   detail: Detail
   criterionKey: string
   label: string
   work: WorkApi
   notes: Note[]
   notesData: Notes | null
-  self: SelfAssessment | null
-  selfError: string
-  firstName: string
   reload: () => Promise<void>
 }) {
   const scores = scoresFieldOf(detail.schema)
@@ -654,7 +627,6 @@ function CriterionTalk({ detail, criterionKey, label, work, notes, notesData, se
 
   const agreed = competency?.indicators.map((i) => work.indicator(i.key).expectation).filter((x): x is string => !!x) ?? []
   const examples = byDate(notes).filter((n) => n.inPeriod && (n.criterionKey === criterionKey || competency?.indicators.some((i) => i.key === n.indicatorKey)))
-  const own = self?.criteria.find((c) => c.key === criterionKey)
   const differs = score != null && suggestions.length > 0 && !suggestions.includes(score)
   const start = notesData?.evidence.periodStart ?? detail.stages[0]?.completedOn ?? null
   const today = new Date().toISOString().slice(0, 10)
@@ -720,10 +692,6 @@ function CriterionTalk({ detail, criterionKey, label, work, notes, notesData, se
         <PeriodAxis start={start} end={today} notes={examples} active={active} onActive={setActive} endLabel="dziś" />
       )}
 
-      {self?.submitted && own?.comment && (
-        <blockquote className="rh-self"><strong>{firstName}:</strong> „{own.comment}”</blockquote>
-      )}
-      {selfError && <p className="rh-muted">Samoocena niedostępna: {selfError}</p>}
     </section>
   )
 }
