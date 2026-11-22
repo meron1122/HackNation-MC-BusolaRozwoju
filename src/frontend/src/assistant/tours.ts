@@ -3,74 +3,91 @@ import 'driver.js/dist/driver.css'
 import './tours.css'
 
 /**
- * Prowadzenie „za rękę” po interfejsie (driver.js: przyciemnia ekran, podświetla element, opis i Dalej/Wstecz).
- * Asystent proponuje je znacznikiem [[prowadzenie:ID]] w odpowiedzi. Te same ID i tytuły są w backendzie
- * (Busola.Api/Agent/Tours.cs) — przy zmianie katalogu zmień oba miejsca.
+ * Prowadzenie „za rękę” składane przez asystenta pod pytanie użytkownika (driver.js: przyciemnia ekran,
+ * podświetla element, opis i Dalej/Wstecz). Przy każdym pytaniu front zbiera punkty orientacyjne, które są teraz
+ * na ekranie (zakładki menu, kroki oceny, zakładki profilu, sekcje pulpitu), i wysyła je w kontekście.
+ * Model wybiera z nich kroki i pisze opisy pod intencję, w bloku:
+ *   [[prowadzenie]]
+ *   id-punktu | Tytuł | Co tu zrobić
+ *   [[/prowadzenie]]
+ * Nieznane ID są pomijane, więc model nie wskaże niczego spoza ekranu.
  */
-type TourStep = { el: string; title: string; text: string }
-export type Tour = { id: string; title: string; pages: string[]; step?: RegExp; steps: TourStep[] }
+export type Landmark = { id: string; label: string; selector: string }
+export type GuideStep = { id: string; title: string; text: string }
 
-export const TOURS: Tour[] = [
-  {
-    id: 'nawigacja', title: 'Gdzie co jest w Busoli', pages: ['*'], steps: [
-      { el: '.topbar nav', title: 'Moduły', text: 'Tu przełączasz się między pulpitem, zespołem, terminami i ocenami.' },
-      { el: '.user-menu', title: 'Twoje konto', text: 'Mój profil, struktura organizacyjna i wylogowanie.' },
-      { el: '.assistant-fab', title: 'Asystent', text: 'Pytaj o zasady albo o to, co widzisz. Może też poprowadzić Cię po ekranie.' },
-    ],
-  },
-  {
-    id: 'pulpit', title: 'Pulpit: od czego zacząć dzień', pages: ['dashboard'], steps: [
-      { el: '.dash-hero', title: 'Następny krok', text: 'Najpilniejsza sprawa w Twoim zespole. Zacznij od niej.' },
-      { el: '.dash-queue', title: 'W kolejce', text: 'Kolejne sprawy, ułożone według terminu.' },
-      { el: '.dash-team', title: 'Twój zespół', text: 'Ludzie, za których odpowiadasz, i etap ich ocen. Kliknij osobę, żeby zobaczyć jej profil.' },
-      { el: '.dash-ask', title: 'Szybkie pytania', text: 'Gotowe pytania do asystenta o zasady i terminy.' },
-    ],
-  },
-  {
-    id: 'ocena', title: 'Jak przejść przez ocenę', pages: ['evaluations'], steps: [
-      { el: '.wizard-person', title: 'Kogo oceniasz', text: 'Osoba, jej stanowisko i rodzaj oceny.' },
-      { el: 'nav[aria-label="Kroki oceny"]', title: 'Kroki oceny', text: 'Przechodzisz je po kolei. ✓ oznacza krok gotowy; do wcześniejszych możesz wracać.' },
-      { el: '.due-box', title: 'Termin', text: 'Do kiedy trzeba zamknąć bieżący etap.' },
-      { el: '.wizard-main', title: 'Bieżący krok', text: 'Tu wypełniasz to, czego wymaga ten etap.' },
-      { el: '.wizard-toolbar', title: 'Arkusz', text: 'Podgląd i PDF arkusza oceny.' },
-    ],
-  },
-  {
-    id: 'kryteria', title: 'Jak wybrać kryteria oceny', pages: ['evaluations'], step: /kryteri/i, steps: [
-      { el: '.sv2-mandatory', title: 'Kryteria obowiązkowe', text: 'Wynikają z rodzaju arkusza i są stałe.' },
-      { el: '.sv2-slots', title: 'Kryteria dodatkowe', text: 'Do trzech, dobrane do obowiązków na stanowisku tej osoby.' },
-      { el: '.sv2-catalog', title: 'Katalog kompetencji', text: 'Stąd wybierasz kryteria dodatkowe. Asystent może zaproponować pasujące.' },
-    ],
-  },
-  {
-    id: 'profil', title: 'Profil pracownika', pages: ['profile', 'my-profile'], steps: [
-      { el: '.profile-side', title: 'Osoba', text: 'Zdjęcie, stanowisko i zakładki profilu.' },
-      { el: '.profile-side nav', title: 'Zakładki', text: 'Dane, zatrudnienie, struktura przełożonych, historia ocen i kwalifikacje.' },
-      { el: '.profile-main', title: 'Treść', text: 'Zawartość wybranej zakładki.' },
-    ],
-  },
+// Stałe sekcje ekranów; zakładki i kroki dochodzą dynamicznie z DOM.
+const SECTIONS: Landmark[] = [
+  { id: 'konto', label: 'Menu konta: Mój profil, Struktura, Wyloguj', selector: '.user-menu' },
+  { id: 'asystent', label: 'Przycisk asystenta', selector: '.assistant-fab' },
+  { id: 'pulpit-nastepny-krok', label: 'Pulpit: karta „Następny krok” (najpilniejsza sprawa)', selector: '.dash-hero' },
+  { id: 'pulpit-kolejka', label: 'Pulpit: „W kolejce” (kolejne sprawy według terminu)', selector: '.dash-queue' },
+  { id: 'pulpit-zespol', label: 'Pulpit: zespół i etapy ich ocen', selector: '.dash-team' },
+  { id: 'pulpit-pytania', label: 'Pulpit: szybkie pytania do asystenta', selector: '.dash-ask' },
+  { id: 'ocena-osoba', label: 'Ocena: kogo oceniasz (osoba, stanowisko, rodzaj oceny)', selector: '.wizard-person' },
+  { id: 'ocena-termin', label: 'Ocena: termin bieżącego etapu', selector: '.due-box' },
+  { id: 'ocena-tresc', label: 'Ocena: treść bieżącego kroku', selector: '.wizard-main' },
+  { id: 'ocena-pdf', label: 'Ocena: podgląd i PDF arkusza', selector: '.wizard-toolbar' },
+  { id: 'kryteria-obowiazkowe', label: 'Kryteria: obowiązkowe (stałe dla arkusza)', selector: '.sv2-mandatory' },
+  { id: 'kryteria-dodatkowe', label: 'Kryteria: miejsca na kryteria dodatkowe (do 3)', selector: '.sv2-slots' },
+  { id: 'kryteria-katalog', label: 'Kryteria: katalog kompetencji do wyboru', selector: '.sv2-catalog' },
+  { id: 'profil-osoba', label: 'Profil: osoba i zakładki', selector: '.profile-side' },
+  { id: 'profil-tresc', label: 'Profil: treść wybranej zakładki', selector: '.profile-main' },
 ]
 
-export const tourById = (id: string) => TOURS.find((t) => t.id === id)
+const slug = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l')
+  .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30)
 
-/** Prowadzenia sensowne na tym ekranie (najpierw dopasowane do kroku, ogólne na końcu). */
-export function toursFor(page: string, step: string | null): Tour[] {
-  return TOURS
-    .filter((t) => (t.pages.includes(page) || t.pages.includes('*')) && (!t.step || (step != null && t.step.test(step))))
-    .sort((a, b) => Number(a.pages.includes('*')) - Number(b.pages.includes('*')) || Number(!!b.step) - Number(!!a.step))
+/** Przyciski z listy (zakładki, kroki): oznaczamy je data-guide w chwili zbierania, więc selektor nie zależy od układu DOM. */
+function buttons(container: string, prefix: string, describe: (text: string) => string): Landmark[] {
+  const seen = new Set<string>()
+  return [...document.querySelectorAll<HTMLElement>(`${container} button`)].flatMap((b) => {
+    const text = b.innerText.replace(/\s+/g, ' ').replace(/[✓]/g, '').trim()
+    let id = `${prefix}-${slug(text)}`
+    if (!text || id === `${prefix}-`) return []
+    for (let n = 2; seen.has(id); n++) id = `${prefix}-${slug(text)}-${n}`
+    seen.add(id)
+    b.dataset.guide = id
+    return [{ id, label: describe(text.slice(0, 60)), selector: `[data-guide="${id}"]` }]
+  })
+}
+
+let current = new Map<string, Landmark>()
+
+/** Co jest teraz na ekranie — wołane przy wysyłaniu pytania; wynik idzie do backendu (id + opis). */
+export function collectLandmarks(): { id: string; label: string }[] {
+  const all = [
+    ...buttons('.topbar nav', 'menu', (t) => `Zakładka menu „${t}”`),
+    ...buttons('nav[aria-label="Kroki oceny"]', 'krok', (t) => `Krok oceny „${t}” (lista kroków po lewej)`),
+    ...buttons('.profile-side nav', 'zakladka', (t) => `Zakładka profilu „${t}”`),
+    ...SECTIONS.filter((l) => document.querySelector(l.selector)),
+  ]
+  current = new Map(all.map((l) => [l.id, l]))
+  return all.map(({ id, label }) => ({ id, label }))
+}
+
+const BLOCK = /\[\[prowadzenie\]\]([\s\S]*?)(?:\[\[\/prowadzenie\]\]|$)/
+
+/** Blok prowadzenia z odpowiedzi: tekst bez bloku i kroki (tylko punkty, które znamy). */
+export function extractGuide(reply: string): { text: string; steps: GuideStep[] } {
+  const m = reply.match(BLOCK)
+  if (!m) return { text: reply, steps: [] }
+  const steps = m[1].split('\n')
+    .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').split('|').map((p) => p.trim()))
+    .filter(([id]) => id && current.has(id))
+    .map(([id, title, text]) => ({ id, title: title || current.get(id)!.label, text: text ?? '' }))
+  return { text: reply.replace(BLOCK, '').replace(/\n{3,}/g, '\n\n').trim(), steps }
 }
 
 /** Zamyka okno asystenta na czas prowadzenia, żeby nie zasłaniało ekranu. */
 export const TOUR_STARTED_EVENT = 'busola-tour-started'
 
-/** Startuje prowadzenie; kroki, których elementu nie ma na ekranie, są pomijane. Zwraca false, gdy nie ma czego pokazać. */
-export function startTour(id: string): boolean {
-  const tour = tourById(id)
-  const steps = (tour?.steps ?? []).filter((s) => document.querySelector(s.el))
-  if (!tour || steps.length === 0) return false
+export function startGuide(steps: GuideStep[]): boolean {
+  const shown = steps.filter((s) => current.has(s.id) && document.querySelector(current.get(s.id)!.selector))
+  if (shown.length === 0) return false
+  markGuideTried()
   window.dispatchEvent(new Event(TOUR_STARTED_EVENT))
   driver({
-    showProgress: true,
+    showProgress: shown.length > 1,
     progressText: '{{current}} z {{total}}',
     nextBtnText: 'Dalej',
     prevBtnText: 'Wstecz',
@@ -79,19 +96,22 @@ export function startTour(id: string): boolean {
     stagePadding: 6,
     smoothScroll: true,
     popoverClass: 'busola-tour',
-    steps: steps.map((s) => ({ element: s.el, popover: { title: s.title, description: s.text } })),
+    steps: shown.map((s) => ({ element: current.get(s.id)!.selector, popover: { title: s.title, description: s.text } })),
   }).drive()
   return true
 }
 
-const MARKER = /\[\[prowadzenie:([a-z0-9-]+)\]\]/g
+/** Użytkownik prosi wprost o pokazanie — startujemy od razu, bez klikania „Pokaż mi”. */
+export const asksForGuide = (question: string) =>
+  /\b(pokaż|pokaz|poprowadź|poprowadz|przeprowadź|oprowadź|prowadź|gdzie (jest|są|znajd|kliknąć|klikn|mam))/i.test(question)
 
-/** Znaczniki prowadzeń z odpowiedzi asystenta: tekst bez nich i znane prowadzenia (nieznane ID — ignorujemy). */
-export function extractTours(reply: string): { text: string; tours: Tour[] } {
-  const ids = [...reply.matchAll(MARKER)].map((m) => m[1])
-  const tours = [...new Set(ids)].map(tourById).filter((t): t is Tour => !!t)
-  return { text: reply.replace(MARKER, '').replace(/\n{3,}/g, '\n\n').trim(), tours }
+// Flaga zachęty: dopóki ktoś nie spróbuje prowadzenia, przycisk asystenta ma znacznik „Nowe”. Tylko wygoda w przeglądarce.
+const TRIED_KEY = 'busola.guideTried'
+export const GUIDE_TRIED_EVENT = 'busola-guide-tried'
+export function guideTried(): boolean {
+  try { return localStorage.getItem(TRIED_KEY) === '1' } catch { return false }
 }
-
-/** Użytkownik prosi wprost o pokazanie — wtedy startujemy od razu, bez klikania „Pokaż mi”. */
-export const asksForTour = (question: string) => /\b(pokaż|poprowadź|przeprowadź|oprowadź|prowadź)\b/i.test(question)
+export function markGuideTried() {
+  try { localStorage.setItem(TRIED_KEY, '1') } catch { /* tryb prywatny: znacznik wróci po odświeżeniu */ }
+  window.dispatchEvent(new Event(GUIDE_TRIED_EVENT))
+}

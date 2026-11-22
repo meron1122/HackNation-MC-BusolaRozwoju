@@ -16,6 +16,7 @@ AI w Busoli podpowiada, ale nie decyduje. Odpowiada na pytania o przepisy i zesp
 | **Wyszukiwanie semantyczne w przepisach** | Właściwy paragraf znajduje się także wtedy, gdy ktoś pyta własnymi słowami | Embeddingi, czyli przepisy zapisane jako wektory znaczeń |
 | **Kontekst ekranu** | Asystent wie, którą ocenę i którą osobę oglądasz, więc nie trzeba niczego przepisywać | Serwer dołącza dane z ekranu w zakresie uprawnień użytkownika |
 | **Pytania o zespół** | „Kto ma najbliższy termin?”, „Kto jest po terminie?” | Narzędzia, z których model korzysta sam: przegląd zespołu i lista pracowników |
+| **Prowadzenie po ekranie** | Zamiast opisu „kliknij tam i tam” asystent przyciemnia ekran i podświetla po kolei to, czego użytkownik potrzebuje w swojej sprawie | Model układa kroki pod pytanie z elementów, które są akurat na ekranie; aplikacja pokazuje je biblioteką driver.js. Do pierwszego użycia przycisk asystenta ma znacznik „Nowe” |
 | **Podpowiedzi w kreatorze oceny** | Na każdym z 10 kroków gotowe pytania pasujące do etapu, np. „Ile mam czasu na rozmowę rozpoczynającą?” | Jedno kliknięcie wysyła pytanie do asystenta |
 
 ## Jak powstaje odpowiedź

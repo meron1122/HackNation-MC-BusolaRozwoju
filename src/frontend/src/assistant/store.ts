@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { api, LOGOUT_EVENT } from '../api'
-import { asksForTour, extractTours, startTour } from './tours'
+import { asksForGuide, collectLandmarks, extractGuide, startGuide } from './tours'
 
 /**
  * Jedna rozmowa z asystentem dla całej aplikacji: okno w rogu, zakładka „✦ Asystent” w kreatorze i strona „Asystent”
@@ -77,13 +77,14 @@ export async function ask(question: string, mode: Mode) {
   try {
     const r = await api<{ reply: string; contextLabel: string; signature: string; unverified?: string[] }>('agent/chat', 'POST', {
       messages: history.slice(-19).map(({ role, content, signature }) => ({ role, content, signature })),
-      context: contextFor(mode),
+      // Punkty orientacyjne z ekranu: z nich asystent składa prowadzenie pod pytanie.
+      context: { ...contextFor(mode), landmarks: collectLandmarks() },
     })
     if (mine !== session) return
     set({ msgs: [...state.msgs, { id: ++seq, role: 'assistant', content: r.reply, signature: r.signature, unverified: r.unverified }] })
-    // „Pokaż mi…” — prowadzenie startuje od razu; inaczej zostaje przyciskiem w odpowiedzi.
-    const tour = extractTours(r.reply).tours[0]
-    if (tour && asksForTour(q)) startTour(tour.id)
+    // „Pokaż mi… / gdzie jest…” — prowadzenie startuje od razu; inaczej zostaje przyciskiem w odpowiedzi.
+    const guide = extractGuide(r.reply).steps
+    if (guide.length && asksForGuide(q)) startGuide(guide)
   } catch (e) {
     if (mine !== session) return
     set({ msgs: [...state.msgs, { id: ++seq, role: 'assistant', content: (e as Error).message, error: true }] })

@@ -18,13 +18,19 @@ public static class AgentPrompt
         - Jeśli nie wiesz, czy chodzi o ocenę okresową czy pierwszą ocenę, a odpowiedź od tego zależy, zapytaj krótko:
           „Chodzi o ocenę okresową czy o pierwszą ocenę?”.
 
-        Prowadzenie po interfejsie (lista w <ekran>, „Prowadzenia po interfejsie dostępne na tym ekranie”):
-        - Aplikacja umie przyciemnić ekran i poprowadzić użytkownika krok po kroku. Uruchamia to znacznik w osobnej linii:
-          [[prowadzenie:ID]] — tylko z ID z tej listy, nigdy wymyślonym.
-        - Gdy użytkownik prosi „pokaż / poprowadź / gdzie jest / jak to zrobić w aplikacji” — odpowiedz jednym zdaniem i dodaj znacznik.
-        - Proaktywnie: gdy pytanie dotyczy pracy na tym ekranie (co tu zrobić, od czego zacząć, gdzie coś kliknąć) albo
-          użytkownik wydaje się zagubiony, zaproponuj prowadzenie zdaniem „Mogę Cię poprowadzić po tym ekranie.” i znacznikiem.
-          Najwyżej jedno prowadzenie na odpowiedź; przy pytaniach czysto o przepisy nie proponuj.
+        Prowadzenie po interfejsie (lista „Elementy widoczne na ekranie” w <ekran>):
+        - Aplikacja umie przyciemnić ekran i podświetlać elementy po kolei z Twoim opisem. Prowadzenie układasz SAM pod to,
+          czego chce użytkownik: wybierz 1–5 elementów z listy w kolejności, w jakiej ma ich użyć, i do każdego napisz krótko
+          (do 20 słów), co ma tam zrobić w JEGO sprawie — nie ogólny opis ekranu. Format, na końcu odpowiedzi:
+          [[prowadzenie]]
+          id-elementu | Krótki tytuł | Co tu zrobić
+          [[/prowadzenie]]
+          Używaj tylko ID z listy, nigdy wymyślonych. Bez prowadzenia, gdy żaden element nie pasuje.
+        - Gdy cel jest na innym ekranie, poprowadź do zakładki menu, w którą trzeba kliknąć, i napisz, że po przejściu
+          wystarczy zapytać ponownie.
+        - Gdy użytkownik prosi „pokaż / poprowadź / gdzie jest / jak to zrobić w aplikacji” — odpowiedź to jedno zdanie i prowadzenie.
+        - Proaktywnie: gdy pytanie dotyczy pracy w aplikacji (co zrobić, od czego zacząć, gdzie coś jest) albo użytkownik wydaje
+          się zagubiony, dołącz prowadzenie i napisz „Mogę Ci to pokazać na ekranie.”. Przy pytaniach czysto o przepisy nie dołączaj.
 
         Zakres: oceny okresowe i pierwsza ocena, terminy i etapy, arkusze i kryteria, rozmowy oceniające, rozwój pracowników,
         przepisy o służbie cywilnej oraz to, co użytkownik ma na ekranie. Na inne tematy grzecznie odmów jednym zdaniem

@@ -13,7 +13,11 @@ namespace Busola.Api.Agent;
 /// Co użytkownik ma na ekranie: strona, krok kreatora i identyfikatory encji. Front przysyła tylko identyfikatory —
 /// dane dociąga backend z tymi samymi zakresami uprawnień co kontrolery, więc asystent nie widzi więcej niż użytkownik.
 /// </summary>
-public sealed record ScreenContext(string? Page = null, int? EvaluationId = null, int? EmployeeId = null, string? Step = null);
+public sealed record ScreenContext(
+    string? Page = null, int? EvaluationId = null, int? EmployeeId = null, string? Step = null, IReadOnlyList<Landmark>? Landmarks = null);
+
+/// <summary>Element widoczny na ekranie, który asystent może podświetlić w prowadzeniu (id + krótki opis z frontu).</summary>
+public sealed record Landmark(string Id, string Label);
 
 /// <param name="Label">Krótko dla użytkownika: „Ocena · Anna Nowak”.</param>
 /// <param name="Prompt">Opis dla modelu (dane, nie polecenia).</param>
@@ -76,7 +80,7 @@ public sealed class ScreenContextService(
             prompt.Append('\n').Append((await DescribeEmployeeAsync(me, myEmployeeId, ct)).Text);
         }
 
-        prompt.Append('\n').Append(Tours.Describe(screen));
+        prompt.Append('\n').Append(DescribeLandmarks(screen?.Landmarks));
         return new ScreenDescription(label, prompt.ToString());
     }
 
@@ -185,6 +189,26 @@ public sealed class ScreenContextService(
         }
 
         return (name, text.ToString().TrimEnd());
+    }
+
+    private const int MaxLandmarks = 60;
+
+    /// <summary>
+    /// Lista z frontu trafia do promptu, więc ją przycinamy: tylko bezpieczne ID, krótkie etykiety bez znaków sterujących.
+    /// To tylko nazwy elementów interfejsu — nie dają dostępu do żadnych danych.
+    /// </summary>
+    private static string DescribeLandmarks(IReadOnlyList<Landmark>? landmarks)
+    {
+        var safe = (landmarks ?? [])
+            .Where(l => System.Text.RegularExpressions.Regex.IsMatch(l.Id ?? "", "^[a-z0-9-]{1,48}$"))
+            .Select(l => (l.Id, Label: new string((l.Label ?? "").Where(c => !char.IsControl(c) && c is not ('<' or '>' or '[' or ']')).Take(100).ToArray())))
+            .DistinctBy(l => l.Id)
+            .Take(MaxLandmarks)
+            .Select(l => $"- {l.Id}: {l.Label}")
+            .ToList();
+        return safe.Count == 0
+            ? "Elementy ekranu do prowadzenia: brak."
+            : "Elementy widoczne na ekranie (do prowadzenia, ID: opis):\n" + string.Join('\n', safe);
     }
 
     private DateOnly Today => DateOnly.FromDateTime(time.GetLocalNow().DateTime);

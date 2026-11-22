@@ -8,7 +8,7 @@ import { ask, contextFor, hasEntity, resetChat, useAssistant, type Mode, type Ms
 const CONTEXT_LABELS = new Map<string, string>()
 if (typeof window !== 'undefined') window.addEventListener(LOGOUT_EVENT, () => CONTEXT_LABELS.clear())
 import './assistant.css'
-import { extractTours, startTour, toursFor, type Tour } from './tours'
+import { extractGuide, guideTried, startGuide, type GuideStep } from './tours'
 
 export type Variant = 'page' | 'panel' | 'pop'
 
@@ -168,16 +168,14 @@ export function SourcePreview({ parsed, n, onClose, onPick, mode }: {
   )
 }
 
-/** Prowadzenia zaproponowane przez asystenta: klik przyciemnia ekran i prowadzi krok po kroku. */
-function TourButtons({ tours }: { tours: Tour[] }) {
-  if (!tours.length) return null
+/** Prowadzenie ułożone przez asystenta pod pytanie: klik przyciemnia ekran i prowadzi krok po kroku. */
+function GuideButton({ steps }: { steps: GuideStep[] }) {
+  if (!steps.length) return null
   return (
     <div className="asst-tours">
-      {tours.map((t) => (
-        <button key={t.id} type="button" className="secondary" onClick={() => startTour(t.id)}>
-          <span aria-hidden="true">➜</span> Pokaż mi: {t.title}
-        </button>
-      ))}
+      <button type="button" className="secondary" onClick={() => startGuide(steps)}>
+        <span aria-hidden="true">➜</span> Pokaż mi na ekranie{steps.length > 1 ? ` (${steps.length} kroki)` : ''}
+      </button>
     </div>
   )
 }
@@ -186,9 +184,9 @@ function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
   msg: Msg; last: boolean; mode: Mode; active: number | null; onPick: (n: number | null) => void; inlinePreview: boolean
 }) {
   if (msg.error) return <Warn title="Asystent jest chwilowo niedostępny"><p>{msg.content}</p></Warn>
-  const { text: replyText, tours } = extractTours(msg.content)
+  const { text: replyText, steps: guide } = extractGuide(msg.content)
   const p = parseReply(replyText)
-  const tourButtons = <TourButtons tours={tours} />
+  const tourButtons = <GuideButton steps={guide} />
   const pick = (n: number) => onPick(active === n ? null : n)
   // Odwołania spoza materiału (sprawdza backend) — osobno od źródeł, żeby nie wyglądały na potwierdzone.
   const unverified = msg.unverified?.length ? (
@@ -326,8 +324,8 @@ export function AssistantChat({ variant, autoFocus = false }: { variant: Variant
   const preview = variant === 'page' && activeMsg && active ? parseReply(activeMsg.content) : null
   const chips = (step && STEP_CHIPS[step.id]) ?? PAGE_CHIPS[screen.evaluationId ? 'evaluations' : screen.page] ?? DEFAULT_CHIPS
   const hello = vocative(userName)
-  // Proaktywnie: na starcie rozmowy prowadzenie po ekranie, który użytkownik właśnie ogląda.
-  const tourHere = toursFor(screen.evaluationId ? 'evaluations' : screen.page, step?.title ?? null)[0]
+  // Zachęta do prowadzenia: pytanie o ten ekran — asystent złoży prowadzenie z tego, co tu widać.
+  const guideTry = step ? `Pokaż mi, co zrobić w kroku „${step.title}”` : 'Pokaż mi, od czego zacząć na tym ekranie'
 
   const toggle = entity && (
     <div className="asst-mode" role="group" aria-label="Tryb pytania">
@@ -377,9 +375,9 @@ export function AssistantChat({ variant, autoFocus = false }: { variant: Variant
               <Compass size={56} state="settle" />
               <p className="asst-start-title">W czym pomóc{hello ? `, ${hello}` : ''}?</p>
               <div className="asst-chips">
-                {tourHere && (
-                  <button type="button" className="asst-chip" onClick={() => startTour(tourHere.id)}>➜ Poprowadź mnie: {tourHere.title}</button>
-                )}
+                <button type="button" className={guideTried() ? 'asst-chip' : 'asst-chip asst-chip-new'} onClick={() => ask(guideTry, effectiveMode)}>
+                  {!guideTried() && <span className="asst-new">Nowe</span>}➜ {guideTry}
+                </button>
                 {chips.map((c) => <button key={c} type="button" className="asst-chip" onClick={() => { if (entity) setMode('context'); void ask(c, entity ? 'context' : effectiveMode) }}>{c}</button>)}
               </div>
             </div>
