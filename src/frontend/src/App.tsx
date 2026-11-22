@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { AccountPage } from './Account'
 import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
 import { Avatar } from './Avatar'
-import { CrudPage, ServiceName, type Column, type Field } from './Crud'
+import { CrudPage, ServiceName, type Column, type Field, type Row } from './Crud'
 import { TeamDashboard, TeamPage } from './Dashboard'
 import { DepartmentHead } from './DepartmentHead'
 import { DeadlinesPage } from './Deadlines'
@@ -77,6 +77,7 @@ const employeeColumns = (nav: Nav): Column[] => [
     <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={`${e.firstName} ${e.lastName}`} size={28} />
   )],
   ['Nazwisko i imię', (e) => <button className="link person-link" onClick={() => nav.showProfile(e.id)}>{e.lastName} {e.firstName}</button>],
+  ['Stanowisko', (e) => e.positionName ?? '—'],
   ['E-mail', (e) => e.email ?? '—'],
   ['Urodzony', (e) => e.dateOfBirth],
   ['Zatrudniony', (e) => e.hireDate],
@@ -105,6 +106,18 @@ const departmentColumns = (canEdit: boolean): Column[] => [
   ['Lokalizacja', (d) => d.locationName],
   // key: po zapisie wydziału lista się przeładowuje i wiersz bierze nowego kierującego z API.
   ['Kierujący komórką', (d) => <DepartmentHead key={`${d.id}-${d.headId ?? ''}`} department={d} canEdit={canEdit} />],
+]
+
+// Słownik stanowisk służby (HR wybiera je w profilu). Kadry dodają w swojej służbie; SuperAdmin musi ją wskazać.
+const positionFields: Field[] = [{ name: 'name', label: 'Nazwa stanowiska' }]
+const positionFieldsForAdmin: Field[] = [
+  { name: 'name', label: 'Nazwa stanowiska' },
+  { name: 'serviceId', label: 'Służba', createOnly: true, options: { path: 'services', label: (s) => s.name } },
+]
+const positionColumns = (allServices: boolean): Column[] => [
+  ['Nazwa', (p) => p.name],
+  ...(allServices ? [['Służba', (p: Row) => p.serviceName] as Column] : []),
+  ['Pracowników', (p) => p.employeesCount],
 ]
 
 const serviceFields: Field[] = [
@@ -184,6 +197,17 @@ const PAGES: Page[] = [
     render: (s) => (
       <CrudPage title="Wydziały" path="departments" fields={departmentFields} columns={departmentColumns(can(s, 'edit_department'))}
         canAdd={can(s, 'add_department')} canEdit={can(s, 'edit_department')} canDelete={can(s, 'delete_department')} />
+    ),
+  },
+  {
+    // Zmiana nazwy obejmuje wszystkich na tym stanowisku; usunąć można tylko nieużywane (inaczej 409).
+    key: 'positions',
+    label: 'Stanowiska',
+    visible: (s) => can(s, 'manage_positions') || can(s, 'read_departments'),
+    render: (s) => (
+      <CrudPage title="Stanowiska" path="positions" fields={isSuperAdmin(s) ? positionFieldsForAdmin : positionFields}
+        columns={positionColumns(isSuperAdmin(s))}
+        canAdd={can(s, 'manage_positions')} canEdit={can(s, 'manage_positions')} canDelete={can(s, 'manage_positions')} />
     ),
   },
   {

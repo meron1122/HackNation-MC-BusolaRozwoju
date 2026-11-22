@@ -12,6 +12,13 @@ const FREQUENCY: { value: Frequency; label: string }[] = [
 ]
 const COMPLEXITY: { value: Complexity; label: string }[] = [{ value: 'typical', label: 'Typowa' }, { value: 'high', label: 'Wysoka' }]
 
+/**
+ * Oznaczenia opisów zachowań: litery w przetasowanej kolejności, bo cyfry (1, 3, 5…) wyglądałyby jak punkty skali.
+ * „Nie było okazji” to odpowiedź przy wskaźniku z modelu kompetencji (valueText n/a), nie ocena — w arkuszu jej nie ma.
+ */
+const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E']
+const NO_BASIS_LETTER = 'N'
+
 type Choice = { valueNumber: number | null; valueText: string | null }
 
 /** Stała (dla danego wskaźnika) kolejność opisów poziomów — żeby nie sugerować, który jest „środkowy”. */
@@ -80,15 +87,16 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
     }
   }
 
-  // Klawisze 1–n wybierają opis, 0 = brak okazji (poza polami tekstowymi).
+  // Klawisze A–E wybierają opis, N = nie było okazji (poza polami tekstowymi). Litery, nie cyfry — żeby nie mylić z punktami.
   useEffect(() => {
     if (!indicator || !editable) return
     const order = shuffled(scale, indicator.key)
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select') || e.ctrlKey || e.metaKey || e.altKey) return
-      const n = Number(e.key)
-      if (e.key === '0') choose(indicator.key, { valueNumber: null, valueText: NO_BASIS })
-      else if (n >= 1 && n <= order.length) choose(indicator.key, { valueNumber: order[n - 1].value, valueText: null })
+      const key = e.key.toUpperCase()
+      const n = OPTION_LETTERS.indexOf(key)
+      if (key === NO_BASIS_LETTER) choose(indicator.key, { valueNumber: null, valueText: NO_BASIS })
+      else if (key.length === 1 && n >= 0 && n < order.length) choose(indicator.key, { valueNumber: order[n].value, valueText: null })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -146,7 +154,7 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
           ? <button type="button" className="secondary" onClick={prev} disabled={pos.c === 0 && pos.i === 0}>← Poprzedni wskaźnik</button>
           : <button type="button" className="secondary" onClick={() => setPos({ c: pos.c, i: 0 })}>← Zmień odpowiedzi</button>}
         <span className="grow" />
-        {indicator && editable && <span className="small muted">Klawisze 1–{scale.length} · 0 = brak okazji</span>}
+        {indicator && editable && <span className="small muted">Klawisze A–{OPTION_LETTERS[scale.length - 1]} · {NO_BASIS_LETTER} = nie było okazji</span>}
         {indicator || pos.c < criteria.length - 1
           ? <button type="button" onClick={next}>
             {indicator
@@ -185,14 +193,14 @@ function IndicatorQuestion({ detail, indicator, scale, choice, editable, onChoos
           return (
             <button key={o.key} type="button" role="radio" aria-checked={checked} disabled={!editable}
               className={checked ? 'option selected' : 'option'} onClick={() => onChoose({ valueNumber: o.value, valueText: null })}>
-              <span className="option-key">{index + 1}</span><span>{indicator.levels[o.key] ?? o.label}</span>
+              <span className="option-key">{OPTION_LETTERS[index]}</span><span>{indicator.levels[o.key] ?? o.label}</span>
             </button>
           )
         })}
         <button type="button" role="radio" aria-checked={choice?.valueText === NO_BASIS} disabled={!editable}
           className={choice?.valueText === NO_BASIS ? 'option no-basis selected' : 'option no-basis'}
           onClick={() => onChoose({ valueNumber: null, valueText: NO_BASIS })}>
-          <span className="option-key">0</span><span>Nie było okazji tego zaobserwować</span>
+          <span className="option-key">{NO_BASIS_LETTER}</span><span>Nie było okazji tego zaobserwować</span>
         </button>
       </div>
       <div className="inline gap small">

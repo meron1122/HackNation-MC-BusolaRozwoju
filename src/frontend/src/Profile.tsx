@@ -24,6 +24,10 @@ type FieldDef = {
   label: string
   type?: 'text' | 'date' | 'email' | 'number' | 'select'
   options?: string[] | [string, string][]
+  /** Wartość z listy jako liczba (np. id stanowiska ze słownika). */
+  numeric?: boolean
+  /** Pierwsza, pusta opcja listy (domyślnie „— wybierz —”). */
+  emptyLabel?: string
   required?: boolean
   /** Tylko kadry (edit_employee), pracownik u siebie widzi, ale nie zmienia. */
   hrOnly?: boolean
@@ -62,12 +66,22 @@ const CONTACT: FieldDef[] = [
   { name: 'workEmail', label: 'E-mail służbowy', type: 'email' },
   { name: 'otherEmail', label: 'E-mail prywatny', type: 'email' },
 ]
-const JOB: FieldDef[] = [
-  { name: 'jobTitle', label: 'Stanowisko' },
-  { name: 'employmentType', label: 'Forma zatrudnienia', type: 'select', options: EMPLOYMENT },
-  { name: 'contractStart', label: 'Początek umowy / służby', type: 'date' },
-  { name: 'contractEnd', label: 'Koniec umowy', type: 'date' },
-]
+type Position = { id: number; name: string; serviceId: number; serviceName: string; employeesCount: number }
+
+/**
+ * Zatrudnienie: stanowisko ze słownika (GET /positions — stanowiska służby), zapisywane jako positionId.
+ * Bieżące stanowisko jest zawsze na liście, także zanim słownik się wczyta albo gdy jest spoza listy.
+ */
+const jobFields = (positions: Position[] | null, current: { id: number | null; name: string | null }): FieldDef[] => {
+  const options: [string, string][] = (positions ?? []).map((p) => [String(p.id), p.name])
+  if (current.id != null && !options.some(([id]) => id === String(current.id))) options.unshift([String(current.id), current.name ?? `#${current.id}`])
+  return [
+    { name: 'positionId', label: 'Stanowisko', type: 'select', numeric: true, emptyLabel: '— brak —', options },
+    { name: 'employmentType', label: 'Forma zatrudnienia', type: 'select', options: EMPLOYMENT },
+    { name: 'contractStart', label: 'Początek umowy / służby', type: 'date' },
+    { name: 'contractEnd', label: 'Koniec umowy', type: 'date' },
+  ]
+}
 const EMERGENCY: FieldDef[] = [
   { name: 'name', label: 'Imię i nazwisko', required: true },
   { name: 'relationship', label: 'Pokrewieństwo', type: 'select', options: RELATIONSHIPS },
@@ -139,6 +153,18 @@ export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation, initi
     load()
   }, [load])
 
+  // Słownik stanowisk potrzebny tylko kadrom, które zmieniają przydział (pracownik u siebie widzi samą nazwę).
+  const [positions, setPositions] = useState<Position[] | null>(null)
+  const canEditJob = !!profile?.canEdit
+  useEffect(() => {
+    if (!canEditJob) return
+    let active = true
+    api<Position[]>('positions').then((p) => { if (active) setPositions(p) }, () => undefined)
+    return () => {
+      active = false
+    }
+  }, [canEditJob])
+
   if (!profile) {
     // Konto bez pracownika (np. SuperAdmin) nie ma profilu, ale ustawienia konta muszą być dostępne.
     if (error && account) {
@@ -164,7 +190,7 @@ export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation, initi
       <aside className="profile-side card">
         <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={name} size={112} version={avatarVersion} />
         <h2>{name}</h2>
-        {profile.job.jobTitle && <p className="muted">{profile.job.jobTitle}</p>}
+        {profile.job.positionName && <p className="muted">{profile.job.positionName}</p>}
         <nav aria-label="Sekcje profilu">
           {TABS.filter(([key]) => key !== 'account' || (account && profile.isOwn)).map(([key, label]) => (
             <button key={key} className={tab === key ? 'profile-tab active' : 'profile-tab'} aria-current={tab === key ? 'page' : undefined}
@@ -204,7 +230,9 @@ export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation, initi
                 <div><dt>Konto</dt><dd>{e.email ?? '—'}</dd></div>
               </dl>
             </section>
-            <SectionForm key={`j${e.id}`} title="Zatrudnienie" fields={JOB} values={profile.job}
+            {/* key: po wczytaniu słownika formularz montuje się od nowa, żeby lista miała już wszystkie stanowiska. */}
+            <SectionForm key={`j${e.id}-${positions ? 'p' : 'n'}`} title="Zatrudnienie" values={profile.job}
+              fields={jobFields(positions, { id: (profile.job.positionId as number | null) ?? null, name: (profile.job.positionName as string | null) ?? null })}
               editable={profile.canEdit} hr={profile.canEdit} onSave={(v) => save('job', v)} />
           </>
         )}
@@ -284,7 +312,7 @@ function readForm(form: HTMLFormElement, fields: readonly FieldDef[]): Values {
   const data = new FormData(form)
   return Object.fromEntries(fields.map((f) => {
     const raw = String(data.get(f.name) ?? '').trim()
-    return [f.name, raw === '' ? null : f.type === 'number' ? Number(raw) : raw]
+    return [f.name, raw === '' ? null : f.type === 'number' || f.numeric ? Number(raw) : raw]
   }))
 }
 
@@ -299,7 +327,7 @@ function Inputs({ fields, values, disabled, hr }: { fields: readonly FieldDef[];
             <span>{f.label}{f.required && <span aria-hidden="true"> *</span>}</span>
             {f.type === 'select' ? (
               <select name={f.name} defaultValue={String(value)} disabled={off} required={f.required}>
-                <option value="">— wybierz —</option>
+                <option value="">{f.emptyLabel ?? '— wybierz —'}</option>
                 {f.options!.map((o) => {
                   const [v, l] = Array.isArray(o) ? o : [o, o]
                   return <option key={v} value={v}>{l}</option>
