@@ -1,0 +1,140 @@
+/* Busola Rozwoju · komponenty v2 (makiety „06 · Makiety v2”). Prefiks v2-. Role kolorów: lawenda tylko AI,
+   reguły systemu ciągła linia + ⓘ, obrysy stanu #2B6CB0, najmniejszy tekst 14 px. */
+
+.v2-tipwrap { position: relative; display: inline-flex; align-items: center; vertical-align: middle; }
+
+/* ---------- ⓘ ---------- */
+.v2-info {
+  display: inline-grid; place-items: center; width: 24px; height: 24px; padding: 0; margin: 0 2px;
+  border: 0; border-radius: 50%; background: transparent; color: var(--link); cursor: help;
+}
+.v2-info:hover { background: var(--blue-soft); box-shadow: none !important; }
+.v2-info:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+
+/* ---------- dymek ---------- */
+.v2-tip {
+  position: absolute; z-index: 80; bottom: calc(100% + 8px); left: 50%; transform: translate(-50%, 4px);
+  width: max-content; max-width: 300px; padding: 10px 12px; border-radius: 10px;
+  background: var(--text); color: #fff; font-size: 14px; line-height: 1.45; font-weight: 450; text-align: left;
+  box-shadow: 0 10px 28px rgba(31, 42, 90, .25); pointer-events: none;
+  opacity: 0; visibility: hidden; transition: opacity .15s var(--ease, ease), transform .15s var(--ease, ease), visibility .15s;
+}
+.v2-tip-start { left: -6px; transform: translate(0, 4px); }
+.v2-tip-end { left: auto; right: -6px; transform: translate(0, 4px); }
+.v2-tip[data-open] { opacity: 1; visibility: visible; transform: translate(-50%, 0); }
+.v2-tip-start[data-open], .v2-tip-end[data-open] { transform: none; }
+
+/* ---------- źródło ↗ ---------- */
+.v2-source {
+  display: inline-flex; align-items: center; gap: 4px; padding: 0 4px; margin: 0 1px; min-height: 24px;
+  border: 0; border-radius: 6px; background: transparent; color: var(--link); font-size: 14px; font-weight: 600;
+  text-decoration: none; cursor: pointer; line-height: 1.3;
+}
+.v2-source:hover { background: var(--blue-soft); box-shadow: none !important; }
+.v2-source:focus-visible { outline: 3px solid var(--focus); outline-offset: 1px; }
+.v2-source-arrow { font-size: 15px; line-height: 1; }
+.v2-source-text { text-align: left; }
+
+/* ---------- treść AI ---------- */
+.v2-spark { color: var(--lavender-text); font-weight: 700; }
+.v2-ai {
+  position: relative; display: grid; gap: 10px; padding: 18px 20px; border-radius: 16px;
+  border: 1.5px dashed var(--lavender); background: var(--surface);
+}
+.v2-ai-compact { padding: 12px 14px; gap: 8px; }
+.v2-ai-head { display: flex; align-items: center; gap: 8px; }
+.v2-ai-label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 650; color: var(--lavender-text); }
+.v2-ai-aside { margin-left: auto; }
+.v2-ai-corner { position: absolute; top: 14px; left: 14px; }
+.v2-ai-body { display: grid; gap: 8px; min-width: 0; }
+.v2-ai-body p { margin: 0; }
+.v2-ai-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* ---------- segmenty ---------- */
+.v2-seg { display: inline-flex; align-items: center; gap: 6px; }
+.v2-seg-bar { width: 28px; height: 4px; border-radius: 2px; background: var(--border); }
+.v2-seg-bar.done { background: var(--text); }
+.v2-seg-now {
+  display: inline-grid; place-items: center; min-width: 46px; height: 24px; padding: 0 8px; border-radius: 999px;
+  border: 2px solid var(--text); background: var(--blue-soft); color: var(--text); font-size: 14px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.v2-seg-sm .v2-seg-bar { width: 18px; }
+.v2-seg-sm .v2-seg-now { min-width: 40px; height: 22px; }
+
+/* ---------- pierścień dni ---------- */
+.v2-ring { position: relative; display: inline-grid; place-items: center; flex: none; }
+.v2-ring svg { position: absolute; inset: 0; }
+.v2-ring-track { fill: none; stroke: var(--blue-soft); }
+.v2-ring-arc { fill: none; stroke: var(--link); stroke-linecap: round; transition: stroke-dasharray .25s var(--ease, ease); }
+.v2-ring.overdue .v2-ring-arc { stroke: var(--text); stroke-linecap: butt; }
+.v2-ring-text { position: relative; display: grid; justify-items: center; line-height: 1; gap: 2px; }
+.v2-ring-text strong { font-weight: 750; letter-spacing: -0.02em; color: var(--text); }
+.v2-ring-text span { font-size: 14px; color: var(--muted); }
+
+/* ---------- skala 1–9 ---------- */
+.v2-scale { position: relative; display: grid; gap: 6px; padding: 0 4px; min-width: 200px; }
+.v2-scale-value { position: relative; height: 22px; }
+.v2-scale-value span {
+  position: absolute; transform: translateX(-50%); font-size: 15px; font-weight: 700; color: var(--text);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.v2-scale-track { position: relative; height: 10px; border-radius: 5px; background: var(--blue-soft); }
+.v2-scale-band { position: absolute; top: 0; bottom: 0; border-left: 2px solid var(--surface); }
+.v2-scale-band:first-child { border-left: 0; border-radius: 5px 0 0 5px; }
+.v2-scale-band:last-of-type { border-radius: 0 5px 5px 0; }
+.v2-scale-band.active { background: var(--text); }
+.v2-scale-dot {
+  position: absolute; top: 50%; width: 18px; height: 18px; border-radius: 50%; transform: translate(-50%, -50%);
+  background: var(--surface); border: 3px solid var(--text); box-shadow: 0 0 0 2px var(--surface);
+}
+.v2-scale-labels { position: relative; height: 20px; }
+.v2-scale-labels span { position: absolute; transform: translateX(-50%); font-size: 14px; color: var(--muted); white-space: nowrap; }
+.v2-scale-labels span.active { color: var(--text); font-weight: 650; }
+
+/* ---------- radar ---------- */
+.v2-radar { display: block; margin-inline: auto; height: auto; overflow: visible; }
+.v2-radar-ring { fill: none; stroke: var(--border); stroke-width: 1.2; }
+.v2-radar-ring.mid { stroke: #9aa3b8; stroke-dasharray: 5 4; }
+.v2-radar-axis { stroke: var(--border); stroke-width: 1; }
+.v2-radar-series polygon, .v2-radar-series path { stroke-width: 2.5; stroke-linejoin: round; fill: none; }
+.v2-radar-series.a polygon { fill: rgba(43, 108, 176, .16); stroke: #2b6cb0; }
+.v2-radar-series.a path { stroke: #2b6cb0; }
+.v2-radar-series.a circle { fill: #2b6cb0; stroke: #fff; stroke-width: 1.5; }
+.v2-radar-series.b polygon, .v2-radar-series.b path { stroke: var(--muted); stroke-dasharray: 6 5; stroke-width: 2; }
+.v2-radar-series.b circle { fill: var(--surface); stroke: var(--muted); stroke-width: 1.5; }
+.v2-radar-value { font-size: 15px; font-weight: 700; fill: var(--text); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+.v2-radar-label { font-size: 14px; fill: var(--text); font-weight: 550; }
+
+/* ---------- nagłówek kroku ---------- */
+.v2-stephead { display: flex; align-items: center; gap: 14px; min-height: 56px; }
+.v2-stephead .avatar { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--blue-soft); }
+.v2-stephead-title { margin: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 19px; font-weight: 650; color: var(--text); min-width: 0; }
+.v2-stephead-title strong { font-weight: 700; }
+.v2-stephead-dot { color: var(--muted); }
+
+/* ---------- busola ---------- */
+.v2-compass { display: inline-grid; place-items: center; flex: none; border-radius: 50%; }
+.v2-compass.halo { padding: 18%; background: var(--blue-soft); box-sizing: content-box; }
+.v2-compass-needle { transform-origin: 32px 32px; transform-box: view-box; }
+.v2-compass-search .v2-compass-needle { animation: v2-needle-search 1.4s ease-in-out infinite; }
+.v2-compass-settle .v2-compass-needle { animation: v2-needle-settle 1.2s cubic-bezier(.2, .7, .2, 1) 1 both; }
+@keyframes v2-needle-search { 0%, 100% { transform: rotate(-28deg); } 50% { transform: rotate(32deg); } }
+@keyframes v2-needle-settle { 0% { transform: rotate(-70deg); } 55% { transform: rotate(14deg); } 80% { transform: rotate(-5deg); } 100% { transform: rotate(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .v2-compass-needle { animation: none !important; }
+  .v2-tip, .v2-ring-arc { transition: none; }
+}
+
+/* ---------- ostrzeżenie ---------- */
+.v2-warn {
+  display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-radius: 12px;
+  background: var(--blue-soft); border: 1.5px solid var(--text); color: var(--text); font-size: 15px;
+}
+.v2-warn-icon {
+  flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--text); color: #fff; font-weight: 800; font-size: 14px; line-height: 1; margin-top: 1px;
+}
+.v2-warn-body { display: grid; gap: 2px; min-width: 0; }
+.v2-warn-body p { margin: 0; }

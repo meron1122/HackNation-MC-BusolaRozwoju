@@ -180,7 +180,8 @@
     var(--bg);
   transition: opacity .22s ease, visibility 0s .22s;
 }
-.login-handoff[data-phase="checking"] {
+.login-handoff[data-phase="checking"],
+.login-handoff[data-phase="morphing"] {
   visibility: visible;
   opacity: 1;
   pointer-events: auto;
@@ -214,6 +215,7 @@
   transition: transform .65s var(--login-ease), opacity .4s ease;
 }
 .login-handoff-dial {
+  position: relative;
   display: grid;
   place-items: center;
   width: 81%;
@@ -224,6 +226,18 @@
   box-shadow: 0 18px 65px rgba(31, 42, 90, .15), inset 0 0 0 8px rgba(255, 255, 255, .86);
 }
 .login-handoff-dial img { width: 78%; height: auto; }
+.login-handoff-morph {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* Wektor ma 448 jednostek szerokości, z czego znak zajmuje kwadrat 213 × 213. */
+  width: calc(78% * 448 / 213);
+  aspect-ratio: 448 / 280;
+  transform: translate(-50%, -50%);
+  visibility: hidden;
+}
+.login-handoff-morph[data-playing] { visibility: visible; }
+.login-handoff-morph[data-playing] + img { visibility: hidden; }
 .login-handoff-dot {
   position: absolute;
   top: 12%;

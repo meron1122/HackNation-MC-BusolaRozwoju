@@ -1,23 +1,26 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useId, useState, type CSSProperties } from 'react'
 import { api } from './api'
 import { EmptyState } from './EmptyState'
 import { openAssistant } from './assistant/AssistantWidget'
+import { DashTimeline, type TimelineRow } from './dash-timeline'
+import { MiniStepper } from './dash-parts'
+import { cycleEnd, shortAction, stageLabel, stageRef, stageWindow, taskOf, termWord } from './dash-model'
 import { progressReason } from './hifi-helpers'
 import './hifi-pages.css'
-import { Icon } from './Icon'
+import './dash-v2.css'
+import { Avatar } from './Avatar'
 import { Person } from './Person'
 import { DuePill, Pill, StatusPill, type EvaluationStatus } from './evaluation/common'
-import {
-  fmtDate, isFirstTemplate, kindLabel, pathLabel, plural, type Progress,
-} from './evaluation/types'
+import { fmtDate, isFirstTemplate, pathLabel, sheetLetter, type Progress } from './evaluation/types'
+import { Ring } from './v2/charts'
+import { askAssistant, Source } from './v2/Info'
 
 type TeamMember = { employeeId: number; firstName: string; lastName: string; positionName: string | null; needsAttention: boolean; evaluation: Progress | null }
 type Team = { departmentName: string | null; count: number; members: TeamMember[] }
+type ListItem = { id: number; startDate: string }
 
 const NOT_STARTED = 'Oczekuje na start'
 const ATTENTION_DAYS = 30 // W06: przypomnienie 30 dni przed terminem oceny
-// Faza pierwszego etapu, gdy backend zwraca „Oczekuje na start” (Progress nie ma fazy etapu, tylko jego pełny tytuł).
-const FIRST_STAGE_PHASE: Record<string, string> = { criteria: 'Rozmowa rozpoczynająca', initial_interview: 'Rozmowa wstępna' }
 
 function useTeam() {
   const [team, setTeam] = useState<Team | null>(null)
@@ -28,9 +31,16 @@ function useTeam() {
   return { team, error }
 }
 
+/** Daty startu cykli (oś zespołu). `dashboard/team` ich nie podaje, więc bierzemy je z listy ocen. */
+function useStarts() {
+  const [starts, setStarts] = useState<Record<number, string>>({})
+  useEffect(() => {
+    api<ListItem[]>('evaluations').then((rows) => setStarts(Object.fromEntries(rows.map((r) => [r.id, r.startDate]))), () => setStarts({}))
+  }, [])
+  return starts
+}
+
 const fullName = (m: TeamMember) => `${m.firstName} ${m.lastName}`
-const kindOf = (p: Progress) => (isFirstTemplate(p.templateCode) ? 'Pierwsza ocena' : 'Ocena okresowa')
-const thisWeek = (p: Progress) => p.overdue || p.daysLeft == null || p.daysLeft <= 7
 
 /** Etap oceny jako jeden z czterech statusów z guidelines; faza z szablonu zostaje jako dopisek. */
 function statusOf(p: Progress): EvaluationStatus {
@@ -51,124 +61,146 @@ export function PhasePill({ progress, showOverdue = false }: { progress: Progres
   )
 }
 
-function actionLabel(p: Progress): string {
-  if (!p.started || p.phase === NOT_STARTED) return 'Rozpocznij ocenę'
-  if (p.overdue || p.stageKey === 'acknowledgement') return 'Uzupełnij'
-  return 'Przygotuj'
+/** Pilność: najpierw po terminie, potem najbliższy termin. */
+const urgency = (p: Progress) => (p.overdue ? -10_000 + (p.daysLeft ?? 0) : p.daysLeft ?? 10_000)
+
+/** „Dzień dobry, Anno”: wołacz imion żeńskich na -a; pozostałe w mianowniku. */
+const vocative = (name: string) => (/a$/i.test(name) ? `${name.slice(0, -1)}o` : name)
+const longToday = () => new Date().toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+
+const QUESTIONS = ['Co omówić na rozmowie?', 'Średnia 4,0: pozytywna?']
+function ask(q: string) {
+  openAssistant()
+  askAssistant(q)
 }
 
-/** Pigułka w „Moim zespole”: najbliższe działanie. Szary tekst: obserwacja albo zamknięta ocena (nic pilnego). */
-function TeamStatus({ m }: { m: TeamMember }) {
-  const p = m.evaluation
-  if (!p) return <span className="muted small">Brak oceny</span>
-  if (p.isFinal) return <span className="muted small">{p.phase === 'Anulowana' ? 'Anulowana' : `Zakończona · ${p.phase}`}</span>
-  const what = p.phase === NOT_STARTED ? FIRST_STAGE_PHASE[p.stageKey ?? ''] ?? p.stageTitle ?? p.phase : p.phase
-  const due = p.dueTo ? ` · do ${fmtDate(p.dueTo)}` : ''
-  if (!m.needsAttention && !p.overdue && p.phase === 'Obserwacja') {
-    return <span className="muted small">Obserwacja · ocena {p.dueTo ? fmtDate(p.dueTo).slice(3) : '—'}</span>
-  }
-  return (
-    <Pill tone={p.overdue ? 'attention' : 'info'} icon={p.overdue ? 'clock' : statusOf(p) === 'planned' ? 'planned' : 'progress'}>
-      {what}{due}{p.overdue ? ' · po terminie' : ''}
-    </Pill>
-  )
-}
-
-/** W01: pulpit przełożonego — „Najbliższe terminy” (z uzasadnieniem terminu) i „Mój zespół” (pigułka = działanie). */
+/** H01 v2: pulpit przełożonej — następny krok, kolejka, asystent i oś cykli zespołu. */
 export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
   userName: string
   onOpenEvaluation: (id: number) => void
   onOpenProfile: (employeeId: number) => void
 }) {
   const { team, error } = useTeam()
+  const starts = useStarts()
   if (error) return <p role="alert" className="error">{error}</p>
   if (!team) return <p>Ładowanie…</p>
 
   const attention = team.members
-    .filter((m) => m.needsAttention && m.evaluation)
-    .sort((a, b) => (a.evaluation!.daysLeft ?? -1000) - (b.evaluation!.daysLeft ?? -1000))
-  const groups = [
-    { title: 'Ten tydzień', rows: attention.filter((m) => thisWeek(m.evaluation!)) },
-    { title: 'Wkrótce', rows: attention.filter((m) => !thisWeek(m.evaluation!)) },
-  ].filter((g) => g.rows.length)
-  let index = 0
+    .filter((m) => m.needsAttention && m.evaluation && !m.evaluation.isFinal)
+    .sort((a, b) => urgency(a.evaluation!) - urgency(b.evaluation!))
+  const [next, ...queue] = attention
+  const first = userName.includes('@') ? '' : userName.split(' ')[0]
+
+  const rows: TimelineRow[] = team.members.map((m) => {
+    const p = m.evaluation
+    const start = p ? starts[p.evaluationId] : undefined
+    return {
+      id: m.employeeId, name: fullName(m), progress: p, action: attention.includes(m),
+      start: start ?? null, end: p && start ? cycleEnd(start, p.templateCode) : p?.stageKey === 'evaluation' ? p.dueTo : null,
+    }
+  })
 
   return (
-    <section className="hifi-page hifi-dashboard">
-      <div className="hifi-head">
-        <div>
-          {/* Nazwa w tokenie bywa e-mailem konta — wtedy bez imienia. */}
-          <h1 className="hifi-hello">Dzień dobry{userName.includes('@') ? '' : `, ${userName.split(' ')[0]}`}</h1>
-          <p className="hifi-sub">{team.departmentName ?? 'Brak przypisanego wydziału'} · {team.count} {plural(team.count, 'osoba', 'osoby', 'osób')} w zespole</p>
-        </div>
-        <button type="button" className="secondary hifi-ask" onClick={openAssistant}><span aria-hidden="true" className="hifi-spark">✦</span> Zapytaj asystenta</button>
+    <section className="hifi-page dash">
+      <div className="dash-hello">
+        {/* Nazwa w tokenie bywa e-mailem konta — wtedy bez imienia. */}
+        <h1>Dzień dobry{first ? `, ${vocative(first)}` : ''}</h1>
+        <span>{longToday()}</span>
       </div>
-      <div className="hifi-dash-grid">
-        <section className="card hifi-card" aria-labelledby="dash-deadlines">
-          <div className="hifi-card-head">
-            <h2 id="dash-deadlines">Najbliższe terminy</h2>
-            <span className="muted small">
-              {attention.length === 0 ? `Nic pilnego w ${ATTENTION_DAYS} dni` : `${attention.length} ${plural(attention.length, 'sprawa wymaga', 'sprawy wymagają', 'spraw wymaga')} działania`}
+      <div className="dash-top">
+        {next ? <NextStep m={next} onOpen={onOpenEvaluation} /> : (
+          <section className="card dash-hero dash-hero-empty" aria-labelledby="dash-next">
+            <p className="dash-eyebrow" id="dash-next">Następny krok</p>
+            <h2>Wszystko w terminie</h2>
+          </section>
+        )}
+        <div className="dash-side">
+          <section className="card dash-queue" aria-labelledby="dash-queue">
+            <h2 id="dash-queue">W kolejce <span className="dash-count">{queue.length}</span></h2>
+            {queue.length === 0 ? <p className="dash-muted">Pusto.</p> : (
+              <ul>
+                {queue.map((m, i) => <QueueRow key={m.employeeId} m={m} i={i} onOpen={onOpenEvaluation} />)}
+              </ul>
+            )}
+          </section>
+          <section className="card dash-ask" aria-labelledby="dash-ask">
+            <h2 id="dash-ask"><span className="dash-spark" aria-hidden="true">✦</span> Zapytaj asystenta</h2>
+            <div className="dash-ask-chips">
+              {QUESTIONS.map((q) => <button key={q} type="button" className="dash-chip" onClick={() => ask(q)}>{q}</button>)}
+            </div>
+          </section>
+        </div>
+      </div>
+      <section className="card dash-team" aria-labelledby="dash-team">
+        <h2 id="dash-team">Mój zespół</h2>
+        {team.members.length === 0
+          ? <EmptyState title="W zespole nie ma jeszcze pracowników">Gdy kadry przypiszą Ci pracowników, pojawią się tutaj.</EmptyState>
+          : <DashTimeline rows={rows} onOpenEvaluation={onOpenEvaluation} onOpenProfile={onOpenProfile} />}
+      </section>
+    </section>
+  )
+}
+
+/** Hero „Następny krok”: twarz, zadanie, pierścień dni, termin ze źródłem ↗, mini-stepper i jedna akcja. */
+function NextStep({ m, onOpen }: { m: TeamMember; onOpen: (id: number) => void }) {
+  const p = m.evaluation!
+  const id = useId()
+  const task = taskOf(p, m.firstName)
+  const sheet = sheetLetter(p.templateCode)
+  const reason = progressReason(p)
+  const ref = stageRef(p)
+  const days = p.daysLeft ?? 0
+  return (
+    <section className="card dash-hero" aria-labelledby={id}>
+      <p className="dash-eyebrow">Następny krok</p>
+      <div className="dash-hero-main">
+        <Avatar path={`org/${m.employeeId}/avatar`} name={fullName(m)} size={88} decorative />
+        <div className="dash-hero-title">
+          <h2 id={id}>{task.title}</h2>
+          <p>{[fullName(m), m.positionName, isFirstTemplate(p.templateCode) ? 'pierwsza ocena' : sheet && `arkusz ${sheet}`].filter(Boolean).join(' · ')}</p>
+        </div>
+        {p.dueTo && (
+          <div className="dash-hero-due">
+            <Ring value={days} max={stageWindow(p)} size={128} overdue={p.overdue}
+              label={p.overdue ? `${Math.abs(days)} dni po terminie` : `Zostało ${days} dni`} />
+            <span className="dash-hero-date">
+              do {fmtDate(p.dueTo)}
+              {(reason || ref) && <Source refText={[reason, ref].filter(Boolean).join(' · ')} align="end" />}
             </span>
           </div>
-          {groups.length === 0 && (
-            <div className="hifi-empty">
-              <Icon name="done" /> <strong>Wszystko w terminie.</strong>
-              <span className="muted"> W najbliższych {ATTENTION_DAYS} dniach nie ma etapów do wykonania.</span>
-            </div>
-          )}
-          {groups.map((g) => (
-            <div key={g.title} className="hifi-group">
-              <p className="hifi-group-title">{g.title}</p>
-              <ul className="hifi-tasks">
-                {g.rows.map((m) => {
-                  const p = m.evaluation!
-                  const what = p.phase === NOT_STARTED ? FIRST_STAGE_PHASE[p.stageKey ?? ''] ?? p.stageTitle : p.phase
-                  const reason = progressReason(p)
-                  const primary = index === 0
-                  return (
-                    <li key={m.employeeId} className="hifi-task" style={{ '--i': index++ } as CSSProperties}>
-                      <div className="hifi-task-main">
-                        <div className="hifi-task-who">
-                          <Person id={m.employeeId} name={fullName(m)} detail={m.positionName} size="md" onOpen={() => onOpenProfile(m.employeeId)} />
-                          <span className={`pill ${isFirstTemplate(p.templateCode) ? 'attention' : 'info'}`}>{kindOf(p)}</span>
-                        </div>
-                        <p className="hifi-why">
-                          {what}{reason ? `: termin to ${reason}.` : '.'}
-                          {p.lastReminder && <> Przypomnienie od {p.lastReminder.sentByName} ({fmtDate(p.lastReminder.sentAt)}).</>}
-                        </p>
-                        <DuePill daysLeft={p.daysLeft} overdue={p.overdue} />
-                      </div>
-                      <strong className="hifi-when">{p.dueTo ? `do ${fmtDate(p.dueTo)}` : 'niezwłocznie'}</strong>
-                      <button type="button" className={primary ? '' : 'secondary'} onClick={() => onOpenEvaluation(p.evaluationId)}>{actionLabel(p)}</button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          ))}
-        </section>
-        <section className="card hifi-card" aria-labelledby="dash-team">
-          <h2 id="dash-team">Mój zespół</h2>
-          {team.members.length === 0 && <EmptyState title="W zespole nie ma jeszcze pracowników">Gdy kadry przypiszą Ci pracowników, pojawią się tutaj, a Busola policzy ich terminy ocen.</EmptyState>}
-          <ul className="hifi-team">
-            {team.members.map((m) => (
-              <li key={m.employeeId}>
-                <Person id={m.employeeId} name={fullName(m)} size="md" onOpen={() => onOpenProfile(m.employeeId)}
-                  detail={[m.positionName, m.evaluation && kindLabel(m.evaluation.templateCode)].filter(Boolean).join(' · ')} />
-                <span className="hifi-team-status">
-                  {m.evaluation ? (
-                    <button type="button" className="link hifi-team-open" onClick={() => onOpenEvaluation(m.evaluation!.evaluationId)}
-                      aria-label={`Ocena: ${fullName(m)}`}><TeamStatus m={m} /></button>
-                  ) : <TeamStatus m={m} />}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {team.members.length > 0 && <p className="muted small hifi-legend">Pigułka = najbliższe działanie. Szary tekst = obserwacja, nic pilnego.</p>}
-        </section>
+        )}
+      </div>
+      <div className="dash-hero-foot">
+        <MiniStepper progress={p} caption="count" size="lg" />
+        <button type="button" className="dash-primary" onClick={() => onOpen(p.evaluationId)}>
+          {task.action} <span aria-hidden="true">→</span>
+        </button>
       </div>
     </section>
+  )
+}
+
+function QueueRow({ m, i, onOpen }: { m: TeamMember; i: number; onOpen: (id: number) => void }) {
+  const p = m.evaluation!
+  const term = termWord(p)
+  const first = isFirstTemplate(p.templateCode)
+  return (
+    <li style={{ '--i': i } as CSSProperties}>
+      <Avatar path={`org/${m.employeeId}/avatar`} name={fullName(m)} size={40} decorative />
+      <span className="dash-queue-who">
+        <strong>{fullName(m)}</strong>
+        <span className="dash-queue-stage">
+          <span className={first ? 'dash-first' : 'dash-dot'} aria-hidden="true">{first ? '◆' : ''}</span>
+          {first && <span className="sr-only">pierwsza ocena: </span>}
+          {stageLabel(p)}
+        </span>
+      </span>
+      <span className="dash-queue-when">
+        <strong className={term.tone === 'late' ? 'late' : undefined}>{term.word}</strong>
+        <button type="button" className="link" onClick={() => onOpen(p.evaluationId)}
+          aria-label={`${shortAction(p)}: ${fullName(m)}`}>{shortAction(p)} <span aria-hidden="true">→</span></button>
+      </span>
+    </li>
   )
 }
 

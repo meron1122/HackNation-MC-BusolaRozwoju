@@ -1,0 +1,5 @@
+v2 gotowe (API stabilne; szczegóły w README.md). Import: from '../v2' (z evaluation/) — style ładują się same.
+Info, Source, askAssistant, ASK_ASSISTANT_EVENT, AiFrame, Spark, Warn,
+Segments, Ring, ScaleBar, Radar, PERIODIC_BANDS, bandOf, bandsFromLevels, type Band, type RadarSeries,
+StepHeader, StepHeaderContext, useStepHeader, type StepProgress, Compass
+Tokeny CSS: --ai, --ai-text, --ai-soft (lawenda tylko AI), --state (#2B6CB0, obrysy stanu), --warn-bg; klasa .v2-warn.

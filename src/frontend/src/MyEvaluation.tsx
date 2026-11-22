@@ -1,11 +1,14 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { api } from './api'
-import { DuePill, Pill } from './evaluation/common'
+import { DuePill } from './evaluation/common'
+import { Avatar } from './Avatar'
+import { MiniStepper } from './dash-parts'
+import './dash-v2.css'
 import { Icon } from './Icon'
 import { openAssistant } from './assistant/AssistantWidget'
 import './hifi-pages.css'
 import { signatureState, slotBlock } from './evaluation/data'
-import { daysUntil, fmtDate, kindLabel, type Detail, type SelfAssessment } from './evaluation/types'
+import { daysUntil, fmtDate, kindLabel, type Detail, type Progress, type SelfAssessment } from './evaluation/types'
 
 type ListItem = { id: number; isFinal: boolean; startDate: string }
 type Task = { tone: 'action' | 'waiting' | 'info'; text: string; dueTo?: string | null }
@@ -85,49 +88,65 @@ export function MyEvaluationPage({ onOpen }: { onOpen: (id: number) => void }) {
   if (error) return <p role="alert" className="error">{error}</p>
   if (!details) return <p>Ładowanie…</p>
   return (
-    <section className="hifi-page hifi-my">
+    <section className="hifi-page dash-my">
       <div className="hifi-head">
-        <div>
-          <h1>Moja ocena</h1>
-          <p className="hifi-sub">Tu widzisz, co masz teraz zrobić w swojej ocenie i do kiedy.</p>
-        </div>
-        <button type="button" className="secondary hifi-ask" onClick={openAssistant}><span aria-hidden="true" className="hifi-spark">✦</span> Zapytaj asystenta</button>
+        <h1>Moja ocena</h1>
+        <button type="button" className="secondary hifi-ask" onClick={openAssistant}><span aria-hidden="true" className="dash-spark">✦</span> Zapytaj asystenta</button>
       </div>
-      {details.length === 0 && <div className="card hifi-card"><p className="muted">Nie masz jeszcze oceny w systemie.</p></div>}
+      {details.length === 0 && <div className="card"><p className="dash-muted">Nie masz jeszcze oceny w systemie.</p></div>}
       {details.map(({ detail: d, self }, i) => {
         const tasks = tasksOf(d, self)
         const current = d.stages.find((s) => s.key === d.currentStageKey)
         return (
-          <article key={d.id} className="card hifi-card hifi-my-card" style={{ '--i': i } as CSSProperties} aria-labelledby={`my-${d.id}`}>
-            <div className="hifi-card-head">
+          <article key={d.id} className="card dash-my-card" style={{ '--i': i } as CSSProperties} aria-labelledby={`my-${d.id}`}>
+            <div className="dash-my-head">
+              <Avatar path={`org/${d.employeeId}/avatar`} name={d.employeeName} size={56} decorative />
               <div>
                 <h2 id={`my-${d.id}`}>{kindLabel(d.templateCode)}</h2>
-                <p className="muted small">Przełożony: {d.evaluatorName ?? '—'} · cykl od {fmtDate(d.startDate)}</p>
+                <p>od {fmtDate(d.startDate)}</p>
               </div>
-              <Pill tone={d.isFinal ? 'done' : 'info'} icon={d.isFinal ? 'done' : 'progress'}>{d.phase}</Pill>
+              <MiniStepper progress={progressOf(d)} caption="count" />
             </div>
             {tasks.length > 0 ? (
-              <ul className="hifi-my-tasks">
+              <ul className="dash-my-tasks">
                 {tasks.map((t) => (
                   <li key={t.text} className={t.tone}>
-                    <span className="hifi-my-kind">
-                      <Icon name={t.tone === 'action' ? 'sign' : t.tone === 'waiting' ? 'clock' : 'planned'} />
-                      {t.tone === 'action' ? 'Do zrobienia' : t.tone === 'waiting' ? 'Czeka' : 'Informacja'}
+                    <Icon name={t.tone === 'action' ? 'sign' : t.tone === 'waiting' ? 'clock' : 'planned'} />
+                    <span className="dash-my-text">
+                      <span className="sr-only">{t.tone === 'action' ? 'Do zrobienia: ' : t.tone === 'waiting' ? 'Czeka: ' : 'Informacja: '}</span>
+                      {t.text}
                     </span>
-                    <span className="hifi-my-text">{t.text}</span>
                     {t.dueTo && <DuePill dueTo={t.dueTo} daysLeft={daysUntil(t.dueTo)} overdue={(daysUntil(t.dueTo) ?? 0) < 0} />}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="hifi-my-idle">
-                {d.isFinal ? 'Ocena zakończona.' : `Teraz nic nie musisz robić. Etap: ${current?.title ?? d.phase}${current?.dueTo ? ` (do ${fmtDate(current.dueTo)})` : ''} — prowadzi go przełożony.`}
+              <p className="dash-my-idle">
+                <Icon name={d.isFinal ? 'done' : 'clock'} />
+                {d.isFinal ? 'Ocena zakończona.' : <>Nic do zrobienia{current?.dueTo ? <> · etap do {fmtDate(current.dueTo)}</> : null}</>}
               </p>
             )}
-            <div className="hifi-actions"><button type="button" onClick={() => onOpen(d.id)}>Otwórz moją ocenę</button></div>
+            <div className="dash-my-foot">
+              <span className="dash-my-evaluator">
+                <Avatar path={null} name={d.evaluatorName ?? '?'} size={32} decorative />
+                <span>{d.evaluatorName ?? '—'}</span>
+              </span>
+              <button type="button" onClick={() => onOpen(d.id)}>Otwórz moją ocenę</button>
+            </div>
           </article>
         )
       })}
     </section>
   )
+}
+
+/** Mini-stepper potrzebuje postępu w kształcie z pulpitu; budujemy go z bieżącego etapu oceny. */
+function progressOf(d: Detail): Progress {
+  const stage = d.stages.find((s) => s.key === d.currentStageKey) ?? null
+  const daysLeft = daysUntil(stage?.dueTo)
+  return {
+    evaluationId: d.id, templateCode: d.templateCode, kind: '', phase: d.phase, started: true, isFinal: d.isFinal,
+    stageKey: d.currentStageKey, stageTitle: stage?.title ?? null, dueFrom: stage?.dueFrom ?? null, dueTo: stage?.dueTo ?? null,
+    daysLeft, overdue: stage?.overdue ?? false, lastReminder: null,
+  }
 }

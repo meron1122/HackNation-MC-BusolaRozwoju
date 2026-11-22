@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { DateInput } from '../DateInput'
+import { Avatar } from '../Avatar'
 import { SheetForm } from '../Evaluations'
-import { NextButton, PdfButton, Pill, type StepProps } from './common'
+import { Info, Radar, Segments, Source, useStepHeader } from '../v2'
+import { NextButton, PdfButton, type StepProps } from './common'
 import { saveAnswers, useApi, useWorkContext } from './data'
-import { fmtMean, shuffled, suggestionValues } from './rating-logic'
+import { byDate, NotesAside, PeriodAxis, ScaleTiles, shortCriterion } from './rating-parts'
+import { shuffled, suggestionValues } from './rating-logic'
 import {
   answerOf, criteriaOf, emptyAnswer, fmtDate, indicatorFieldOf, isFirstTemplate, plural, scoresFieldOf,
   type Detail, type Indicator, type Notes, type ScaleOption, type SelfAssessment, type Topic,
@@ -11,7 +15,7 @@ import './rating-hifi.css'
 
 /**
  * Oznaczenia opisów zachowań: litery w przetasowanej kolejności, bo cyfry (1, 3, 5…) wyglądałyby jak punkty skali.
- * Każdy wskaźnik trzeba ocenić jednym z opisów — bez „nie było okazji” (decyzja W07: odpowiedź jest wymagana).
+ * Każdy wskaźnik trzeba ocenić jednym z opisów: backend nie przyjmuje „brak okazji do obserwacji”, więc tego kafla nie ma.
  */
 const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E']
 /** Po wyborze zachowania przejście do następnego wskaźnika (W07). */
@@ -22,8 +26,16 @@ type Note = Notes['notes'][number]
 type WorkApi = ReturnType<typeof useWorkContext>
 
 const lower = (o: ScaleOption) => o.label.charAt(0).toLowerCase() + o.label.slice(1)
+const firstNameOf = (name: string) => name.split(' ')[0]
 
-/** W07 (ocena wskaźnika: opisy zachowań jako odpowiedzi) i W08 (podsumowanie kryterium: sugestia i ocena robocza). */
+/** Okres osi notatek: od podpisu części I (początek okresu z API) do terminu etapu oceny. */
+function periodOf(detail: Detail, notes: Notes | null, stageKey: string | null | undefined) {
+  const start = notes?.evidence.periodStart ?? detail.stages[0]?.completedOn ?? null
+  const end = detail.stages.find((s) => s.key === stageKey)?.dueTo ?? null
+  return { start, end }
+}
+
+/** H07 (ocena wskaźnika: opisy zachowań jako odpowiedzi) i H08 (ocena robocza kryterium: sugestia i decyzja). */
 export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
   const scores = scoresFieldOf(detail.schema)!
   const indicatorField = indicatorFieldOf(detail.schema, scores.field.key)!
@@ -47,6 +59,7 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
     return { c: 0, i: 'summary' }
   })
   const [error, setError] = useState('')
+  const [needScore, setNeedScore] = useState(false)
   const timer = useRef<number | undefined>(undefined)
   useEffect(() => () => window.clearTimeout(timer.current), [])
 
@@ -54,8 +67,12 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
   const indicators = criterion ? competencies[criterion.key].indicators : []
   const indicator = typeof pos.i === 'number' ? indicators[pos.i] : undefined
 
+  // Nagłówek kreatora: „Katarzyna Nowak · Rzetelność” i segmenty kryteriów „2/6”.
+  useStepHeader(criterion?.label ?? null, criterion ? { current: pos.c + 1, total: criteria.length, label: `Kryterium ${pos.c + 1} z ${criteria.length}` } : null)
+
   const move = (next: { c: number; i: number | 'summary' }) => {
     window.clearTimeout(timer.current)
+    setNeedScore(false)
     setPos(next)
   }
 
@@ -94,151 +111,115 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
 
   if (criteria.length === 0) return <p className="muted">Najpierw wybierz kryteria (krok „Kryteria i wskaźniki”).</p>
 
-  const doneInCriterion = indicators.filter((i) => answered(i.key)).length
-  const totalIndicators = criteria.reduce((n, c) => n + competencies[c.key].indicators.length, 0)
-  const doneIndicators = criteria.reduce((n, c) => n + competencies[c.key].indicators.filter((i) => answered(i.key)).length, 0)
+  const top = () => window.scrollTo({ top: 0 })
   const next = () => {
     if (typeof pos.i === 'number' && pos.i < indicators.length - 1) move({ c: pos.c, i: pos.i + 1 })
     else if (typeof pos.i === 'number') move({ c: pos.c, i: 'summary' })
+    else if (!scored(criterion.key) && editable) { setNeedScore(true); return }
     else if (pos.c < criteria.length - 1) move({ c: pos.c + 1, i: 0 })
-    window.scrollTo({ top: 0 })
+    top()
   }
   const prev = () => {
     if (pos.i === 'summary') move({ c: pos.c, i: indicators.length - 1 })
     else if (pos.i > 0) move({ c: pos.c, i: pos.i - 1 })
     else if (pos.c > 0) move({ c: pos.c - 1, i: 'summary' })
   }
-  const openCriterion = (index: number) => {
-    const list = competencies[criteria[index].key].indicators
-    const firstOpen = list.findIndex((x) => !answered(x.key))
-    move({ c: index, i: firstOpen >= 0 ? firstOpen : 'summary' })
-  }
-  const indicatorNotes = (key: string) => notes.data?.notes.filter((n) => n.indicatorKey === key) ?? []
+  const criterionNotes = notes.data?.notes.filter((n) => n.criterionKey === criterion.key || indicators.some((i) => i.key === n.indicatorKey)) ?? []
+  const period = periodOf(detail, notes.data, scores.section.stage)
+  const last = pos.i === 'summary' && pos.c === criteria.length - 1
 
   return (
     <div className="step rh">
-      <div className="rh-tabs" role="tablist" aria-label="Kryteria oceny">
-        {criteria.map((c, index) => {
-          const done = scored(c.key)
-          return (
-            <button key={c.key} type="button" role="tab" aria-selected={index === pos.c}
-              className={index === pos.c ? 'rh-tab active' : done ? 'rh-tab done' : 'rh-tab'} onClick={() => openCriterion(index)}>
-              {done && <span aria-hidden="true">✓</span>}{c.label}
-              {done && <span className="sr-only"> (ocenione)</span>}
-            </button>
-          )
-        })}
-      </div>
+      <div className="rh-with-aside">
+        <div className="rh-main">
+          {!editable && (
+            <p className="rh-readonly">Tylko do odczytu{detail.lockedSections.includes(scores.section.key) ? ' · etap oceny zamknięty' : ''}</p>
+          )}
+          {error && <p role="alert" className="error">{error}</p>}
 
-      <div className="rh-progress">
-        <div className="rh-progress-row">
-          <span><strong>{criterion.label}</strong>{indicator ? ` · wskaźnik ${(pos.i as number) + 1} z ${indicators.length}` : ' · podsumowanie'}</span>
-          <span className="grow" />
-          <span className="small muted">wszystkie kryteria: {doneIndicators} z {totalIndicators} wskaźników</span>
-        </div>
-        <div className="rh-bar" role="progressbar" aria-label={`Postęp w kryterium ${criterion.label}`}
-          aria-valuemin={0} aria-valuemax={indicators.length} aria-valuenow={doneInCriterion}>
-          <div style={{ width: `${(doneInCriterion / Math.max(1, indicators.length)) * 100}%` }} />
-        </div>
-      </div>
+          {indicator ? (
+            <IndicatorQuestion key={indicator.key} indicator={indicator} index={pos.i as number} total={indicators.length}
+              answered={(i) => answered(indicators[i].key)} scale={scale}
+              choice={choices[indicator.key]} editable={editable} onChoose={(c) => choose(indicator.key, c)}
+              expectation={work.indicator(indicator.key).expectation} />
+          ) : (
+            <CriterionSummary key={criterion.key} detail={detail} criterionKey={criterion.key} label={criterion.label} indicators={indicators}
+              choices={choices} scale={scale} scoresKey={scores.field.key} editable={editable} work={work} reload={reload}
+              noteCount={(key) => criterionNotes.filter((n) => n.inPeriod && n.indicatorKey === key).length}
+              needScore={needScore} onScored={() => setNeedScore(false)} onChange={(i) => move({ c: pos.c, i })} />
+          )}
 
-      {!editable && (
-        <p className="rh-readonly small">Tylko do odczytu{detail.lockedSections.includes(scores.section.key) ? ' — etap oceny jest zamknięty' : ''}.</p>
-      )}
-      {error && <p role="alert" className="error">{error}</p>}
-
-      {indicator ? (
-        <IndicatorQuestion key={indicator.key} detail={detail} indicator={indicator} scale={scale}
-          choice={choices[indicator.key]} editable={editable} onChoose={(c) => choose(indicator.key, c)}
-          expectation={work.indicator(indicator.key).expectation} notes={indicatorNotes(indicator.key)} notesError={notes.error} />
-      ) : (
-        <CriterionSummary key={criterion.key} detail={detail} criterionKey={criterion.key} label={criterion.label} indicators={indicators}
-          choices={choices} scale={scale} scoresKey={scores.field.key} editable={editable} work={work} reload={reload}
-          noteCount={(key) => indicatorNotes(key).length} onChange={(i) => move({ c: pos.c, i })} />
-      )}
-
-      <div className="step-actions">
-        {indicator
-          ? <button type="button" className="secondary" onClick={prev} disabled={pos.c === 0 && pos.i === 0}>← Poprzedni wskaźnik</button>
-          : <button type="button" className="secondary" onClick={prev}>← Wskaźniki</button>}
-        <span className="grow" />
-        {indicator && editable && (
-          <span className="small muted">Skróty: <kbd>A</kbd>–<kbd>{OPTION_LETTERS[scale.length - 1]}</kbd> wybór, potem przejście dalej</span>
-        )}
-        {indicator || pos.c < criteria.length - 1
-          ? <button type="button" onClick={next}>
+          <div className="rh-actions">
             {indicator
-              ? (pos.i as number) < indicators.length - 1 ? 'Następny wskaźnik →' : 'Zobacz sugestię poziomu →'
-              : `Dalej: ${criteria[pos.c + 1].label} →`}
-          </button>
-          : <NextButton steps={steps} current="indicators" go={go} label="Dalej: rozmowa oceniająca" />}
+              ? <button type="button" className="secondary" onClick={prev} disabled={pos.c === 0 && pos.i === 0}>← Wstecz</button>
+              : <button type="button" className="secondary" onClick={prev}>← Wskaźniki</button>}
+            <span className="grow" />
+            {last && (scored(criterion.key) || !editable)
+              ? <NextButton steps={steps} current="indicators" go={go} label="Dalej: rozmowa oceniająca" />
+              : (
+                <button type="button" onClick={next}>
+                  {indicator
+                    ? (pos.i as number) < indicators.length - 1 ? 'Dalej →' : 'Dalej: podsumowanie →'
+                    : last ? 'Dalej: rozmowa oceniająca →' : `Dalej: ${shortCriterion(criteria[pos.c + 1].key, criteria[pos.c + 1].label)} →`}
+                </button>
+              )}
+          </div>
+        </div>
+
+        <NotesAside notes={criterionNotes} start={period.start} end={period.end}
+          error={notes.error ? `Notatki niedostępne: ${notes.error}` : undefined} empty="Brak notatek przy tym kryterium." />
       </div>
     </div>
   )
 }
 
-function IndicatorQuestion({ detail, indicator, scale, choice, editable, onChoose, expectation, notes, notesError }: {
-  detail: Detail
+function IndicatorQuestion({ indicator, index, total, answered, scale, choice, editable, onChoose, expectation }: {
   indicator: Indicator
+  index: number
+  total: number
+  answered: (i: number) => boolean
   scale: ScaleOption[]
   choice: Choice | undefined
   editable: boolean
   onChoose: (c: Choice) => void
   expectation: string | null
-  notes: Note[]
-  notesError: string
 }) {
-  const agreedOn = detail.stages[0]?.completedOn
   const headingId = `rh-q-${indicator.key}`
+  const done = Array.from({ length: total }, (_, i) => i).filter((i) => i !== index && answered(i)).length
   return (
-    <div className="rh-question-layout">
-      <div className="rh-question">
-        <div className="rh-question-head">
-          <h2 id={headingId} className="rh-question-text">{indicator.text}</h2>
-          <p className="muted">Wybierz zachowanie typowe dla całego okresu oceny. Weź pod uwagę powtarzalność, nie jednorazowy wyjątek.</p>
-        </div>
-        {expectation && (
-          <p className="rh-expectation small">
-            <strong>Ustalone oczekiwanie{agreedOn ? ` (${fmtDate(agreedOn)})` : ''}:</strong> „{expectation}”
-          </p>
-        )}
-        <div className="rh-options" role="radiogroup" aria-labelledby={headingId}>
-          {shuffled(scale, indicator.key).map((o, index) => {
-            const checked = choice?.valueNumber === o.value
-            return (
-              <button key={o.key} type="button" role="radio" aria-checked={checked} disabled={!editable}
-                className={checked ? 'option selected' : 'option'} style={{ animationDelay: `${index * 40}ms` }}
-                onClick={() => onChoose({ valueNumber: o.value, valueText: null })}>
-                <span className="option-key" aria-hidden="true">{OPTION_LETTERS[index]}</span>
-                <span className="grow">{indicator.levels[o.key] ?? o.label}</span>
-                {checked && <span className="rh-check" aria-hidden="true">✓</span>}
-              </button>
-            )
-          })}
-        </div>
+    <div className="rh-question">
+      <div className="rh-q-meta">
+        <Segments current={index + 1} total={total} done={done} size="sm" label={`Wskaźnik ${index + 1} z ${total}`} />
+        <span className="grow" />
+        <span className="rh-how">
+          <Info label="Jak oceniać?" align="end">Wybierz zachowanie typowe dla całego okresu oceny. Liczy się powtarzalność, nie jednorazowy wyjątek.</Info>
+          <span aria-hidden="true">Jak oceniać?</span>
+        </span>
       </div>
-      <aside className="rh-notes" aria-label="Twoje notatki do tego wskaźnika">
-        <h3>Twoje notatki do tego wskaźnika</h3>
-        {notesError ? <p className="muted small">Notatki niedostępne: {notesError}</p>
-          : notes.length === 0 ? <p className="muted small">Brak notatek przy tym wskaźniku. Oceń na podstawie tego, co pamiętasz z całego okresu.</p>
-          : (
-            <ul>
-              {notes.map((n) => (
-                <li key={n.id} className={n.inPeriod ? undefined : 'muted'}>
-                  <time className="small muted">{fmtDate(n.observedOn)}</time>
-                  <span>{[n.situation, n.action, n.result].filter(Boolean).join(' · ')}</span>
-                  {!n.inPeriod && <span className="small">sprzed okresu oceny, nie liczy się</span>}
-                </li>
-              ))}
-            </ul>
-          )}
-        <p className="small muted">Notatki pomagają przypomnieć sobie sytuacje. Zachowanie wybierasz Ty.</p>
-      </aside>
+      <h2 id={headingId} className="rh-q-text">{indicator.text}</h2>
+      {expectation && (
+        <p className="rh-chip"><strong>Oczekiwanie</strong><span>{expectation}</span></p>
+      )}
+      <div className="rh-options" role="radiogroup" aria-labelledby={headingId}>
+        {shuffled(scale, indicator.key).map((o, i) => {
+          const checked = choice?.valueNumber === o.value
+          return (
+            <button key={o.key} type="button" role="radio" aria-checked={checked} disabled={!editable}
+              aria-keyshortcuts={OPTION_LETTERS[i]}
+              className={checked ? 'rh-option selected' : 'rh-option'} style={{ animationDelay: `${i * 30}ms` }}
+              onClick={() => onChoose({ valueNumber: o.value, valueText: null })}>
+              <kbd className="rh-key" aria-hidden="true">{OPTION_LETTERS[i]}</kbd>
+              <span className="grow">{indicator.levels[o.key] ?? o.label}</span>
+              {checked && <span className="rh-check" aria-hidden="true">✓</span>}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
 
-function CriterionSummary({ detail, criterionKey, label, indicators, choices, scale, scoresKey, editable, work, reload, noteCount, onChange }: {
+function CriterionSummary({ detail, criterionKey, label, indicators, choices, scale, scoresKey, editable, work, reload, noteCount, needScore, onScored, onChange }: {
   detail: Detail
   criterionKey: string
   label: string
@@ -250,6 +231,8 @@ function CriterionSummary({ detail, criterionKey, label, indicators, choices, sc
   work: WorkApi
   reload: () => Promise<void>
   noteCount: (indicatorKey: string) => number
+  needScore: boolean
+  onScored: () => void
   onChange: (indicatorIndex: number) => void
 }) {
   const fromApi = detail.scoring?.criteria.find((c) => c.key === criterionKey)
@@ -261,13 +244,15 @@ function CriterionSummary({ detail, criterionKey, label, indicators, choices, sc
   const suggestions = complete ? suggestionValues(scale, mean, fromApi?.suggested ?? null) : []
   const [score, setScore] = useState<number | null>(answerOf(detail, scoresKey, criterionKey)?.valueNumber ?? null)
   const [error, setError] = useState('')
-  const meets = scale.find((o) => o.key === 'meets')
   const option = (v: number | null) => scale.find((o) => o.value === v)
+  const meets = scale.find((o) => o.key === 'meets')
+  const expectations = indicators.map((i) => work.indicator(i.key).expectation).filter((x): x is string => !!x)
 
   async function pick(value: number) {
     if (!editable) return
     const before = score
     setScore(value)
+    onScored()
     try {
       await saveAnswers(detail.id, [{ ...emptyAnswer(scoresKey, criterionKey), valueNumber: value }])
       setError('')
@@ -279,103 +264,71 @@ function CriterionSummary({ detail, criterionKey, label, indicators, choices, sc
   }
 
   const differs = score != null && suggestions.length > 0 && !suggestions.includes(score)
+  const tieChosen = score != null && suggestions.length === 2 && suggestions.includes(score)
 
   return (
     <div className="rh-summary">
-      <h2 className="rh-summary-title">{label}</h2>
+      <div className="rh-sec-head">
+        <h3>Zachowania</h3>
+        <span className="grow" />
+        {expectations.length > 0 && (
+          <p className="rh-chip rh-chip-clamp" title={expectations.join(' · ')}><strong>Oczekiwanie</strong><span>{expectations.join(' · ')}</span></p>
+        )}
+      </div>
 
-      <section className="card rh-picked" aria-labelledby="rh-picked">
-        <h3 id="rh-picked">Wybrane zachowania</h3>
+      <ul className="rh-rows card">
         {indicators.map((i, index) => {
           const o = option(choices[i.key]?.valueNumber ?? null)
           const n = noteCount(i.key)
           return (
-            <div key={i.key} className="rh-picked-row">
-              <div className="grow">
-                <p className="small muted">{i.text}</p>
-                <p>{o ? `„${i.levels[o.key] ?? o.label}”` : <em className="muted">nie wybrano</em>}</p>
-                <p className="small muted">{n} {plural(n, 'notatka', 'notatki', 'notatek')}</p>
-              </div>
-              {editable && <button type="button" className="link" onClick={() => onChange(index)}>{o ? 'Zmień wybór' : 'Wybierz'}</button>}
-            </div>
+            <li key={i.key} className="rh-row">
+              <span className={o ? 'rh-level' : 'rh-level empty'} aria-hidden="true">{o?.value ?? '–'}</span>
+              <span className="rh-row-text">
+                <span className="rh-row-ind">{i.text}</span>
+                <span className="rh-row-beh">{o ? i.levels[o.key] ?? o.label : <em>nie wybrano</em>}</span>
+                <span className="sr-only">{o ? `Poziom ${o.value}, ${lower(o)}.` : ''}</span>
+              </span>
+              <span className="rh-row-notes">{n} {plural(n, 'notatka', 'notatki', 'notatek')}</span>
+              {editable && (
+                <button type="button" className="link" onClick={() => onChange(index)} aria-label={`${o ? 'Zmień' : 'Wybierz'}: ${i.text}`}>{o ? 'Zmień' : 'Wybierz'}</button>
+              )}
+            </li>
           )
         })}
-      </section>
+      </ul>
 
-      <section className="ai-proposal rh-suggestion" aria-labelledby="rh-sug">
-        <span className="ai-tag" id="rh-sug">✦ Sugerowany poziom · liczy reguła, nie AI</span>
-        {!complete ? (
-          <p>Sugestia pojawi się, gdy wybierzesz zachowanie przy każdym wskaźniku ({picked.length} z {indicators.length}).</p>
-        ) : suggestions.length === 2 ? (
-          <div className="rh-sug-row">
-            <b className="rh-sug-value">{suggestions[0]} lub {suggestions[1]}</b>
-            <p className="small muted">
-              Średnia wybranych poziomów ({picked.join(', ')}) = {fmtMean(mean!)} leży dokładnie w połowie między dwiema wartościami skali.
-              Rozstrzygnij na podstawie notatek z całego okresu.
-            </p>
-          </div>
-        ) : suggestions.length === 1 ? (
-          <div className="rh-sug-row">
-            <b className="rh-sug-value" key={suggestions[0]}>{suggestions[0]}</b>
-            <div>
-              <b>{option(suggestions[0]) ? lower(option(suggestions[0])!) : ''}</b>
-              <p className="small muted">
-                Średnia wybranych poziomów ({picked.join(', ')}){mean != null ? ` = ${fmtMean(mean)}` : ''}, zaokrąglona do najbliższej wartości skali.
-              </p>
-            </div>
-          </div>
-        ) : <p className="muted">Brak sugestii.</p>}
-        <p className="small muted">To podpowiedź, nie ocena. Ocenę wybierasz Ty.</p>
-      </section>
-
-      <section className="rh-decision" aria-labelledby="rh-dec">
-        <div className="rh-decision-head">
-          <h3 id="rh-dec">Twoja ocena za kryterium</h3>
+      <section className="rh-work card" aria-labelledby="rh-work-title">
+        <div className="rh-sec-head">
+          <h3 id="rh-work-title">Ocena robocza</h3>
+          <Info label="Jak liczona jest sugestia?" align="start">Sugestia: średnia poziomów wskaźników zaokrąglona do skali. Zasada Busoli, nie przepis.</Info>
           <span className="grow" />
-          {meets && <span className="small muted">Punkt wyjścia: {meets.value} · {lower(meets)} <span className="rh-ref">(Poradnik KPRM, s. 26)</span></span>}
+          {meets && <Source refText="Poradnik KPRM, s. 26: ocenę zaczyna się od poziomu „na poziomie oczekiwań”" align="end">start od {meets.value}</Source>}
         </div>
-        <p className="small muted">Wybierz ocenę: możesz wybrać sugestię albo inną wartość. Potwierdzisz ją po rozmowie oceniającej.</p>
-        <ScoreScale scale={scale} value={score} suggested={suggestions} disabled={!editable} label={`Ocena za kryterium: ${label}`} onPick={pick} />
-        {error && <p role="alert" className="error">{error}</p>}
-        {differs && (
-          <div className="rh-differs">
-            <span className="pill neutral">Twoja ocena: {score} · sugestia: {suggestions.join(' lub ')}</span>
-            <ReasonField key={`${criterionKey}-${work.context ? 'loaded' : 'loading'}`} initial={work.reason(criterionKey)}
-              disabled={!editable || !!work.error} onSave={(v) => work.saveReason(criterionKey, v)} />
-          </div>
-        )}
+        <ScaleTiles scale={scale} value={score} suggested={suggestions} mean={complete ? mean : null} disabled={!editable}
+          label={`Ocena robocza za kryterium: ${label}`} onPick={pick} />
+        {!complete && <p className="rh-muted">Sugestia po ocenie wszystkich wskaźników · {picked.length}/{indicators.length}</p>}
+        {(error || needScore) && <p role="alert" className="error">{error || 'Wybierz ocenę kryterium'}</p>}
       </section>
+
+      {/* Stałe miejsce na pole powodu: wiersz akcji nie skacze po wyborze oceny. */}
+      <div className="rh-reason-slot">
+      {(differs || tieChosen) && (
+        <div className="rh-reason">
+          {differs && <span className="rh-diff">Twoja ocena {score} · sugestia {suggestions.join(' lub ')}</span>}
+          <ReasonField key={`${criterionKey}-${work.context ? 'loaded' : 'loading'}`} initial={work.reason(criterionKey)}
+            title={differs ? 'Dlaczego inaczej?' : `Dlaczego ${score}?`}
+            hint={differs ? 'Opcjonalnie. Przyda się w rozmowie i w uzasadnieniu.' : 'Opcjonalnie. Remis: rozstrzygasz Ty, na podstawie notatek.'}
+            disabled={!editable || !!work.error} onSave={(v) => work.saveReason(criterionKey, v)} />
+        </div>
+      )}
+      </div>
     </div>
   )
 }
 
-function ScoreScale({ scale, value, suggested, disabled, label, onPick }: {
-  scale: ScaleOption[]
-  value: number | null
-  suggested: number[]
-  disabled: boolean
-  label: string
-  onPick: (v: number) => void
+function ReasonField({ initial, title, hint, disabled, onSave }: {
+  initial: string; title: string; hint: string; disabled: boolean; onSave: (v: string) => Promise<void>
 }) {
-  return (
-    <div className="score-buttons rh-scale" role="radiogroup" aria-label={label}>
-      {scale.map((o) => {
-        const isSug = suggested.includes(o.value)
-        return (
-          <button key={o.value} type="button" role="radio" aria-checked={value === o.value} disabled={disabled}
-            className={['score-button', value === o.value && 'selected', isSug && 'suggested'].filter(Boolean).join(' ')}
-            onClick={() => onPick(o.value)}>
-            {isSug && <span className="rh-sug-tag">sugestia</span>}
-            <strong className="rh-scale-value">{o.value}</strong>
-            <span className="small">{lower(o)}</span>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-function ReasonField({ initial, disabled, onSave }: { initial: string; disabled: boolean; onSave: (v: string) => Promise<void> }) {
   const [value, setValue] = useState(initial)
   const [status, setStatus] = useState('')
   async function save() {
@@ -383,17 +336,20 @@ function ReasonField({ initial, disabled, onSave }: { initial: string; disabled:
     setStatus('Zapisywanie…')
     try {
       await onSave(value.trim())
-      setStatus('Zapisano.')
+      setStatus('Zapisano')
     } catch (e) {
       setStatus((e as Error).message)
     }
   }
   return (
-    <label className="block-label">Dlaczego inaczej? <span className="small muted">Opcjonalnie. Pomoże w rozmowie oceniającej i w uzasadnieniu.</span>
-      <textarea rows={2} value={value} disabled={disabled} onChange={(e) => setValue(e.target.value)} onBlur={save}
-        placeholder="np. dwa opóźnienia zgłoszone dopiero w dniu terminu" />
-      {status && <span className="muted small" role="status">{status}</span>}
-    </label>
+    <div className="rh-reason-row">
+      <span className="rh-reason-label">
+        <label htmlFor="rh-reason">{title}</label>
+        <Info label={`${title} — wyjaśnienie`} align="start">{hint}</Info>
+      </span>
+      <textarea id="rh-reason" rows={1} value={value} disabled={disabled} onChange={(e) => setValue(e.target.value)} onBlur={save} />
+      {status && <span className="rh-muted" role="status">{status}</span>}
+    </div>
   )
 }
 
@@ -421,7 +377,9 @@ function agendaOf(topics: Topic[] | undefined, first: boolean): AgendaItem[] {
     : [{ kind: 'criteria' }, { kind: 'goals' }, { kind: 'development' }]
 }
 
-/** W09: rozmowa oceniająca — agenda z § 10, przy kryterium ocena robocza, oczekiwanie i przykłady z notatek. */
+type OrgFocus = { focus: { id: number; name: string; hasAvatar: boolean } }
+
+/** H09: rozmowa oceniająca — agenda § 10 jako 3 kroki, karta kryterium (oczekiwanie, notatki, oś), radar ocen roboczych. */
 export function InterviewStep({ detail, steps, go, reload, sections }: StepProps & { sections: string[] }) {
   const first = isFirstTemplate(detail.templateCode)
   const criteria = criteriaOf(detail)
@@ -431,10 +389,13 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
   const work = useWorkContext(detail.id)
   const notes = useApi<Notes>(`evaluations/${detail.id}/notes`)
   const self = useApi<SelfAssessment>(`evaluations/${detail.id}/self-assessment`)
-  const firstName = detail.employeeName.split(' ')[0]
+  const org = useApi<OrgFocus>('org')
+  const firstName = firstNameOf(detail.employeeName)
   const section = detail.schema.sections.find((s) => sections.includes(s.key))
   const agenda = agendaOf(detail.schema.stages?.find((s) => s.key === section?.stage)?.topics, first)
-  const scoredCount = scores ? criteria.filter((c) => answerOf(detail, scores.field.key, c.key)?.valueNumber != null).length : 0
+  const scoreOf = (key: string) => (scores ? answerOf(detail, scores.field.key, key)?.valueNumber ?? null : null)
+
+  useStepHeader(null, null)
 
   const devField = detail.schema.sections.filter((s) => s.stage === section?.stage).flatMap((s) => s.fields)
     .find((f) => f.type === 'longText' && f.key.toLowerCase().includes('development'))
@@ -454,56 +415,115 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
     }
   }
 
-  const tabLabel = (item: AgendaItem) => {
+  // Data rozmowy: pole daty z sekcji rozmowy (oficjalne pole arkusza, § 10). Pozostałe pola sekcji — formularz niżej.
+  const dateField = section?.fields.find((f) => f.type === 'date')
+  const sectionLocked = !!section && detail.lockedSections.includes(section.key)
+  const [dateStatus, setDateStatus] = useState('')
+  async function saveDate(iso: string) {
+    if (!dateField || !/^\d{4}-\d{2}-\d{2}$/.test(iso) && iso !== '') return
+    try {
+      await saveAnswers(detail.id, [{ ...emptyAnswer(dateField.key, null), valueDate: iso || null }])
+      setDateStatus('')
+      reload()
+    } catch (e) {
+      setDateStatus((e as Error).message)
+    }
+  }
+
+  const title = (item: AgendaItem) => {
     switch (item.kind) {
-      case 'criteria': return `${first ? 'Elementy oceny' : 'Obowiązki i kryteria'} · ${scoredCount} z ${criteria.length}`
+      case 'criteria': return first ? 'Elementy oceny' : 'Obowiązki i kryteria'
       case 'goals': return 'Cele'
-      case 'report': return `Sprawozdanie${self.data?.reportForm?.report ? '' : ' · brak'}`
-      case 'development': return `Rozwój i potrzeby${answerOf(detail, devField?.key ?? '')?.valueText ? ' ✓' : ''}`
+      case 'report': return 'Sprawozdanie'
+      case 'development': return 'Rozwój i potrzeby'
     }
   }
   const tabIndex = agenda.findIndex((a) => a.kind === tab)
   const current = agenda[tabIndex] ?? agenda[0]
   const nextTab = agenda[tabIndex + 1]
+  const prevTab = agenda[tabIndex - 1]
+  const me = org.data?.focus.name === detail.evaluatorName ? org.data.focus : null
+
+  const goNext = () => {
+    if (current.kind === 'criteria' && index < criteria.length - 1) setIndex(index + 1)
+    else if (nextTab) setTab(nextTab.kind)
+  }
+  const goPrev = () => {
+    if (current.kind === 'criteria' && index > 0) setIndex(index - 1)
+    else if (prevTab) { setTab(prevTab.kind); if (prevTab.kind === 'criteria') setIndex(Math.max(0, criteria.length - 1)) }
+    else go('indicators')
+  }
+  const nextLabel = current.kind === 'criteria' && index < criteria.length - 1
+    ? shortCriterion(criteria[index + 1].key, criteria[index + 1].label)
+    : nextTab ? title(nextTab) : null
+  const devDone = !!answerOf(detail, devField?.key ?? '')?.valueText
 
   return (
-    <div className="step rh">
-      <div className="step-head">
+    <div className="step rh rh-talk">
+      <div className="rh-talk-head">
         <h2>{section?.title ?? 'Rozmowa oceniająca'}</h2>
-        <Pill icon="lock">robocza ocena niewidoczna dla pracownika</Pill>
-      </div>
-
-      <SheetForm key={JSON.stringify(detail.answers)} detail={detail} onSaved={reload} sectionKeys={sections} showStage={false} />
-
-      <div className="rh-agenda">
-        <span className="small muted">Do omówienia{first ? '' : ' (§ 10)'}:</span>
-        <div className="rh-tabs" role="tablist" aria-label="Agenda rozmowy">
-          {agenda.map((item) => (
-            <button key={item.kind} type="button" role="tab" aria-selected={item.kind === current.kind}
-              className={item.kind === current.kind ? 'rh-tab active' : 'rh-tab'} onClick={() => setTab(item.kind)}>
-              {tabLabel(item)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div key={`${current.kind}-${index}`} className="rh-panel" role="tabpanel">
-        {current.topic && (
-          <p className="small muted">{current.topic.text}{current.topic.optional ? ' (jeśli uzasadnione)' : ''}
-            {current.topic.legalRef && <span className="rh-ref"> · {current.topic.legalRef}</span>}</p>
+        <span className="rh-pair" role="img" aria-label={`${detail.employeeName} i ${detail.evaluatorName ?? 'oceniający'}`}>
+          <Avatar path={`org/${detail.employeeId}/avatar`} name={detail.employeeName} size={40} decorative />
+          <Avatar path={me?.hasAvatar ? `org/${me.id}/avatar` : null} name={detail.evaluatorName ?? '?'} size={40} decorative />
+        </span>
+        <span className="grow" />
+        {dateField && (
+          <label className="rh-date">
+            <span>Data rozmowy</span>
+            <DateInput value={answerOf(detail, dateField.key)?.valueDate ?? ''} onChange={saveDate}
+              disabled={!detail.canEdit || sectionLocked} required={dateField.required} />
+          </label>
         )}
+      </div>
+      {dateStatus && <p role="alert" className="error">{dateStatus}</p>}
 
+      <ol className="rh-agenda card" aria-label="Agenda rozmowy">
+        {agenda.map((item, i) => {
+          const active = item.kind === current.kind
+          const done = item.kind === 'development' ? devDone : false
+          return (
+            <li key={item.kind} className={active ? 'rh-ag active' : 'rh-ag'}>
+              {i > 0 && <span className="rh-ag-arrow" aria-hidden="true">→</span>}
+              <button type="button" className="rh-ag-btn" aria-current={active ? 'step' : undefined} onClick={() => setTab(item.kind)}>
+                <span className={done ? 'rh-ag-num done' : 'rh-ag-num'} aria-hidden="true">{done ? '✓' : i + 1}</span>
+                <span className="rh-ag-text">
+                  <strong>{title(item)}</strong>
+                  {item.kind === 'criteria' && criteria.length > 0 && (
+                    <Segments current={index + 1} total={criteria.length} size="sm" label={`${first ? 'Element' : 'Kryterium'} ${index + 1} z ${criteria.length}`} />
+                  )}
+                  {item.topic?.optional && <span className="rh-muted">opcjonalnie</span>}
+                </span>
+              </button>
+              {i === 0 && (item.topic?.legalRef || !first) && (
+                <Source refText={first ? (item.topic?.legalRef ?? 'rozporządzenie') : '§ 10 rozporządzenia'} />
+              )}
+            </li>
+          )
+        })}
+      </ol>
+
+      <div key={`${current.kind}-${index}`} className="rh-panel">
         {current.kind === 'criteria' && criteria.length === 0 && <p className="muted">Brak kryteriów do omówienia.</p>}
         {current.kind === 'criteria' && criteria[index] && (
-          <CriterionTalk detail={detail} criterionKey={criteria[index].key} label={criteria[index].label} criteria={criteria} index={index}
-            onIndex={setIndex} work={work} notes={notes.data?.notes ?? []} self={self.data} selfError={self.error} firstName={firstName}
-            reload={reload} onEditIndicators={() => go('indicators')} />
+          <div className="rh-talk-grid">
+            <CriterionTalk detail={detail} criterionKey={criteria[index].key} label={criteria[index].label}
+              work={work} notes={notes.data?.notes ?? []} notesData={notes.data} self={self.data} selfError={self.error} firstName={firstName}
+              reload={reload} />
+            {criteria.length >= 3 && (
+              <section className="card rh-radar-card" aria-labelledby="rh-radar-title">
+                <h3 id="rh-radar-title">Oceny robocze</h3>
+                <Radar axes={criteria.map((c) => shortCriterion(c.key, c.label))} size={170}
+                  series={[{ name: 'ocena robocza', values: criteria.map((c) => scoreOf(c.key)), kind: 'a' }]}
+                  title={`Oceny robocze: ${criteria.map((c) => `${shortCriterion(c.key, c.label)} ${scoreOf(c.key) ?? 'bez oceny'}`).join(', ')}`} />
+              </section>
+            )}
+          </div>
         )}
 
         {current.kind === 'goals' && (
           <div className="card rh-card">
             <h3>Cele</h3>
-            <p>Jeśli na rozmowie rozpoczynającej wyznaczono cele, omów sposób ich realizacji. Jeśli celów nie wyznaczono, pomiń ten punkt.</p>
+            <p>Omów realizację celów wyznaczonych na rozmowie rozpoczynającej. Bez celów pomiń ten punkt.</p>
           </div>
         )}
 
@@ -515,69 +535,71 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
                 <p className="pre-line">{self.data.reportForm.report}</p>
                 <PdfButton detail={detail} report label="Pobierz sprawozdanie (PDF)" />
               </>
-            ) : <p className="muted">Pracownik nie przekazał jeszcze sprawozdania.</p>}
+            ) : <p className="rh-muted">Brak sprawozdania</p>}
           </div>
         )}
 
         {current.kind === 'development' && (
           <div className="card rh-card">
-            <h3>Potrzeby rozwojowe zgłoszone przez pracownika{devField ? ' → do wniosków IPRZ' : ''}</h3>
-            {self.error ? <p className="muted">Samoocena niedostępna: {self.error}</p>
-              : !self.data ? <p className="muted">Ładowanie…</p>
-              : !self.data.submitted ? <p className="muted">Pracownik nie przekazał jeszcze samooceny. Potrzeby zgłoszone na rozmowie wpiszesz we wnioskach przy sporządzaniu oceny.</p>
-              : <p>{self.data.developmentNeeds || <span className="muted">Nie zgłoszono.</span>}</p>}
+            <h3>Potrzeby zgłoszone przez {firstName}{devField ? ' → wnioski IPRZ' : ''}</h3>
+            {self.error ? <p className="rh-muted">Samoocena niedostępna: {self.error}</p>
+              : !self.data ? <p className="rh-muted">Ładowanie…</p>
+              : !self.data.submitted ? <p className="rh-muted">Samoocena nieprzekazana. Potrzeby z rozmowy wpiszesz we wnioskach.</p>
+              : <p>{self.data.developmentNeeds || <span className="rh-muted">Nie zgłoszono.</span>}</p>}
             {canCopyNeeds && (
               <div className="buttons">
                 <button type="button" className="secondary" onClick={copyNeeds}>Dopisz do wniosków</button>
-                {copyStatus && <span className="muted small" role="status">{copyStatus}</span>}
+                {copyStatus && <span className="rh-muted" role="status">{copyStatus}</span>}
               </div>
             )}
           </div>
         )}
       </div>
 
-      <div className="step-actions">
-        {current.kind === 'criteria' && criteria.length > 0 && <span className="small muted">{first ? 'Element' : 'Kryterium'} {index + 1} z {criteria.length}</span>}
+      {section && section.fields.some((f) => f !== dateField) && (
+        <SheetForm key={JSON.stringify(detail.answers)} detail={detail} onSaved={reload} sectionKeys={sections} showStage={false}
+          fieldFilter={(f) => f !== dateField} />
+      )}
+
+      <div className="rh-actions">
+        <button type="button" className="secondary" onClick={goPrev}>← Wstecz</button>
         <span className="grow" />
-        {current.kind === 'criteria' && index < criteria.length - 1
-          ? <button type="button" onClick={() => setIndex(index + 1)}>Dalej: {criteria[index + 1].label} →</button>
-          : nextTab
-            ? <button type="button" onClick={() => setTab(nextTab.kind)}>Dalej: {tabLabel(nextTab).split(' · ')[0].replace(' ✓', '')} →</button>
-            : <NextButton steps={steps} current="interview" go={go} />}
+        {nextLabel
+          ? <button type="button" onClick={goNext}>Dalej: {nextLabel} →</button>
+          : <NextButton steps={steps} current="interview" go={go} />}
       </div>
     </div>
   )
 }
 
-function CriterionTalk({ detail, criterionKey, label, criteria, index, onIndex, work, notes, self, selfError, firstName, reload, onEditIndicators }: {
+function CriterionTalk({ detail, criterionKey, label, work, notes, notesData, self, selfError, firstName, reload }: {
   detail: Detail
   criterionKey: string
   label: string
-  criteria: { key: string; label: string }[]
-  index: number
-  onIndex: (i: number) => void
   work: WorkApi
   notes: Note[]
+  notesData: Notes | null
   self: SelfAssessment | null
   selfError: string
   firstName: string
   reload: () => Promise<void>
-  onEditIndicators: () => void
 }) {
   const scores = scoresFieldOf(detail.schema)
   const competency = detail.schema.competencyModel?.competencies[criterionKey]
   const savedScore = scores ? answerOf(detail, scores.field.key, criterionKey)?.valueNumber ?? null : null
   // Po rozmowie oceniający może zmienić ocenę cząstkową tutaj — do sporządzenia oceny (potem sekcja jest zablokowana).
   const [override, setOverride] = useState<number | null>(null)
+  const [changing, setChanging] = useState(false)
   const [error, setError] = useState('')
+  const [active, setActive] = useState<number | null>(null)
   const score = override ?? savedScore
   const scale = scores?.scale ?? []
   const option = scale.find((o) => o.value === score)
   const meets = scale.find((o) => o.key === 'meets')
   const editable = !!scores && detail.canEdit && !detail.lockedSections.includes(scores.section.key)
   const api = detail.scoring?.criteria.find((c) => c.key === criterionKey)
-  const suggestions = api && api.ratedIndicators === api.totalIndicators ? suggestionValues(scale, api.indicatorMean, api.suggested) : []
-  const scoredKeys = new Set(scores ? criteria.filter((c) => answerOf(detail, scores.field.key, c.key)?.valueNumber != null).map((c) => c.key) : [])
+  const complete = !!api && api.ratedIndicators === api.totalIndicators
+  const suggestions = complete ? suggestionValues(scale, api!.indicatorMean, api!.suggested) : []
 
   async function changeScore(value: number) {
     if (!scores) return
@@ -593,75 +615,77 @@ function CriterionTalk({ detail, criterionKey, label, criteria, index, onIndex, 
   }
 
   const agreed = competency?.indicators.map((i) => work.indicator(i.key).expectation).filter((x): x is string => !!x) ?? []
-  const examples = notes.filter((n) => n.inPeriod && n.criterionKey === criterionKey).slice(0, 3)
+  const examples = byDate(notes).filter((n) => n.inPeriod && (n.criterionKey === criterionKey || competency?.indicators.some((i) => i.key === n.indicatorKey)))
   const own = self?.criteria.find((c) => c.key === criterionKey)
   const differs = score != null && suggestions.length > 0 && !suggestions.includes(score)
+  const start = notesData?.evidence.periodStart ?? detail.stages[0]?.completedOn ?? null
+  const today = new Date().toISOString().slice(0, 10)
 
   return (
-    <>
-      <div className="rh-tabs rh-tabs-sub" role="tablist" aria-label="Kryteria do omówienia">
-        {criteria.map((c, i) => {
-          const done = scoredKeys.has(c.key)
-          return (
-            <button key={c.key} type="button" role="tab" aria-selected={i === index}
-              className={i === index ? 'rh-tab active' : done ? 'rh-tab done' : 'rh-tab'} onClick={() => onIndex(i)}>
-              {done && <span aria-hidden="true">✓</span>}{c.label}{done && <span className="sr-only"> (ocena robocza)</span>}
-            </button>
-          )
-        })}
+    <section className="card rh-crit" aria-labelledby="rh-crit-title">
+      <div className="rh-crit-head">
+        <h3 id="rh-crit-title">{label}</h3>
+        <span className="grow" />
+        <span className="rh-work-score">
+          <span className={option ? 'rh-circle' : 'rh-circle empty'} aria-hidden="true">{option?.value ?? '–'}</span>
+          <span className="rh-work-score-text">
+            <strong>{option ? lower(option) : 'bez oceny'}</strong>
+            <span className="sr-only">Ocena robocza{option ? `: ${option.value}` : ''}.</span>
+            {editable && (
+              <button type="button" className="link" aria-expanded={changing} aria-label={`Zmień ocenę roboczą: ${label}`}
+                onClick={() => setChanging((c) => !c)}>{changing ? 'Gotowe' : 'Zmień'}</button>
+            )}
+          </span>
+        </span>
       </div>
 
-      <h2 className="rh-summary-title">{label}</h2>
-      <section className="card rh-card">
-        <div className="rh-decision-head">
-          <span className="muted">Twoja ocena robocza przed rozmową</span>
-          {option ? <span className="pill neutral">{option.value} · {lower(option)}</span> : <span className="pill attention">jeszcze bez oceny</span>}
-          <span className="grow" />
-          <button type="button" className="link" onClick={onEditIndicators}>Zmień w ocenie wskaźników</button>
+      {changing && editable && (
+        <div className="rh-change">
+          <ScaleTiles scale={scale} value={score} suggested={suggestions} mean={complete ? api!.indicatorMean : null} disabled={false}
+            label={`Ocena robocza za kryterium: ${label}`} onPick={changeScore} />
+          {error && <p role="alert" className="error">{error}</p>}
+          {differs && (
+            <div className="rh-reason">
+              <span className="rh-diff">Twoja ocena {score} · sugestia {suggestions.join(' lub ')}</span>
+              <ReasonField key={`${criterionKey}-${work.context ? 'loaded' : 'loading'}`} initial={work.reason(criterionKey)}
+                title="Dlaczego inaczej?" hint="Opcjonalnie. Przyda się w uzasadnieniu."
+                disabled={!!work.error} onSave={(v) => work.saveReason(criterionKey, v)} />
+            </div>
+          )}
         </div>
+      )}
 
+      <div className="rh-crit-body">
         <div className="rh-expect">
-          <b className="small">Oczekiwanie: opis poziomu „{meets ? lower(meets) : 'na poziomie oczekiwań'}” z modelu kompetencji</b>
-          {agreed.length > 0 && <p className="small">Ustalone z pracownikiem: {agreed.map((a) => `„${a}”`).join(' · ')}</p>}
-          <ul>
-            {competency?.indicators.map((i) => <li key={i.key}>{meets ? i.levels[meets.key] : i.text}</li>)}
-          </ul>
+          <strong>Oczekiwanie</strong>
+          {agreed.length > 0
+            ? agreed.map((a) => <p key={a}>{a}</p>)
+            : <ul>{competency?.indicators.map((i) => <li key={i.key}>{meets ? i.levels[meets.key] : i.text}</li>)}</ul>}
         </div>
-
         <div className="rh-examples">
-          <b className="small">Przykłady do omówienia (Twoje notatki)</b>
-          {examples.length === 0 ? <p className="muted small">Brak notatek przy tym kryterium.</p> : (
+          <strong className="rh-examples-title">Notatki</strong>
+          {examples.length === 0 ? <p className="rh-muted">Brak notatek</p> : (
             <ul>
               {examples.map((n) => (
-                <li key={n.id}><time className="muted small">{fmtDate(n.observedOn)}</time> · {[n.situation, n.action, n.result].filter(Boolean).join(' · ')}</li>
+                <li key={n.id} className={active === n.id ? 'active' : undefined}
+                  onMouseEnter={() => setActive(n.id)} onMouseLeave={() => setActive(null)}>
+                  <time>{fmtDate(n.observedOn)}</time>
+                  <span>{[n.situation, n.action, n.result].filter(Boolean).join(' ')}</span>
+                </li>
               ))}
             </ul>
           )}
         </div>
+      </div>
 
-        {self?.submitted && (
-          <div className="rh-self">
-            <b className="small">Komentarz z samooceny ({firstName})</b>
-            {own?.comment ? <blockquote>„{own.comment}”</blockquote> : <p className="muted small">Bez komentarza do tego kryterium.</p>}
-          </div>
-        )}
-        {selfError && <p className="muted small">Samoocena niedostępna: {selfError}</p>}
-      </section>
-
-      {editable && scores && (
-        <section className="rh-decision" aria-labelledby="rh-talk-dec">
-          <h3 id="rh-talk-dec">Po rozmowie: potwierdź albo zmień ocenę roboczą</h3>
-          <ScoreScale scale={scale} value={score} suggested={suggestions} disabled={false} label={`Ocena za kryterium: ${label}`} onPick={changeScore} />
-          {error && <p role="alert" className="error small">{error}</p>}
-          {differs && (
-            <div className="rh-differs">
-              <span className="pill neutral">Twoja ocena: {score} · sugestia: {suggestions.join(' lub ')}</span>
-              <ReasonField key={`${criterionKey}-${work.context ? 'loaded' : 'loading'}`} initial={work.reason(criterionKey)}
-                disabled={!!work.error} onSave={(v) => work.saveReason(criterionKey, v)} />
-            </div>
-          )}
-        </section>
+      {start && examples.length > 0 && (
+        <PeriodAxis start={start} end={today} notes={examples} active={active} onActive={setActive} endLabel="dziś" />
       )}
-    </>
+
+      {self?.submitted && own?.comment && (
+        <blockquote className="rh-self"><strong>{firstName}:</strong> „{own.comment}”</blockquote>
+      )}
+      {selfError && <p className="rh-muted">Samoocena niedostępna: {selfError}</p>}
+    </section>
   )
 }

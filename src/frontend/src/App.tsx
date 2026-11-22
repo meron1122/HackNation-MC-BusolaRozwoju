@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AccountPage } from './Account'
 import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
 import { AssistantWidget } from './assistant/AssistantWidget'
@@ -303,6 +303,7 @@ export default function App() {
   const [loginPhase, setLoginPhase] = useState<LoginPhase>('idle')
   const [wordmark, setWordmark] = useState<DOMRect | null>(null)
   const serviceMain = useRef<HTMLElement>(null)
+  const openingToken = useRef<string | null>(null)
   const [avatarVersion, setAvatarVersion] = useState(0)
   // Stan nawigacji trzymany w historii przeglądarki, żeby „Wstecz”/„Dalej” działały w obrębie aplikacji.
   const [view, setView] = useState<View>(() => (history.state?.pageKey ? history.state : START_VIEW))
@@ -352,10 +353,18 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [loginPhase])
 
-  function login(newToken: string) {
+  const login = useCallback((newToken: string) => {
     setToken(newToken)
     setTokenState(newToken)
-  }
+  }, [])
+
+  const finishEntry = useCallback(() => {
+    const newToken = openingToken.current
+    if (!newToken) return
+    openingToken.current = null
+    setLoginPhase('revealing')
+    login(newToken)
+  }, [login])
 
   function openMyProfile(tab: ProfileTab) {
     go({ myProfileTab: tab, pageKey: MY_PROFILE_PAGE })
@@ -368,7 +377,7 @@ export default function App() {
     setView(START_VIEW)
   }
 
-  const handoff = <LoginHandoff phase={loginPhase} wordmark={wordmark} />
+  const handoff = <LoginHandoff phase={loginPhase} wordmark={wordmark} onMorphComplete={finishEntry} />
 
   if (!session) {
     return (
@@ -380,8 +389,9 @@ export default function App() {
             setLoginPhase(checking ? 'checking' : 'idle')
           }}
           onLogin={(newToken) => {
-            setLoginPhase('revealing')
-            login(newToken)
+            openingToken.current = newToken
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) finishEntry()
+            else setLoginPhase('morphing')
           }}
         />
       </>

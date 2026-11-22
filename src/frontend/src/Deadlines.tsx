@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { EmptyState } from './EmptyState'
 import { api } from './api'
-import { daysLabel, fmtDate, plural } from './evaluation/types'
+import { daysLabel, fmtDate } from './evaluation/types'
+import { Avatar } from './Avatar'
+import './dash-v2.css'
+import { Info } from './v2/Info'
 import { deadlineReason } from './hifi-helpers'
 import './hifi-pages.css'
-import { Icon } from './Icon'
 import { Person } from './Person'
 
 type Deadline = {
@@ -27,55 +29,62 @@ export function DeadlinesPage({ onOpen }: { onOpen: (evaluationId: number) => vo
   const overdue = rows?.filter((r) => r.overdue).length ?? 0
 
   return (
-    <section className="hifi-page hifi-deadlines">
+    <section className="hifi-page dash hifi-deadlines">
       <div className="hifi-head">
-        <div>
-          <h1>Nadchodzące terminy</h1>
-          <p className="hifi-sub">
-            {rows ? <>{rows.length} {plural(rows.length, 'termin', 'terminy', 'terminów')} w ciągu {days} dni{overdue > 0 && <>, w tym <strong>{overdue} po terminie</strong></>}.</> : 'Etapy ocen, które prowadzisz.'}
-          </p>
+        <div className="dash-hr-head">
+          <h1>Terminy</h1>
+          {rows && <span className="dash-count">{rows.length}</span>}
+          {overdue > 0 && <span className="late">{overdue} po terminie</span>}
         </div>
         <div className="hifi-filter" role="group" aria-label="Zakres">
-          <span className="hifi-filter-label">W ciągu</span>
           {RANGES.map((d) => (
-            <button key={d} type="button" className={d === days ? 'hifi-chip active' : 'hifi-chip'} aria-pressed={d === days} onClick={() => setDays(d)}>{d} dni</button>
+            <button key={d} type="button" className="dash-chip" aria-pressed={d === days} onClick={() => setDays(d)}>{d} dni</button>
           ))}
         </div>
       </div>
       {error && <p role="alert" className="error">{error}</p>}
-      {rows === null ? <p>Ładowanie…</p> : rows.length === 0 ? <EmptyState title="W tym okresie nie ma terminów">Wybierz dłuższy zakres powyżej, żeby zobaczyć kolejne terminy etapów.</EmptyState> : (
-        <div className="card hifi-table-card">
-          <table className="hifi-table">
-            <thead><tr><th>Termin</th><th>Pracownik</th><th>Etap</th><th>Arkusz</th><th><span className="sr-only">Akcja</span></th></tr></thead>
-            <tbody>
-              {rows.map((r) => {
-                const reason = deadlineReason(r.stageKey, r.dueTo, /pierwsz/i.test(r.templateTitle))
-                return (
-                  <tr key={`${r.evaluationId}-${r.stageTitle}`}>
-                    <td>
-                      <div className="hifi-due">
-                        <Icon name="clock" /> {r.dueFrom ? `${fmtDate(r.dueFrom)}–${fmtDate(r.dueTo)}` : fmtDate(r.dueTo)} · {daysLabel(r.daysLeft, r.overdue)}
-                      </div>
-                      {reason && <div className="muted small">{reason}</div>}
-                    </td>
-                    <td><Person id={r.employeeId} name={r.employeeName} /></td>
-                    <td>{r.stageTitle}</td>
-                    <td>{r.templateTitle}</td>
-                    <td className="hifi-action">
-                      <button className="link" onClick={() => onOpen(r.evaluationId)}>
-                        {r.stageKey === 'criteria' ? 'Wybierz kryteria' : 'Otwórz ocenę'}
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+      {rows === null ? <p>Ładowanie…</p> : rows.length === 0 ? <EmptyState title="W tym okresie nie ma terminów">Wybierz dłuższy zakres.</EmptyState> : (
+        <section className="card dash-dl-list" aria-label="Terminy etapów">
+          <ul>
+            {rows.map((r) => {
+              const reason = deadlineReason(r.stageKey, r.dueTo, /pierwsz/i.test(r.templateTitle))
+              const first = /pierwsz/i.test(r.templateTitle)
+              const sheet = r.templateTitle.match(/Arkusz ([A-C])\b/)?.[1]
+              return (
+                <li key={`${r.evaluationId}-${r.stageTitle}`}>
+                  <div className="dash-dl-row">
+                    <span className="dash-term">
+                      <strong className={r.overdue ? 'late' : undefined}>{daysLabel(r.daysLeft, r.overdue)}</strong>
+                      <span>{r.dueFrom ? `${fmtDate(r.dueFrom)}–${fmtDate(r.dueTo)}` : fmtDate(r.dueTo)}{reason && <Info label="Skąd ten termin" align="start">{reason}</Info>}</span>
+                    </span>
+                    <span className="dash-who">
+                      <Avatar path={`org/${r.employeeId}/avatar`} name={display(r.employeeName)} size={40} decorative />
+                      <span className="dash-who-name">
+                        <strong>{display(r.employeeName)}</strong>
+                        {first ? <span className="dash-first" title="Pierwsza ocena"><span aria-hidden="true">◆</span><span className="sr-only">pierwsza ocena</span></span>
+                          : sheet && <span className="dash-sheet" title={`Arkusz ${sheet}`}>{sheet}</span>}
+                      </span>
+                    </span>
+                    <span>{r.stageTitle}</span>
+                    <button type="button" className="link" onClick={() => onOpen(r.evaluationId)}>
+                      {r.stageKey === 'criteria' ? 'Wybierz kryteria' : 'Otwórz'} <span aria-hidden="true">→</span>
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
       )}
       <WithoutEvaluationList />
     </section>
   )
+}
+
+/** API podaje „Nazwisko Imię”; na ekranie „Imię Nazwisko”. */
+const display = (name: string) => {
+  const [last, ...rest] = name.split(' ')
+  return rest.length ? `${rest.join(' ')} ${last}` : name
 }
 
 // Pracownicy, których terminów nikt nie pilnuje (np. dodani przed automatycznym zakładaniem cykli).
@@ -88,17 +97,16 @@ function WithoutEvaluationList() {
 
   if (!rows || rows.length === 0) return null
   return (
-    <div className="card hifi-card hifi-without">
-      <h3>Bez otwartej oceny ({rows.length})</h3>
-      <p className="muted">Ci pracownicy nie mają trwającego cyklu, więc ich terminów nic nie pilnuje. Załóż ocenę w zakładce „Oceny”.</p>
+    <section className="card dash-dl-without" aria-labelledby="dl-without">
+      <h2 id="dl-without">Bez otwartej oceny <span className="dash-count">{rows.length}</span></h2>
       <ul>
         {rows.map((r) => (
           <li key={r.employeeId}>
-            <Person id={r.employeeId} name={r.employeeName}
-              detail={`zatrudnienie ${fmtDate(r.hireDate)}${r.subjectToFirstEvaluation ? ' · podlega pierwszej ocenie' : ''}`} />
+            <Person id={r.employeeId} name={display(r.employeeName)}
+              detail={`od ${fmtDate(r.hireDate)}${r.subjectToFirstEvaluation ? ' · pierwsza ocena' : ''}`} />
           </li>
         ))}
       </ul>
-    </div>
+    </section>
   )
 }
