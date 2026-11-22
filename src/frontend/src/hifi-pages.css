@@ -1,0 +1,125 @@
+/* Busola · hi-fi stron poza kreatorem: Pulpit (W01), Panel HR (W14), Asystent (W13), Moja ocena, Terminy, Logowanie.
+   Wszystkie selektory pod .hifi-* — nie zmieniają innych ekranów. Ruch wyłącza globalnie prefers-reduced-motion (busola-hifi.css). */
+
+.hifi-page { display: grid; gap: 24px; }
+.hifi-page h1 { margin: 0; font-size: 30px; }
+.hifi-page h2 { margin: 0; font-size: 20px; }
+.hifi-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px 24px; flex-wrap: wrap; }
+.hifi-head > div:first-child { display: grid; gap: 4px; min-width: 0; }
+.hifi-sub { margin: 0; color: var(--muted); font-size: 16px; }
+.hifi-page h1.hifi-hello { font-size: 34px; letter-spacing: -0.02em; }
+.hifi-spark { color: var(--link); }
+.hifi-ask { display: inline-flex; align-items: center; gap: 8px; background: var(--surface); }
+
+.hifi-page .card { margin: 0; grid-template-columns: none; }
+.hifi-card { display: grid; gap: 12px; align-content: start; animation: hifi-rise .35s var(--ease, ease) both; animation-delay: calc(var(--i, 0) * 60ms); }
+.hifi-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; }
+.hifi-card-head p { margin: 2px 0 0; }
+.hifi-group-title { margin: 4px 0 0; font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.hifi-empty { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 16px 18px; border-radius: 14px; background: var(--bg); }
+@keyframes hifi-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ---------- Pulpit ---------- */
+.hifi-dash-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.hifi-group { display: grid; gap: 10px; }
+.hifi-tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.hifi-task {
+  display: flex; align-items: center; gap: 12px 18px; flex-wrap: wrap; padding: 18px;
+  border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
+  transition: transform .2s var(--ease, ease), box-shadow .2s var(--ease, ease), border-color .2s;
+  animation: hifi-rise .35s var(--ease, ease) both; animation-delay: calc(var(--i, 0) * 60ms + 80ms);
+}
+.hifi-task:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(31, 42, 90, .08); border-color: var(--field-border, #7d869d); }
+.hifi-task-main { flex: 1 1 280px; display: grid; gap: 6px; min-width: 0; justify-items: start; }
+.hifi-task-who { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; }
+.hifi-task-who strong { font-size: 17px; }
+.hifi-why { margin: 0; color: var(--muted); font-size: 15px; }
+.hifi-when { font-size: 17px; white-space: nowrap; }
+.hifi-team { list-style: none; margin: 0; padding: 0; }
+.hifi-team li { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--border); }
+.hifi-team-who { display: grid; justify-items: start; gap: 0; min-width: 0; }
+.hifi-team .person-link { padding: 0; font-size: 16px; font-weight: 550; }
+.hifi-path { white-space: nowrap; }
+.hifi-team-status { margin-left: auto; text-align: right; }
+.hifi-legend { margin-top: 4px; }
+
+/* ---------- Pigułki-filtry (Panel HR, Terminy, tryby asystenta) ---------- */
+.hifi-filters { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
+.hifi-filter, .hifi-modes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.hifi-filter-label { font-size: 14px; font-weight: 650; color: var(--muted); margin-right: 2px; }
+.hifi-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px;
+  border: 1.5px solid var(--border); background: var(--surface); color: var(--text); font-size: 14.5px; font-weight: 600;
+}
+.hifi-chip:hover:not(:disabled) { border-color: var(--field-border, #7d869d); box-shadow: none; }
+.hifi-chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.hifi-chip.active:hover:not(:disabled) { box-shadow: 0 4px 12px rgba(31, 42, 90, .18); }
+
+/* ---------- Panel HR ---------- */
+.hifi-counters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.hifi-counter { display: grid; gap: 6px; padding: 20px; animation: hifi-rise .35s var(--ease, ease) both; animation-delay: calc(var(--i, 0) * 60ms); }
+.hifi-counter strong { font-size: 32px; line-height: 1.1; font-weight: 720; }
+.hifi-counter > span { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--muted); }
+.hifi-counter .icon { color: var(--link); }
+.hifi-counter select { padding: 2px 6px; font-size: 14px; }
+.hifi-table-card { padding: 0; overflow-x: auto; animation: hifi-rise .35s var(--ease, ease) both; animation-delay: 120ms; }
+.hifi-table { width: 100%; border-collapse: collapse; }
+.hifi-table th { padding: 14px 14px; font-size: 13.5px; font-weight: 650; color: var(--muted); background: var(--bg); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.hifi-table td { padding: 14px 14px; vertical-align: top; border-bottom: 1px solid var(--border); font-size: 15.5px; }
+.hifi-table tbody tr:last-child td { border-bottom: 0; }
+.hifi-table tbody tr { transition: background .15s; }
+.hifi-table tbody tr:hover { background: color-mix(in srgb, var(--blue-soft) 30%, transparent); }
+.hifi-person { padding: 0; font-weight: 650; text-align: left; }
+.hifi-due { display: inline-flex; align-items: center; gap: 6px; font-weight: 650; white-space: nowrap; }
+.hifi-action, .hifi-nowrap { white-space: nowrap; }
+.hifi-action .link { padding: 0; font-weight: 650; }
+.hifi-toast {
+  position: fixed; left: 50%; bottom: 24px; z-index: 40; display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 18px; border-radius: 12px; background: var(--accent); color: var(--accent-text); box-shadow: var(--shadow);
+  transform: translate(-50%, 16px); opacity: 0; pointer-events: none; transition: opacity .25s var(--ease, ease), transform .25s var(--ease, ease);
+}
+.hifi-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ---------- Asystent ---------- */
+.hifi-assistant { max-width: 880px; width: 100%; margin-inline: auto; gap: 18px; }
+.hifi-kb p { margin: 0; }
+.hifi-suggest { display: grid; gap: 10px; }
+.hifi-assistant .assistant-chip { font-size: 14.5px; padding: 8px 14px; }
+.hifi-feed { display: grid; gap: 12px; }
+.hifi-feed .bubble-a { background: var(--surface); }
+.hifi-ask-bar { position: sticky; bottom: 0; display: grid; gap: 6px; padding: 12px 0 16px; background: var(--bg); }
+.hifi-ask-bar .assistant-ask { background: var(--surface); }
+.hifi-ask-bar p { margin: 0; }
+
+/* ---------- Moja ocena ---------- */
+.hifi-my { max-width: 960px; }
+.hifi-my-card { gap: 16px; }
+.hifi-my-tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.hifi-my-tasks li { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border); }
+.hifi-my-tasks li.action { border: 1.5px solid var(--accent); background: color-mix(in srgb, var(--blue-soft) 45%, var(--surface)); }
+.hifi-my-tasks li.waiting .hifi-my-text { color: var(--muted); }
+.hifi-my-kind { display: inline-flex; align-items: center; gap: 6px; flex: none; min-width: 118px; font-size: 13.5px; font-weight: 700; color: var(--muted); }
+.hifi-my-tasks li.action .hifi-my-kind { color: var(--text); }
+.hifi-my-text { flex: 1 1 260px; min-width: 0; }
+.hifi-my-tasks li.action .hifi-my-text { font-weight: 600; }
+.hifi-my-idle { margin: 0; padding: 14px 16px; border-radius: 14px; background: var(--bg); color: var(--muted); }
+.hifi-actions { display: flex; gap: 8px; }
+
+/* ---------- Terminy ---------- */
+.hifi-without ul { margin: 0; padding-left: 20px; }
+.hifi-without h3 { margin: 0; }
+
+/* ---------- Logowanie ---------- */
+.hifi-login { max-width: 420px; margin: 10vh auto; gap: 20px; }
+.hifi-login-intro { text-align: center; display: grid; gap: 4px; }
+.hifi-login-title { margin: 0; font-size: 24px; font-weight: 720; letter-spacing: -0.01em; }
+.hifi-login-card { display: grid; gap: 16px; padding: 28px; grid-template-columns: none; animation: hifi-rise .35s var(--ease, ease) both; }
+.hifi-login-card label { font-size: 15px; }
+.hifi-login-card input { padding: 10px 12px; }
+.hifi-login-card button[type="submit"] { width: 100%; }
+
+/* ---------- szerokości desktopu ---------- */
+@media (max-width: 1100px) {
+  .hifi-dash-grid { grid-template-columns: 1fr; }
+  .hifi-counters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

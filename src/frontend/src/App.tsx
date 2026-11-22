@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { AccountPage } from './Account'
 import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
+import { AssistantPage } from './AssistantPage'
 import { Avatar } from './Avatar'
 import { CrudPage, ServiceName, type Column, type Field, type Row } from './Crud'
 import { TeamDashboard, TeamPage } from './Dashboard'
@@ -16,6 +17,7 @@ import { Logo } from './Logo'
 import { ProfilePage, type ProfileTab } from './Profile'
 import { UserMenu } from './UserMenu'
 import { UsersPage } from './Users'
+import { SHOW_PAGE_EVENT } from './hifi-helpers'
 
 // shortcut: lista pracowników to pierwsze 200 rekordów (API stronicuje); przy większej bazie dodać stronicowanie
 const EMPLOYEES_QUERY = 'pageSize=200'
@@ -171,6 +173,13 @@ const PAGES: Page[] = [
     render: (_, nav) => <MyEvaluationPage onOpen={nav.showEvaluation} />,
   },
   {
+    // Po stronach startowych ról (pierwsza widoczna strona = start), żeby nie zastąpić ich asystentem. W13: asystent zasad w pełnym widoku (przełożony, HR, oceniany). Odpowiada z bazy wiedzy, bez danych pracowników.
+    key: 'assistant',
+    label: 'Asystent',
+    visible: (s) => isSupervisor(s) || can(s, 'remind_evaluations') || s.roles.includes('Employee'),
+    render: () => <AssistantPage />,
+  },
+  {
     // Terminy etapów to zadania prowadzących ocenę (przełożony, HR), nie ocenianego.
     key: 'deadlines',
     label: 'Terminy',
@@ -273,6 +282,12 @@ export default function App() {
       setPageKey(PROFILE_PAGE)
     },
   }
+
+  useEffect(() => {
+    const show = (e: Event) => { setPageKey(String((e as CustomEvent).detail)); setOpenEvaluation(null); setEvaluationReturn(null) }
+    window.addEventListener(SHOW_PAGE_EVENT, show)
+    return () => window.removeEventListener(SHOW_PAGE_EVENT, show)
+  }, [])
 
   useEffect(() => {
     const logout = () => setTokenState(null)

@@ -1,0 +1,117 @@
+/* Kroki startu cyklu (H02–H05): ścieżka, kryteria, rozmowa rozpoczynająca, część I. Selektory tylko w .start-hifi. */
+
+.start-hifi .start-lead { margin: -8px 0 0; color: var(--muted); }
+
+/* --- ścieżka oceny: dwie karty --- */
+.start-hifi .start-paths { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.start-hifi .start-path {
+  display: flex; gap: 14px; align-items: flex-start; padding: 20px 22px; border-radius: 16px;
+  background: var(--surface); border: 1.5px solid var(--border); transition: border-color .15s, box-shadow .2s, background .2s;
+}
+.start-hifi .start-path.selected { border: 2px solid var(--accent); background: color-mix(in srgb, var(--blue-soft) 55%, var(--surface)); }
+.start-hifi .start-path.clickable { cursor: pointer; }
+.start-hifi .start-path.clickable:hover { border-color: var(--field-border); box-shadow: 0 4px 14px rgba(31, 42, 90, .07); }
+.start-hifi .start-path.disabled { opacity: .75; }
+.start-hifi .start-path:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.start-hifi .start-radio {
+  flex: none; width: 22px; height: 22px; margin-top: 2px; border-radius: 50%; border: 2px solid var(--field-border); background: var(--surface);
+}
+.start-hifi .start-path.selected .start-radio { border-color: var(--accent); box-shadow: inset 0 0 0 4px var(--surface); background: var(--accent); }
+.start-hifi .start-path-body { display: grid; gap: 8px; min-width: 0; }
+.start-hifi .start-path-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.start-hifi .start-path-head strong { font-size: 18px; }
+.start-hifi .start-path p { margin: 0; font-size: 15px; }
+.start-hifi .start-path .chips { gap: 8px; }
+.start-hifi .start-path .chip-button { font-size: 14px; padding: 6px 12px; }
+
+/* --- wynik reguły: arkusz --- */
+.start-hifi .start-result { background: var(--blue-soft); border-radius: 16px; padding: 20px 24px; display: grid; gap: 10px; }
+.start-hifi .start-result p { margin: 0; }
+.start-hifi .start-result-head { display: flex; gap: 14px; align-items: center; }
+.start-hifi .start-result-head > div { display: grid; }
+.start-hifi .start-result-head strong { font-size: 20px; }
+.start-hifi .start-result-letter {
+  width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
+  background: var(--accent); color: var(--accent-text); font-size: 22px; font-weight: 750;
+}
+.start-hifi .start-quote { margin: 0; padding: 4px 0 4px 14px; border-left: 3px solid var(--link); font-style: italic; }
+.start-hifi .start-source a { color: var(--link); font-weight: 600; }
+
+/* --- kroki i terminy --- */
+.start-hifi .start-stages { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 0; }
+.start-hifi .start-stages li { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--border); }
+.start-hifi .start-stages li:first-child { border-top: 0; }
+.start-hifi .start-stage-dot {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700;
+  border: 1.5px solid var(--field-border); color: var(--muted); background: var(--surface);
+}
+.start-hifi .start-stages li.current .start-stage-dot { border: 2px solid var(--accent); color: var(--text); }
+.start-hifi .start-stages li.done .start-stage-dot { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.start-hifi .start-stage-text { flex: 1; display: grid; min-width: 0; }
+.start-hifi .start-stages li.done .start-stage-text strong { color: var(--muted); font-weight: 600; }
+
+/* --- kryteria --- */
+.start-hifi .start-criteria { display: grid; gap: 24px; }
+.start-hifi .start-criteria-group { display: grid; gap: 10px; }
+.start-hifi .start-criteria-group h3 { margin: 0; }
+.start-hifi .start-criteria-group p { margin: 0; }
+.start-hifi .start-criteria-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.start-hifi .start-lock-pills { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.start-hifi .start-lock-pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 999px;
+  background: var(--bg); border: 1px solid var(--border); font-size: 15px; font-weight: 550;
+}
+.start-hifi .start-lock-pill .icon { color: var(--muted); }
+.start-hifi .start-crit-grid {
+  border: 0; margin: 0; padding: 0; min-width: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px;
+}
+.start-hifi .start-crit {
+  display: grid; gap: 6px; align-content: start; padding: 14px 16px; border-radius: 14px;
+  border: 1.5px solid var(--border); background: var(--surface); transition: border-color .15s, background .2s, box-shadow .2s;
+}
+.start-hifi .start-crit:hover:not(.blocked) { border-color: var(--field-border); }
+.start-hifi .start-crit.selected { border: 2px solid var(--accent); background: color-mix(in srgb, var(--blue-soft) 55%, var(--surface)); }
+.start-hifi .start-crit.blocked { opacity: .6; }
+.start-hifi .start-crit label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; font-weight: 400; margin: 0; }
+.start-hifi .start-crit.blocked label { cursor: not-allowed; }
+.start-hifi .start-crit label > span { display: grid; gap: 2px; }
+.start-hifi .start-crit input[type="checkbox"] { width: 18px; height: 18px; margin-top: 3px; accent-color: var(--accent); flex: none; }
+.start-hifi .start-crit details summary { cursor: pointer; color: var(--link); font-weight: 550; }
+.start-hifi .start-crit details ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px; color: var(--muted); display: grid; gap: 4px; }
+
+/* --- rozmowa rozpoczynająca --- */
+.start-hifi .start-tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); justify-self: start; width: auto; }
+.start-hifi .start-tabs button { background: transparent; color: var(--muted); border: 0; padding: 8px 16px; font-weight: 600; box-shadow: none; }
+.start-hifi .start-tabs button.active { background: var(--blue-soft); color: var(--text); }
+.start-hifi .start-indicator { display: grid; gap: 12px; }
+.start-hifi .start-indicator > p, .start-hifi .start-indicator > h3 { margin: 0; }
+.start-hifi .start-levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.start-hifi .start-level { display: grid; gap: 4px; align-content: start; padding: 16px; border-radius: 14px; border: 1.5px solid var(--border); background: var(--surface); }
+.start-hifi .start-level p { margin: 6px 0 0; font-size: 15px; line-height: 1.45; }
+.start-hifi .start-level-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.start-hifi .start-level-badge {
+  flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-weight: 750; font-size: 15px;
+  border: 1.5px solid var(--field-border); color: var(--text); background: var(--surface);
+}
+.start-hifi .start-level.expect { border: 2px solid var(--accent); background: color-mix(in srgb, var(--blue-soft) 60%, var(--surface)); }
+.start-hifi .start-level.expect .start-level-badge { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.start-hifi .start-level.avoid { background: color-mix(in srgb, var(--lavender-soft) 45%, var(--surface)); }
+.start-hifi .start-example { display: grid; gap: 6px; font-weight: 600; }
+.start-hifi .chip-button .icon { vertical-align: -2px; }
+
+/* --- część I --- */
+.start-hifi .start-deadline {
+  display: flex; gap: 14px; align-items: center; padding: 16px 20px; border-radius: 14px; background: var(--blue-soft);
+}
+.start-hifi .start-deadline > .icon { width: 22px; height: 22px; color: var(--link); flex: none; }
+.start-hifi .start-deadline .grow { display: grid; }
+.start-hifi .start-deadline strong { font-size: 20px; }
+.start-hifi .start-summary dd .icon { color: var(--muted); vertical-align: -2px; }
+.start-hifi .step-footer { padding: 16px 20px; border-radius: 14px; gap: 12px 16px; }
+.start-hifi .step-footer > .grow { flex: 1 1 100%; }
+.start-hifi .step-footer > .grow .callout { margin: 0; }
+.start-hifi .callout .icon { vertical-align: -2px; }
+.start-hifi .start-crit input[type="checkbox"]:disabled { opacity: 1; }
+.start-hifi .start-crit-grid:disabled .start-crit label { cursor: default; }
+.start-hifi, .start-hifi > * { min-width: 0; }

@@ -1,16 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { api } from './api'
 import { EmptyState } from './EmptyState'
+import { goToAssistant, progressReason } from './hifi-helpers'
+import './hifi-pages.css'
+import { Icon } from './Icon'
 import { DuePill, Pill, StatusPill, type EvaluationStatus } from './evaluation/common'
 import {
-  initials, fmtDate, isFirstTemplate, pathLabel, plural, type Progress,
+  fmtDate, isFirstTemplate, kindLabel, pathLabel, plural, type Progress,
 } from './evaluation/types'
 
 type TeamMember = { employeeId: number; firstName: string; lastName: string; needsAttention: boolean; evaluation: Progress | null }
 type Team = { departmentName: string | null; count: number; members: TeamMember[] }
 
 const NOT_STARTED = 'Oczekuje na start'
-const ATTENTION_DAYS = 14
+const ATTENTION_DAYS = 30 // W06: przypomnienie 30 dni przed terminem oceny
 // Faza pierwszego etapu, gdy backend zwraca „Oczekuje na start” (Progress nie ma fazy etapu, tylko jego pełny tytuł).
 const FIRST_STAGE_PHASE: Record<string, string> = { criteria: 'Rozmowa rozpoczynająca', initial_interview: 'Rozmowa wstępna' }
 
@@ -52,7 +55,24 @@ function actionLabel(p: Progress): string {
   return 'Przygotuj'
 }
 
-/** W01: pulpit przełożonego — „Wymaga uwagi” (ten tydzień / wkrótce) i lista zespołu z fazą oceny. */
+/** Pigułka w „Moim zespole”: najbliższe działanie. Szary tekst: obserwacja albo zamknięta ocena (nic pilnego). */
+function TeamStatus({ m }: { m: TeamMember }) {
+  const p = m.evaluation
+  if (!p) return <span className="muted small">Brak oceny</span>
+  if (p.isFinal) return <span className="muted small">{p.phase === 'Anulowana' ? 'Anulowana' : `Zakończona · ${p.phase}`}</span>
+  const what = p.phase === NOT_STARTED ? FIRST_STAGE_PHASE[p.stageKey ?? ''] ?? p.stageTitle ?? p.phase : p.phase
+  const due = p.dueTo ? ` · do ${fmtDate(p.dueTo)}` : ''
+  if (!m.needsAttention && !p.overdue && p.phase === 'Obserwacja') {
+    return <span className="muted small">Obserwacja · ocena {p.dueTo ? fmtDate(p.dueTo).slice(3) : '—'}</span>
+  }
+  return (
+    <Pill tone={p.overdue ? 'attention' : 'info'} icon={p.overdue ? 'clock' : statusOf(p) === 'planned' ? 'planned' : 'progress'}>
+      {what}{due}{p.overdue ? ' · po terminie' : ''}
+    </Pill>
+  )
+}
+
+/** W01: pulpit przełożonego — „Najbliższe terminy” (z uzasadnieniem terminu) i „Mój zespół” (pigułka = działanie). */
 export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
   userName: string
   onOpenEvaluation: (id: number) => void
@@ -69,37 +89,55 @@ export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
     { title: 'Ten tydzień', rows: attention.filter((m) => thisWeek(m.evaluation!)) },
     { title: 'Wkrótce', rows: attention.filter((m) => !thisWeek(m.evaluation!)) },
   ].filter((g) => g.rows.length)
+  let index = 0
 
   return (
-    <section className="dashboard">
-      <div className="toolbar">
+    <section className="hifi-page hifi-dashboard">
+      <div className="hifi-head">
         <div>
           {/* Nazwa w tokenie bywa e-mailem konta — wtedy bez imienia. */}
-          <h2>Dzień dobry{userName.includes('@') ? '' : `, ${userName.split(' ')[0]}`}</h2>
-          <p className="muted small">{team.departmentName ?? 'Brak przypisanego wydziału'} · {team.count} {plural(team.count, 'osoba', 'osoby', 'osób')} w zespole</p>
+          <h1 className="hifi-hello">Dzień dobry{userName.includes('@') ? '' : `, ${userName.split(' ')[0]}`}</h1>
+          <p className="hifi-sub">{team.departmentName ?? 'Brak przypisanego wydziału'} · {team.count} {plural(team.count, 'osoba', 'osoby', 'osób')} w zespole</p>
         </div>
+        <button type="button" className="secondary hifi-ask" onClick={goToAssistant}><span aria-hidden="true" className="hifi-spark">✦</span> Zapytaj asystenta</button>
       </div>
-      <div className="dashboard-grid">
-        <div className="card attention">
-          <div className="card-head"><h3>Wymaga uwagi</h3><Pill tone={attention.length ? 'attention' : 'neutral'}>{attention.length} {plural(attention.length, 'zadanie', 'zadania', 'zadań')}</Pill></div>
-          {groups.length === 0 && <p className="muted">Nic pilnego w najbliższych {ATTENTION_DAYS} dniach.</p>}
+      <div className="hifi-dash-grid">
+        <section className="card hifi-card" aria-labelledby="dash-deadlines">
+          <div className="hifi-card-head">
+            <h2 id="dash-deadlines">Najbliższe terminy</h2>
+            <span className="muted small">
+              {attention.length === 0 ? `Nic pilnego w ${ATTENTION_DAYS} dni` : `${attention.length} ${plural(attention.length, 'sprawa wymaga', 'sprawy wymagają', 'spraw wymaga')} działania`}
+            </span>
+          </div>
+          {groups.length === 0 && (
+            <div className="hifi-empty">
+              <Icon name="done" /> <strong>Wszystko w terminie.</strong>
+              <span className="muted"> W najbliższych {ATTENTION_DAYS} dniach nie ma etapów do wykonania.</span>
+            </div>
+          )}
           {groups.map((g) => (
-            <div key={g.title}>
-              <p className="group-title">{g.title}</p>
-              <ul className="task-list">
+            <div key={g.title} className="hifi-group">
+              <p className="hifi-group-title">{g.title}</p>
+              <ul className="hifi-tasks">
                 {g.rows.map((m) => {
                   const p = m.evaluation!
                   const what = p.phase === NOT_STARTED ? FIRST_STAGE_PHASE[p.stageKey ?? ''] ?? p.stageTitle : p.phase
-                  const primary = actionLabel(p) === 'Rozpocznij ocenę'
+                  const reason = progressReason(p)
+                  const primary = index === 0
                   return (
-                    <li key={m.employeeId}>
-                      <span className="initials" aria-hidden="true">{initials(fullName(m))}</span>
-                      <div className="grow">
-                        <strong>{fullName(m)}</strong>
-                        <p className="muted small">{kindOf(p)} · {what?.toLowerCase()}{p.dueTo && ` do ${fmtDate(p.dueTo)}`}</p>
-                        {p.lastReminder && <p className="muted small">Przypomnienie od {p.lastReminder.sentByName} · {fmtDate(p.lastReminder.sentAt)}</p>}
+                    <li key={m.employeeId} className="hifi-task" style={{ '--i': index++ } as CSSProperties}>
+                      <div className="hifi-task-main">
+                        <div className="hifi-task-who">
+                          <strong>{fullName(m)}</strong>
+                          <span className={`pill ${isFirstTemplate(p.templateCode) ? 'attention' : 'info'}`}>{kindOf(p)}</span>
+                        </div>
+                        <p className="hifi-why">
+                          {what}{reason ? `: termin to ${reason}.` : '.'}
+                          {p.lastReminder && <> Przypomnienie od {p.lastReminder.sentByName} ({fmtDate(p.lastReminder.sentAt)}).</>}
+                        </p>
+                        <DuePill daysLeft={p.daysLeft} overdue={p.overdue} />
                       </div>
-                      <DuePill daysLeft={p.daysLeft} overdue={p.overdue} />
+                      <strong className="hifi-when">{p.dueTo ? `do ${fmtDate(p.dueTo)}` : 'niezwłocznie'}</strong>
                       <button type="button" className={primary ? '' : 'secondary'} onClick={() => onOpenEvaluation(p.evaluationId)}>{actionLabel(p)}</button>
                     </li>
                   )
@@ -107,22 +145,24 @@ export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
               </ul>
             </div>
           ))}
-        </div>
-        <div className="card">
-          <h3>Mój zespół</h3>
+        </section>
+        <section className="card hifi-card" aria-labelledby="dash-team">
+          <h2 id="dash-team">Mój zespół</h2>
           {team.members.length === 0 && <EmptyState title="W zespole nie ma jeszcze pracowników">Gdy kadry przypiszą Ci pracowników, pojawią się tutaj, a Busola policzy ich terminy ocen.</EmptyState>}
-          <ul className="team-list">
+          <ul className="hifi-team">
             {team.members.map((m) => (
               <li key={m.employeeId}>
-                <button type="button" className="link person-link"
-                  onClick={() => (m.evaluation ? onOpenEvaluation(m.evaluation.evaluationId) : onOpenProfile(m.employeeId))}>{fullName(m)}</button>
-                <span className="grow" />
-                {m.evaluation && <span className="muted small">{pathLabel(m.evaluation.templateCode)}</span>}
-                <PhasePill progress={m.evaluation} showOverdue />
+                <div className="hifi-team-who">
+                  <button type="button" className="link person-link"
+                    onClick={() => (m.evaluation ? onOpenEvaluation(m.evaluation.evaluationId) : onOpenProfile(m.employeeId))}>{fullName(m)}</button>
+                  {m.evaluation && <span className="muted small hifi-path">{kindLabel(m.evaluation.templateCode)}</span>}
+                </div>
+                <span className="hifi-team-status"><TeamStatus m={m} /></span>
               </li>
             ))}
           </ul>
-        </div>
+          {team.members.length > 0 && <p className="muted small hifi-legend">Pigułka = najbliższe działanie. Szary tekst = obserwacja, nic pilnego.</p>}
+        </section>
       </div>
     </section>
   )

@@ -1,28 +1,16 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { api } from '../api'
 import { SheetForm, SignatureField } from '../Evaluations'
-import { Auto, CompleteStage, DuePill, IssueList, NextButton, PdfButton, Pill, type StepProps } from './common'
-import { completeStage, withoutAutoFilled } from './data'
+import { Icon } from '../Icon'
+import { Auto, CompleteStage, DuePill, IssueList, NextButton, PdfButton, Pill, type Step, type StepProps } from './common'
+import { completeStage, saveAnswers, withoutAutoFilled } from './data'
 import {
-  RESULT_LABELS, answerOf, valueOf, criteriaFieldOf, criteriaOf, daysUntil, fmtDate, isFirstTemplate, plural, scoresFieldOf, sheetLetter, today,
-  type Detail, type Field, type Section,
+  RESULT_LABELS, answerOf, valueOf, criteriaFieldOf, criteriaOf, daysUntil, emptyAnswer, fmtDate, indicatorFieldOf, isFirstTemplate, plural,
+  scoresFieldOf, sheetLetter, today, type CheckIssue, type Cond, type Detail, type Field, type Section,
 } from './types'
+import './final-hifi.css'
 
 const roleOfEvaluator = (f: Field) => f.type === 'signature' && f.role !== 'evaluated'
-
-/** Średnia, poziom i wynik — liczone przez backend (kłódka, „auto”). */
-function ComputedChips({ detail }: { detail: Detail }) {
-  const s = detail.scoring
-  if (!s || s.average == null) return <p className="muted small">Średnia, poziom i wynik pojawią się po wystawieniu wszystkich ocen cząstkowych.</p>
-  return (
-    <p className="chips">
-      <Pill icon="lock">Średnia {s.average.toFixed(2)} · auto</Pill>
-      {s.levelLabel && <Pill icon="lock">Poziom: {s.levelLabel.toLowerCase()} · auto</Pill>}
-      {/* Wynik bez zieleni/czerwieni i bez ✓/✗: brandbook zabrania kolorów „dobrej” i „złej” oceny. */}
-      {s.result && <Pill icon="lock">Ocena {RESULT_LABELS[s.result]?.toLowerCase() ?? s.result} · auto</Pill>}
-    </p>
-  )
-}
 
 /** Etykieta opcji pola wyboru liczonego przez backend (np. „sprawozdanie w terminie” z etapu sprawozdania). */
 function autoChoice(detail: Detail, field: Field): string | null {
@@ -47,42 +35,211 @@ function AutoChoices({ detail, sections }: { detail: Detail; sections: string[] 
   )
 }
 
+const fmtAvg = (n: number) => n.toFixed(2).replace('.', ',')
+
+/** Wartość pola do warunków widoczności: wynik i poziom liczy backend (scoring), reszta z odpowiedzi. */
+function condValue(detail: Detail, fieldKey: string): string | null {
+  if (fieldKey === detail.schema.scoring?.result) return detail.scoring?.result ?? null
+  if (fieldKey === detail.schema.scoring?.level) return detail.scoring?.level ?? null
+  return answerOf(detail, fieldKey)?.valueText ?? null
+}
+const visibleIn = (detail: Detail, c?: Cond) => !c || c.in.includes(condValue(detail, c.field) ?? '')
+
+/** Dlaczego ocena jest negatywna: niespełnione warunki z szablonu (scoring.positiveWhen), słowami. */
+function negativeReasons(detail: Detail): string[] {
+  const s = detail.scoring
+  const schema = detail.schema
+  const scores = scoresFieldOf(schema)
+  if (s?.result !== 'negative' || !scores) return []
+  const values = criteriaOf(detail).map((c) => ({ label: c.label, v: answerOf(detail, scores.field.key, c.key)?.valueNumber ?? null }))
+  const reasons: string[] = []
+  for (const rule of schema.scoring?.positiveWhen ?? []) {
+    if (rule.rule === 'levelIn' && s.level && !(rule.values ?? []).includes(s.level)) {
+      reasons.push(`średnia ${s.average != null ? fmtAvg(s.average) : '–'} to poziom „${s.levelLabel?.toLowerCase() ?? s.level}”`)
+    } else if (rule.rule === 'maxCountOfScore' && rule.score != null) {
+      const hits = values.filter((x) => x.v === rule.score)
+      if (hits.length > (rule.count ?? 0)) {
+        reasons.push(`${hits.length} ${plural(hits.length, 'ocena', 'oceny', 'ocen')} ${rule.score} pkt (${hits.map((h) => h.label.toLowerCase()).join(', ')}), dopuszczalne: ${rule.count ?? 0}`)
+      }
+    } else if (rule.rule === 'minAverage' && rule.value != null && s.average != null && s.average < rule.value) {
+      reasons.push(`średnia ${fmtAvg(s.average)} poniżej ${rule.value}`)
+    } else if (rule.rule === 'fieldIn' && rule.field) {
+      const field = schema.sections.flatMap((x) => x.fields).find((f) => f.key === rule.field)
+      const value = valueOf(detail, rule.field)?.valueText
+      if (!value || !(rule.values ?? []).includes(value)) {
+        const label = value ? field?.options?.find((o: { value: string }) => o.value === value)?.label ?? value : 'brak'
+        reasons.push(`${field?.label ?? rule.field}: ${label.toLowerCase()}`)
+      }
+    }
+  }
+  return reasons
+}
+
+/**
+ * Szkic wniosków IPRZ z najniżej ocenionych wskaźników — reguła, nie model (wzór: piaskownica, Przyznanie.tsx → draftIprz).
+ * Bierze do dwóch wskaźników ocenionych najwyżej „na poziomie oczekiwań” i cytuje zachowanie docelowe z modelu kompetencji.
+ */
+function draftIprz(detail: Detail): { text: string; basis: string[] } | null {
+  const schema = detail.schema
+  const scores = scoresFieldOf(schema)
+  const indicatorField = scores && indicatorFieldOf(schema, scores.field.key)
+  const competencies = schema.competencyModel?.competencies
+  if (!scores || !indicatorField || !competencies) return null
+  const meets = scores.scale.find((o) => o.key === 'meets')?.value ?? 5
+  const weak = criteriaOf(detail)
+    .flatMap((c) => (competencies[c.key]?.indicators ?? []).map((i) => ({
+      criterion: competencies[c.key].name, indicator: i, v: answerOf(detail, indicatorField.key, i.key)?.valueNumber ?? null,
+    })))
+    .filter((x): x is typeof x & { v: number } => x.v != null && x.v <= meets)
+    .sort((a, b) => a.v - b.v)
+    .slice(0, 2)
+  if (weak.length === 0) return null
+  const lower = (t: string) => t.charAt(0).toLowerCase() + t.slice(1).replace(/\.$/, '')
+  const lines = weak.map((x, n) => {
+    const target = x.v < meets ? x.indicator.levels.meets : x.indicator.levels.above
+    return `${n + 1}. ${x.criterion}: ${lower(x.indicator.text)}.${target ? ` Cel: ${target}` : ''} Forma do ustalenia: szkolenie, mentoring albo nowe zadanie.`
+  })
+  return { text: lines.join('\n'), basis: weak.map((x) => `${x.criterion} · ${x.v} pkt`) }
+}
+
+/** Uzasadnienie i wnioski (pola longText sekcji przyznania oceny) z propozycją asystenta pod wnioskami IPRZ. */
+function ConclusionFields({ detail, section, fields, reload }: { detail: Detail; section: Section; fields: Field[]; reload: () => Promise<void> }) {
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(fields.map((f) => [f.key, answerOf(detail, f.key)?.valueText ?? ''])))
+  const [status, setStatus] = useState('')
+  const [dirty, setDirty] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [draft, setDraft] = useState<'shown' | 'rejected'>('shown')
+  const locked = detail.lockedSections.includes(section.key)
+  const editable = detail.canEdit && !locked
+  const negative = detail.scoring?.result === 'negative'
+  const iprzField = fields.find((f) => f.key.toLowerCase().includes('development'))
+  const proposal = iprzField ? draftIprz(detail) : null
+  const showProposal = editable && !!proposal && draft === 'shown' && !values[iprzField!.key]?.trim()
+
+  const set = (key: string, value: string) => { setValues((v) => ({ ...v, [key]: value })); setDirty(true); setStatus('') }
+
+  async function save() {
+    setBusy(true)
+    setStatus('Zapisywanie…')
+    try {
+      await saveAnswers(detail.id, fields.map((f) => ({ ...emptyAnswer(f.key, null), valueText: values[f.key] ?? '' })))
+      setDirty(false)
+      setStatus('Zapisano.')
+      await reload()
+    } catch (e) {
+      setStatus((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function hintOf(f: Field): string {
+    if (f.required) return 'wymagane przy każdej ocenie'
+    if (f.requiredWhen) return visibleIn(detail, f.requiredWhen) ? 'wymagane przy tej ocenie' : f.key.toLowerCase().includes('justification') ? 'zalecane · wymagane przy ocenie negatywnej' : 'opcjonalne'
+    return 'opcjonalne'
+  }
+
+  return (
+    <div className="final-conclusions">
+      {fields.map((f) => (
+        <div key={f.key} className="final-field">
+          <label htmlFor={`final-${f.key}`}>
+            {f.label}
+            <span className={`final-hint${(f.required || (f.requiredWhen && visibleIn(detail, f.requiredWhen))) ? ' required' : ''}`}>{hintOf(f)}</span>
+          </label>
+          <textarea id={`final-${f.key}`} rows={4} value={values[f.key] ?? ''} disabled={!editable}
+            onChange={(e) => set(f.key, e.target.value)}
+            placeholder={f === iprzField ? 'Obszar rozwoju i forma, np. szkolenie, mentoring, nowe zadanie' : negative ? 'Wskaż konkretne zachowania z okresu oceny, które zdecydowały o ocenie.' : 'Np. rzetelnie stosuje procedury; terminowość poprawiła się w drugim roku okresu.'} />
+          {f === iprzField && showProposal && proposal && (
+            <div className="ai-proposal final-proposal" aria-label="Propozycja asystenta">
+              <span className="ai-tag">✦ Propozycja asystenta · z najniżej ocenionych wskaźników</span>
+              <p className="pre-line">{proposal.text}</p>
+              <p className="ai-source"><b>Źródło</b>Twoje oceny wskaźników ({proposal.basis.join('; ')}) i opisy zachowań z modelu kompetencji.</p>
+              <div className="buttons">
+                <button type="button" onClick={() => set(f.key, proposal.text)}>Wstaw</button>
+                <button type="button" className="secondary" onClick={() => {
+                  set(f.key, proposal.text)
+                  requestAnimationFrame(() => document.getElementById(`final-${f.key}`)?.focus())
+                }}>Edytuj</button>
+                <button type="button" className="secondary" onClick={() => setDraft('rejected')}>Odrzuć</button>
+              </div>
+              <p className="muted small">Asystent podpowiada. Treść wniosków ustalasz Ty — po wstawieniu kliknij „Zapisz”.</p>
+            </div>
+          )}
+        </div>
+      ))}
+      {editable && (
+        <div className="buttons">
+          <button type="button" onClick={save} disabled={busy || !dirty}>{busy ? 'Zapisywanie…' : 'Zapisz uzasadnienie i wnioski'}</button>
+          {dirty && !busy && <span className="muted small">Masz niezapisane zmiany.</span>}
+          {status && <span className="muted small" role="status">{status}</span>}
+        </div>
+      )}
+      {locked && <p className="muted small"><Icon name="lock" /> Sekcja zamknięta — ocena została sporządzona.</p>}
+    </div>
+  )
+}
+
 /** W10: arkusz cz. II — oceny cząstkowe (odczyt), wyniki liczone, uzasadnienie, wnioski, poprzednia ocena, wniosek o stopień. */
 export function ResultStep({ detail, steps, go, reload, sections, title }: StepProps & { sections: string[]; title: string }) {
-  const scores = scoresFieldOf(detail.schema)
+  const schema = detail.schema
+  const scores = scoresFieldOf(schema)
   const criteria = criteriaOf(detail)
-  const mandatory: { key: string }[] = criteriaFieldOf(detail.schema)?.mandatory ?? scores?.field.items ?? []
+  const mandatory: { key: string }[] = criteriaFieldOf(schema)?.mandatory ?? scores?.field.items ?? []
   const scoresStep = steps.find((s) => scores && s.sections.includes(scores.section.key))
   const first = isFirstTemplate(detail.templateCode)
+  const s = detail.scoring
+  const resultSection = schema.sections.find((x) => sections.includes(x.key) && x.fields.some((f) => f.key === schema.scoring?.result))
+  const textFields = (resultSection?.fields ?? []).filter((f) => f.type === 'longText' && !f.computed && visibleIn(detail, f.visibleWhen))
+  const ownKeys = new Set((resultSection?.fields ?? []).filter((f) => f.type === 'longText' && !f.computed).map((f) => f.key))
+  const scored = scores ? criteria.filter((c) => answerOf(detail, scores.field.key, c.key)?.valueNumber != null).length : 0
+  const reasons = negativeReasons(detail)
+  const label = (v: number | null | undefined) => scores?.scale.find((o) => o.value === v)?.label.toLowerCase()
+
   return (
-    <div className="step">
-      <div className="step-head"><h2>{first ? title : 'Arkusz oceny · część II'}</h2></div>
+    <div className="step final-hifi">
+      <div className="step-head"><h2>{first ? title : 'Przyznanie oceny i uzasadnienie'}</h2></div>
       {scores && (
-        <div className="card">
-          <div className="card-head">
-            <h3>{scores.field.label}</h3>
-            {scoresStep && <button type="button" className="link" onClick={() => go(scoresStep.id)}>Zmień</button>}
-          </div>
-          <table className="score-table">
+        <section className="card final-table-card" aria-label={scores.field.label}>
+          <table className="final-table">
+            <thead><tr><th scope="col">{first ? 'Element oceny' : 'Kryterium'}</th><th scope="col">Ocena</th><th scope="col"><span className="sr-only">Akcja</span></th></tr></thead>
             <tbody>
               {criteria.map((c) => {
                 const value = answerOf(detail, scores.field.key, c.key)?.valueNumber
                 return (
                   <tr key={c.key}>
-                    <td>{c.label}{!mandatory.some((m) => m.key === c.key) && <span className="muted"> (dodatkowe)</span>}</td>
-                    <td className="num">{value != null ? `${value} pkt` : <span className="error">brak</span>}</td>
+                    <td>{c.label}{!first && !mandatory.some((m) => m.key === c.key) && <span className="muted small"> · dodatkowe</span>}</td>
+                    <td>{value != null ? <><strong>{value} pkt</strong> <span className="muted small">{label(value)}</span></> : <Pill tone="attention">✎ do oceny</Pill>}</td>
+                    <td className="final-action">
+                      {scoresStep && <button type="button" className="link" onClick={() => go(scoresStep.id)} aria-label={`${value != null ? 'Zmień' : 'Oceń'}: ${c.label}`}>{value != null ? 'Zmień' : 'Oceń'}</button>}
+                    </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
-        </div>
+        </section>
       )}
-      <ComputedChips detail={detail} />
+      <div className="final-pills" aria-live="polite">
+        <Pill icon="lock">{first ? 'Ocena łączna' : 'Średnia'} {s?.average != null ? fmtAvg(s.average) : '–'}</Pill>
+        {s?.levelLabel && <Pill>{s.levelLabel.toLowerCase()}</Pill>}
+        {s?.result === 'positive' && <span className="final-result positive">✓ Ocena pozytywna</span>}
+        {s?.result === 'negative' && <span className="final-result negative">! Ocena negatywna</span>}
+        {!s?.result && <Pill tone="info">Oceniono {scored} z {criteria.length}</Pill>}
+        <span className="grow" />
+        <span className="small muted">Liczy system{first ? '' : ' · § 11 ust. 1 rozporządzenia'}</span>
+      </div>
+      {reasons.length > 0 && <p className="final-reasons"><strong>Dlaczego negatywna:</strong> {reasons.join('; ')}.</p>}
+      {s?.average == null && <p className="muted small">Średnia, poziom i wynik pojawią się po wystawieniu wszystkich ocen cząstkowych.</p>}
       <AutoChoices detail={detail} sections={sections} />
+      {resultSection && textFields.length > 0 && (
+        <section className="card">
+          <ConclusionFields key={`${detail.id}:${textFields.map((f) => f.key).join(',')}`} detail={detail} section={resultSection} fields={textFields} reload={reload} />
+        </section>
+      )}
       <SheetForm key={JSON.stringify(detail.answers)} detail={detail} onSaved={reload} sectionKeys={sections} showStage={false}
-        fieldFilter={(f: Field) => !f.computed} />
-      <div className="step-actions"><span className="grow" /><NextButton steps={steps} current="result" go={go} /></div>
+        fieldFilter={(f: Field) => !f.computed && !ownKeys.has(f.key)} />
+      <div className="step-actions"><span className="grow" /><NextButton steps={steps} current="result" go={go} label="Sprawdź przed podpisem" /></div>
     </div>
   )
 }
@@ -92,11 +249,11 @@ function fieldSummary(detail: Detail, field: Field): ReactNode {
   const scoring = detail.scoring
   if (field.type === 'scores') {
     const values = criteriaOf(detail).map((c) => answerOf(detail, field.key, c.key)?.valueNumber)
-    if (values.every((v) => v == null)) return <span className="error">— brak ocen</span>
-    return <>{values.map((v) => v ?? '—').join(' · ')}{scoring?.average != null && <> → średnia {scoring.average.toFixed(2)}</>}</>
+    if (values.every((v) => v == null)) return <span className="final-missing">! brak ocen</span>
+    return <>{values.map((v) => v ?? '—').join(' · ')}{scoring?.average != null && <> · średnia {fmtAvg(scoring.average)}</>}</>
   }
   if (field.computed) {
-    if (field.type === 'average') return scoring?.average?.toFixed(2) ?? '—'
+    if (field.type === 'average') return scoring?.average != null ? fmtAvg(scoring.average) : '—'
     if (field.type === 'level') return scoring?.levelLabel ?? '—'
     if (field.key !== detail.schema.scoring?.result) return autoChoice(detail, field) ?? '—'
     return scoring?.result ? RESULT_LABELS[scoring.result] ?? scoring.result : '—'
@@ -110,6 +267,46 @@ function fieldSummary(detail: Detail, field: Field): ReactNode {
     case 'year': return a?.valueNumber ?? null
     default: return a?.valueText ?? null
   }
+}
+
+/** Krok kreatora, w którym da się naprawić brak: po sekcji, a dla braków etapu (np. „najpierw zamknij etap…”) po tytule etapu. */
+function fixStep(detail: Detail, steps: Step[], issue: CheckIssue): Step | undefined {
+  if (issue.sectionKey) return steps.find((s) => s.sections.includes(issue.sectionKey!))
+  const stage = detail.stages.find((s) => s.status === 'Pending' && issue.message.includes(s.title))
+  return stage ? steps.filter((s) => s.stageKey === stage.key).pop() : undefined
+}
+
+/** W11: blokady z `GET /check` jako lawendowy boks z „Napraw”; ostrzeżenia osobno, bez alarmu. */
+function Blockers({ detail, issues, steps, go }: { detail: Detail; issues: CheckIssue[]; steps: Step[]; go: (id: string) => void }) {
+  const blocking = issues.filter((i) => i.blocking)
+  const warnings = issues.filter((i) => !i.blocking)
+  const row = (i: CheckIssue, n: number) => {
+    const step = fixStep(detail, steps, i)
+    return (
+      <li key={n}>
+        <span className="grow">{i.message}{i.legalRef && <span className="muted small"> · {i.legalRef}</span>}</span>
+        {step && <button type="button" className="link" onClick={() => go(step.id)} aria-label={`Napraw: ${i.message}`}>Napraw</button>}
+      </li>
+    )
+  }
+  return (
+    <>
+      {blocking.length > 0 ? (
+        <div className="final-blockers" role="alert">
+          <strong>✎ {blocking.length === 1 ? 'Jedna sprawa' : `${blocking.length} ${plural(blocking.length, 'sprawa', 'sprawy', 'spraw')}`} przed podpisem</strong>
+          <ul>{blocking.map(row)}</ul>
+        </div>
+      ) : (
+        <div className="final-ready" role="status"><strong>✓ Wszystko gotowe do podpisu.</strong></div>
+      )}
+      {warnings.length > 0 && (
+        <div className="final-warnings">
+          <strong>Do sprawdzenia (nie blokuje podpisu)</strong>
+          <ul>{warnings.map(row)}</ul>
+        </div>
+      )}
+    </>
+  )
 }
 
 /** W11: lista braków z `GET /check`, podsumowanie z „Zmień”, podpis oceniającego i sporządzenie oceny. */
@@ -139,12 +336,11 @@ export function ReviewStep({ detail, check, steps, go, reload, sections }: StepP
   const criteriaStep = steps.find((s) => s.id === 'criteria')
 
   return (
-    <div className="step">
+    <div className="step final-hifi">
       <div className="step-head"><h2>Sprawdź przed podpisaniem</h2></div>
-      {!closed && <IssueList issues={issues.filter((i) => !isSignatureIssue(i.fieldKey))} steps={steps} go={go}
-        title={otherBlocking.length ? `Nie możesz jeszcze podpisać · ${otherBlocking.length} ${plural(otherBlocking.length, 'sprawa', 'sprawy', 'spraw')} do uzupełnienia` : undefined} />}
-      <div className="card">
-        <table className="review-table">
+      {!closed && <Blockers detail={detail} issues={issues.filter((i) => !isSignatureIssue(i.fieldKey))} steps={steps} go={go} />}
+      <div className="card final-table-card">
+        <table className="final-table final-review">
           <tbody>
             <tr>
               <th scope="row">Dane i kryteria</th>
@@ -158,7 +354,7 @@ export function ReviewStep({ detail, check, steps, go, reload, sections }: StepP
               return (
                 <tr key={field.key}>
                   <th scope="row">{field.label ?? section.title}</th>
-                  <td>{value ?? <span className={required ? 'error' : 'muted'}>— brak{required ? '' : ' (opcjonalne)'}</span>}</td>
+                  <td>{value ?? (required ? <span className="final-missing">! brak</span> : <span className="muted">— brak (opcjonalne)</span>)}</td>
                   <td className="actions">
                     {field.computed || field.prefill?.startsWith('previous.') ? <span className="muted small">auto</span>
                       : step && !closed && <button type="button" className="link" onClick={() => go(step.id)}>Zmień</button>}
@@ -171,8 +367,9 @@ export function ReviewStep({ detail, check, steps, go, reload, sections }: StepP
       </div>
       <SheetForm key={JSON.stringify(detail.answers)} detail={detail} onSaved={reload} sectionKeys={sections} showStage={false}
         fieldFilter={(f: Field) => f.type !== 'signature'} />
-      <div className="card">
-        <h3>Podpisy</h3>
+      <div className="card final-sign">
+        <h3>Podpis i sporządzenie oceny</h3>
+        <p className="muted small">Data sporządzenia to dzień podpisu przełożonego.{!first && ' Od niej liczy się nowy cykl: rozmowa rozpoczynająca w ciągu 30 dni (7 dni po ocenie negatywnej).'}</p>
         {signatureFields.map((f) => (
           <SignatureField key={f.key} field={f} detail={detail} onSigned={reload} locked={closed}
             blockedReason={roleOfEvaluator(f) && otherBlocking.length ? 'Najpierw uzupełnij braki z listy powyżej.' : undefined}
@@ -183,8 +380,8 @@ export function ReviewStep({ detail, check, steps, go, reload, sections }: StepP
         {signatureFields.length === 0 && <p className="muted">Ten etap nie ma podpisów w arkuszu.</p>}
       </div>
       {closed ? (
-        <div className="callout row">
-          <span className="grow">✓ Ocena sporządzona {fmtDate(stage?.completedOn)}.</span>
+        <div className="final-ready row">
+          <strong className="grow">✓ Ocena {first ? 'dokonana' : 'sporządzona'} {fmtDate(stage?.completedOn)}.</strong>
           <PdfButton detail={detail} />
           <NextButton steps={steps} current="review" go={go} />
         </div>
@@ -194,10 +391,8 @@ export function ReviewStep({ detail, check, steps, go, reload, sections }: StepP
             <CompleteStage detail={detail} check={check} stageKey={stageKey} label={first ? 'Dokonaj oceny' : 'Sporządź ocenę'}
               defaultDate={detail.signatures.map((s) => s.signedOn).sort().pop()} onDone={async () => { await reload(); go('ack') }} />
           )}
-          <div className="step-footer">
-            <p className="muted small grow">
-              Data sporządzenia = data podpisu przełożonego.{!first && ' Od niej liczy się nowy cykl (rozmowa rozpoczynająca do 30 dni).'}
-            </p>
+          <div className="step-actions">
+            <span className="grow" />
             <PdfButton detail={detail} />
           </div>
         </>
@@ -245,25 +440,38 @@ export function AcknowledgementStep({ detail, check, steps, go, reload, sections
 
   if (rating?.status === 'Pending') {
     return (
-      <div className="step">
+      <div className="step final-hifi">
         <div className="step-head"><h2>Zapoznanie z oceną</h2></div>
-        <p className="muted">Zapoznanie będzie możliwe po {first ? 'dokonaniu' : 'sporządzeniu'} oceny (krok „Sprawdź i podpisz”).</p>
+        <p className="callout">Zapoznanie będzie możliwe po {first ? 'dokonaniu' : 'sporządzeniu'} oceny (krok „Sprawdź i podpisz”).</p>
       </div>
     )
   }
 
   return (
-    <div className="step">
+    <div className="step final-hifi">
       {rating?.status === 'Completed' && (
-        <div className="callout">
-          <strong>✓ Ocena {first ? 'dokonana' : 'sporządzona'} {fmtDate(rating.completedOn)}{s?.result && ` · ${RESULT_LABELS[s.result]?.toLowerCase()}`}{s?.levelLabel && ` · ${s.levelLabel.toLowerCase()}`}</strong>
-          {nextCycle && (
-            <p className="small">
-              Utworzono nowy cykl: {nextCycle.nextStageTitle?.toLowerCase() ?? 'rozmowa rozpoczynająca'}{nextCycle.nextDueTo && ` do ${fmtDate(nextCycle.nextDueTo)}`}.
-              {onOpenEvaluation && <> <button type="button" className="link" onClick={() => onOpenEvaluation(nextCycle.id)}>Otwórz nowy cykl</button></>}
-            </p>
-          )}
-        </div>
+        <section className="card final-done">
+          <span className="final-done-mark" aria-hidden="true">✓</span>
+          <h3>Ocena {first ? 'dokonana' : 'sporządzona'} {fmtDate(rating.completedOn)}</h3>
+          <p>
+            {s?.result && (RESULT_LABELS[s.result] ?? s.result)}{s?.levelLabel && `, ${s.levelLabel.toLowerCase()}`}
+            {s?.average != null && `, ${first ? 'ocena łączna' : 'średnia'} ${fmtAvg(s.average)}`}.
+          </p>
+          <div className="final-done-info">
+            {stage?.status === 'Pending' && (
+              <span>
+                Przekaż ocenę do zapoznania niezwłocznie: podpis pracownika poniżej albo przez kod QR.
+              </span>
+            )}
+            {nextCycle && (
+              <span>
+                Nowy cykl: {nextCycle.nextStageTitle?.toLowerCase() ?? 'rozmowa rozpoczynająca'}{nextCycle.nextDueTo && <> do <strong>{fmtDate(nextCycle.nextDueTo)}</strong></>}.
+                {objection && ' Sprzeciw nie wstrzymuje nowego cyklu.'}
+                {onOpenEvaluation && <> <button type="button" className="link" onClick={() => onOpenEvaluation(nextCycle.id)}>Otwórz nowy cykl</button></>}
+              </span>
+            )}
+          </div>
+        </section>
       )}
       <div className="step-head">
         <h2>Zapoznanie z oceną</h2>
@@ -276,7 +484,7 @@ export function AcknowledgementStep({ detail, check, steps, go, reload, sections
           <PdfButton detail={detail} />
         </div>
         <dl className="summary">
-          {s?.average != null && <><dt>{first ? 'Ocena łączna' : 'Średnia'}</dt><dd><strong>{s.average.toFixed(2)}</strong> <Auto /></dd></>}
+          {s?.average != null && <><dt>{first ? 'Ocena łączna' : 'Średnia'}</dt><dd><strong>{fmtAvg(s.average)}</strong> <Auto /></dd></>}
           {s?.levelLabel && <><dt>Poziom</dt><dd><strong>{s.levelLabel.toLowerCase()}</strong> <Auto /></dd></>}
           {s?.result && <><dt>Ocena</dt><dd><strong>{RESULT_LABELS[s.result]?.toLowerCase() ?? s.result}</strong> <Auto /></dd></>}
           {notice && <><dt>Pouczenie</dt><dd>{notice.label}</dd></>}
@@ -305,7 +513,7 @@ export function AcknowledgementStep({ detail, check, steps, go, reload, sections
             {error && <p role="alert" className="error">{error}</p>}
           </div>
         ) : (
-          <p className="callout attention">Po zapoznaniu {firstName} ma 7 dni na sprzeciw do dyrektora generalnego urzędu — termin pojawi się po zamknięciu zapoznania.</p>
+          <p className="callout attention"><strong>7 dni na sprzeciw.</strong> Od dnia zapoznania {firstName} ma 7 dni na sprzeciw do dyrektora generalnego urzędu — termin pojawi się po zamknięciu zapoznania.</p>
         )
       )}
       {stage?.status === 'Pending' && (
@@ -325,7 +533,7 @@ export function AcknowledgementStep({ detail, check, steps, go, reload, sections
 /** Sekcja szablonu bez dedykowanego ekranu (np. oceny cząstkowe w szablonie bez modelu kompetencji). */
 export function SectionStep({ detail, steps, go, reload, stepId, title, sections }: StepProps & { stepId: string; title: string; sections: string[] }) {
   return (
-    <div className="step">
+    <div className="step final-hifi">
       <div className="step-head"><h2>{title}</h2></div>
       <SheetForm key={JSON.stringify(detail.answers)} detail={detail} onSaved={reload} sectionKeys={sections} showStage={false} />
       <div className="step-actions"><span className="grow" /><NextButton steps={steps} current={stepId} go={go} /></div>

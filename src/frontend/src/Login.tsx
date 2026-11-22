@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { api } from './api'
 import { Logo } from './Logo'
+import './hifi-pages.css'
 
 type LoginResponse = { token: string | null; requiresTwoFactor: boolean }
 
@@ -44,10 +45,14 @@ export function Login({ onLogin }: { onLogin: (token: string) => void }) {
   }
 
   return (
-    <main className="login">
+    <main className="login hifi-login">
       <h1 className="brand-heading"><Logo layout="vertical" width={120} /></h1>
+      <div className="hifi-login-intro">
+        <p className="hifi-login-title">{credentials === null ? 'Zaloguj się' : 'Weryfikacja dwuetapowa'}</p>
+        <p className="muted">Ocena okresowa i pierwsza ocena w służbie cywilnej, krok po kroku.</p>
+      </div>
       {credentials === null ? (
-        <form onSubmit={submitPassword} className="form">
+        <form onSubmit={submitPassword} className="form card hifi-login-card">
           <label>
             E-mail
             <input name="email" type="email" autoComplete="username" required autoFocus />
@@ -60,7 +65,7 @@ export function Login({ onLogin }: { onLogin: (token: string) => void }) {
           <button type="submit" disabled={busy}>{busy ? 'Logowanie…' : 'Zaloguj'}</button>
         </form>
       ) : (
-        <form onSubmit={submitCode} className="form" key={useRecoveryCode ? 'recovery' : 'totp'}>
+        <form onSubmit={submitCode} className="form card hifi-login-card" key={useRecoveryCode ? 'recovery' : 'totp'}>
           <p className="muted">
             {useRecoveryCode
               ? 'Wpisz jeden z kodów odzyskiwania. Każdy działa tylko raz.'
