@@ -23,6 +23,7 @@ import { ProfilePage, type ProfileTab } from './Profile'
 import { UserMenu } from './UserMenu'
 import { UsersPage } from './Users'
 import { PageLoader } from './v2/motion'
+import { startWelcomeTour } from './WelcomeTour'
 
 // shortcut: lista pracowników to pierwsze 200 rekordów (API stronicuje); przy większej bazie dodać stronicowanie
 const EMPLOYEES_QUERY = 'pageSize=200'
@@ -323,6 +324,8 @@ export default function App() {
   const [wordmark, setWordmark] = useState<DOMRect | null>(null)
   const serviceMain = useRef<HTMLElement>(null)
   const openingToken = useRef<string | null>(null)
+  // Przewodnik powitalny rusza po każdym logowaniu (nie po odświeżeniu strony z zapisanym tokenem).
+  const welcomeTourPending = useRef(false)
   const [avatarVersion, setAvatarVersion] = useState(0)
   // Stan nawigacji trzymany w historii przeglądarki, żeby „Wstecz”/„Dalej” działały w obrębie aplikacji.
   const [view, setView] = useState<View>(() => (history.state?.pageKey ? history.state : START_VIEW))
@@ -372,6 +375,17 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [loginPhase])
 
+  useEffect(() => {
+    const current = token ? readSession(token) : null
+    if (loginPhase !== 'idle' || !current || !welcomeTourPending.current) return
+    welcomeTourPending.current = false
+    const visible = PAGES.filter((p) => p.visible(current)).map((p) => p.key)
+    startWelcomeTour(current, visible, (v) => go({ pageKey: v.pageKey, openEvaluation: v.openEvaluation ?? null, evaluationReturn: null }),
+      { pageKey: START_VIEW.pageKey })
+    // go zmienia się co render; przewodnik potrzebuje go tylko do przełączania stron, więc wystarczy ten z chwili startu.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loginPhase, token])
+
   const login = useCallback((newToken: string) => {
     setToken(newToken)
     setTokenState(newToken)
@@ -381,6 +395,7 @@ export default function App() {
     const newToken = openingToken.current
     if (!newToken) return
     openingToken.current = null
+    welcomeTourPending.current = true
     setLoginPhase('revealing')
     login(newToken)
   }, [login])

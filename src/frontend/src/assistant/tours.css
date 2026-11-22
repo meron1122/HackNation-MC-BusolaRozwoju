@@ -1,5 +1,7 @@
 /* Dymek prowadzenia (driver.js) w barwach Busoli. */
 .driver-popover.busola-tour { border-radius: var(--radius-card, 16px); color: var(--text); max-width: 340px; padding: 18px 20px; }
+/* Przewodnik powitalny ma dłuższe opisy przepływu oceny. */
+.driver-popover.busola-tour.busola-welcome { max-width: 400px; }
 .driver-popover.busola-tour .driver-popover-title { font-size: 17px; font-weight: 700; }
 .driver-popover.busola-tour .driver-popover-description { font-size: 15px; line-height: 1.45; color: var(--text); }
 .driver-popover.busola-tour .driver-popover-progress-text { color: var(--muted); }
