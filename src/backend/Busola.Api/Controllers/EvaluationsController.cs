@@ -251,6 +251,16 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             return new ObjectResult(problem) { StatusCode = problem.Status };
         }
 
+        // Dane z kartoteki (osoby, urząd, data zatrudnienia) dla pustych pól sekcji tego etapu — kopia z chwili podpisu.
+        var stageFields = schema.Sections.Where(s => s.Stage == stageKey).SelectMany(s => s.Fields).Select(f => f.Key).ToHashSet();
+        foreach (var value in await EvaluationPrefill.LoadAsync(db, evaluation.Id, schema, evaluation.Answers.Select(ToDto), ct))
+        {
+            if (stageFields.Contains(value.FieldKey))
+            {
+                Upsert(evaluation, value);
+            }
+        }
+
         // Sporządzenie oceny: średnia, poziom i wynik liczy backend z ocen cząstkowych, dane poprzedniej oceny
         // z ostatniej sporządzonej — zapisane, żeby dokument się nie zmienił.
         if (EvaluationScoring.ScoresField(schema) is { } scores && schema.SectionOf(scores.Key)?.Stage == stageKey)
@@ -330,10 +340,14 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             .ToListAsync(ct)).ToHashSet();
         var submitted = await db.EvaluationSelfAssessments.AnyAsync(s => s.EvaluationId == evaluation.Id && s.SubmittedAt != null, ct);
 
+        // Pola uzupełniane z kartoteki nie są brakiem — zapiszą się przy zamknięciu etapu.
+        var stored = evaluation.Answers.Select(ToDto).ToList();
+        var prefill = await EvaluationPrefill.LoadAsync(db, evaluation.Id, schema, stored, ct);
+
         return EvaluationCheck.Run(
             schema,
             evaluation.Stages.Select(s => new StageState(s.StageKey, s.Status, s.DueFrom, s.DueTo)).ToList(),
-            evaluation.Answers.Select(ToDto),
+            EvaluationPrefill.Merge(stored, prefill),
             signed,
             EvaluationWorkflow.IsFinal(schema, evaluation.Status),
             submitted);
@@ -615,8 +629,10 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             ? EvaluationWorkflow.DraftSections(schema, stages.Select(s => (s.StageKey, s.Status)))
             : new HashSet<string>();
 
+        var stored = evaluation.Answers.Select(ToDto).ToList();
+        var answers = EvaluationPrefill.Merge(stored, await EvaluationPrefill.LoadAsync(db, id, schema, stored, ct));
         var pdf = EvaluationSheetPdf.Render(schema, evaluation.Template.Code,
-            EvaluationWorkflow.WithoutDraft(schema, draft, evaluation.Answers.Select(ToDto), a => a.FieldKey),
+            EvaluationWorkflow.WithoutDraft(schema, draft, answers, a => a.FieldKey),
             EvaluationWorkflow.WithoutDraft(schema, draft, signatures, s => s.FieldKey).ToList());
 
         return File(pdf, "application/pdf", $"ocena-{evaluation.Employee.LastName}-{evaluation.Employee.FirstName}-{id}.pdf");
@@ -767,6 +783,8 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             .Where(e => e.Id == evaluation.EmployeeId && e.Department.Head != null)
             .Select(e => e.Department.Head!.FirstName + " " + e.Department.Head.LastName)
             .SingleOrDefaultAsync(ct);
+        var prefill = EvaluationWorkflow.WithoutDraft(schema, draft,
+            await EvaluationPrefill.LoadAsync(db, id, schema, evaluation.Answers.Select(ToDto), ct), a => a.FieldKey).ToList();
 
         return new EvaluationDetailDto(
             evaluation.Id,
@@ -791,7 +809,8 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             draft.Count > 0 ? null : EvaluationScoring.Compute(schema, answers),
             await LoadPreviousAsync(evaluation, ct),
             unitHead,
-            canEditSelfAssessment);
+            canEditSelfAssessment,
+            prefill);
     }
 
     private static bool TryDecodeImage(string value, out byte[] bytes, out string contentType, out string problem)

@@ -47,7 +47,8 @@ public sealed record EvaluationDetailDto(
     ScoringDto? Scoring,
     PreviousEvaluationDto? Previous,
     string? UnitHeadName,
-    bool CanEditSelfAssessment);
+    bool CanEditSelfAssessment,
+    IReadOnlyList<AnswerDto> Prefill);
 
 /// <summary>
 /// Podgląd liczenia: per kryterium sugestia ze wskaźników (średnia ocenionych wskaźników zaokrąglona do najbliższego
