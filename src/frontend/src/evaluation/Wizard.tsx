@@ -238,6 +238,7 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
               <p className="muted small">Termin · {detail.phase}</p>
               <strong>{current.dueTo ? `${current.dueFrom ? `${fmtDate(current.dueFrom)} – ` : 'do '}${fmtDate(current.dueTo)}` : current.title}</strong>
               <p className={current.overdue ? 'error small' : 'muted small'}>{daysLabel(daysUntil(current.dueTo), current.overdue)}</p>
+              {current.dueNote && <p className="muted small">{current.dueNote}</p>}
             </>
           ) : <strong>{detail.phase}</strong>}
         </div>

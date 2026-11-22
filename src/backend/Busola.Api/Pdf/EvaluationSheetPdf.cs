@@ -11,6 +11,18 @@ namespace Busola.Api.Pdf;
 /// <summary>Podpis do PDF: dane z potwierdzenia i opcjonalny obraz.</summary>
 public sealed record SheetSignature(string FieldKey, string SignerName, DateOnly SignedOn, string? Place, byte[]? Image);
 
+/// <summary>Zawiadomienie o nowym terminie: nagłówek, adresat, treść, podpis i adnotacja o kopii do arkusza.</summary>
+public sealed record TermNotice(
+    string Office,
+    string EmployeeName,
+    string EmployeeDetails,
+    string Title,
+    IReadOnlyList<string> Paragraphs,
+    string SignerName,
+    string SignerCaption,
+    DateOnly Date,
+    string Footer);
+
 /// <summary>
 /// Arkusz oceny jako PDF w układzie urzędowych wzorów: arkusz B/C (załączniki nr 3 i 4 do rozporządzenia z 4.04.2016 r.)
 /// i arkusz pierwszej oceny (załącznik nr 2 do rozporządzenia z 23.07.2015 r.) — te same części, tabele, pola „X”,
@@ -71,6 +83,42 @@ public static class EvaluationSheetPdf
             });
 
             Footnotes(column, ReportNotes);
+        });
+
+    /// <summary>
+    /// Pismo do ocenianego o nowym terminie (§ 5 ust. 4 rozporządzenia z 2015 r., § 8 rozporządzenia z 2016 r.): urząd,
+    /// miejscowość i data, adresat, tytuł, treść, podpis wyznaczającego i adnotacja o kopii do arkusza.
+    /// </summary>
+    public static byte[] RenderNotice(TermNotice notice) =>
+        Form(notice.Title, column =>
+        {
+            column.Spacing(10);
+            column.Item().Row(row =>
+            {
+                row.RelativeItem().Text(notice.Office).Bold();
+                row.AutoItem().Text($"……………………, {DateText(notice.Date)}");
+            });
+            column.Item().PaddingTop(10).AlignRight().Column(c =>
+            {
+                c.Item().Text(notice.EmployeeName).Bold();
+                if (!string.IsNullOrEmpty(notice.EmployeeDetails))
+                {
+                    c.Item().Text(notice.EmployeeDetails).FontColor(Colors.Grey.Darken2);
+                }
+            });
+            column.Item().PaddingTop(16).SemanticHeading1().AlignCenter().Text(notice.Title).Bold().FontSize(12);
+            foreach (var paragraph in notice.Paragraphs)
+            {
+                column.Item().Text(paragraph).FontSize(10).LineHeight(1.3f);
+            }
+
+            column.Item().PaddingTop(40).AlignRight().Width(220).Column(c =>
+            {
+                c.Item().AlignCenter().Text(notice.SignerName);
+                c.Item().LineHorizontal(0.5f).LineColor(Colors.Grey.Medium);
+                c.Item().AlignCenter().Text(notice.SignerCaption).FontSize(7).FontColor(Colors.Grey.Darken2);
+            });
+            column.Item().PaddingTop(30).Text(notice.Footer).FontSize(8).FontColor(Colors.Grey.Darken2);
         });
 
     private static string DateText(DateOnly? date) => date?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? "";

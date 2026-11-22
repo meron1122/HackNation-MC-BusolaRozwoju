@@ -4,6 +4,7 @@ import { ConfirmButton } from '../ConfirmButton'
 import { DateInput } from '../DateInput'
 import { CompleteStage, DuePill, IssueList, PdfButton, Pill, type StepProps } from './common'
 import { useApi } from './data'
+import { TermPanel } from './TermPanel'
 import {
   daysUntil, criteriaOf, fmtDate, plural, today, type Detail, type Note, type NoteRequest, type Notes, type SelfAssessment,
 } from './types'
@@ -31,7 +32,7 @@ export function SelfAssessmentStatus({ detail }: { detail: Detail }) {
 }
 
 /** W06: notatki z obserwacji (sytuacja–działanie–rezultat) i dowody na wskaźniki. Oceniany ich nie widzi. */
-export function NotesStep({ detail, steps, go }: StepProps) {
+export function NotesStep({ detail, steps, go, reload: reloadDetail }: StepProps) {
   const { data, error, reload } = useApi<Notes>(`evaluations/${detail.id}/notes`)
   const options = indicatorOptions(detail)
   const criteria = criteriaOf(detail)
@@ -79,8 +80,10 @@ export function NotesStep({ detail, steps, go }: StepProps) {
           <div className="timeline-labels small muted">
             <span>{fmtDate(periodStart)} · start</span><strong>dziś</strong><span>{fmtDate(end)} · termin</span>
           </div>
+          {stage?.dueNote && <p className="muted small">{stage.dueNote}</p>}
         </div>
       )}
+      {!detail.isOwn && <TermPanel detail={detail} reload={reloadDetail} />}
       <SelfAssessmentStatus detail={detail} />
       {error ? (
         <p className="callout attention">Notatki nie są jeszcze dostępne: {error}</p>
@@ -316,6 +319,8 @@ function EvaluatedStageStep({ detail, check, reload, stageKey }: StepProps & { s
       )}
       {stage.status === 'Skipped' && <p className="callout attention">{name[0].toUpperCase() + name.slice(1)} oznaczone jako niezłożone w terminie.</p>}
       {stage.status === 'Completed' && <p className="callout"><strong>Złożone {fmtDate(stage.completedOn)}.</strong></p>}
+      {stage.dueNote && <p className="muted small">{stage.dueNote}</p>}
+      <TermPanel detail={detail} reload={reload} />
       {error && <p role="alert" className="error">{error}</p>}
       {self?.submitted && self.reportForm && (
         <div className="card">

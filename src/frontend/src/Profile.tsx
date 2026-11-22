@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api } from './api'
 import { Avatar } from './Avatar'
+import { AbsencesSection } from './Absences'
 import { ConfirmButton } from './ConfirmButton'
 import { DateInput } from './DateInput'
 import { EmptyState } from './EmptyState'
@@ -127,6 +128,7 @@ const TABS = [
   ['emergency', 'Kontakty alarmowe'],
   ['dependents', 'Członkowie rodziny'],
   ['job', 'Zatrudnienie'],
+  ['absences', 'Nieobecności'],
   ['structure', 'Struktura'],
   ['evaluations', 'Oceny'],
   ['qualifications', 'Kwalifikacje'],
@@ -240,6 +242,7 @@ export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation, initi
               editable={profile.canEdit} hr={profile.canEdit} onSave={(v) => save('job', v)} />
           </>
         )}
+        {tab === 'absences' && <AbsencesSection key={e.id} employeeId={e.id} editable={profile.canEdit} />}
         {tab === 'account' && account && profile.isOwn && account}
         {tab === 'evaluations' && (
           <section className="card profile-section">

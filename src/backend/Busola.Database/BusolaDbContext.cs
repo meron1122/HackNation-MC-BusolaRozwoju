@@ -31,6 +31,7 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
     public DbSet<Position> Positions => Set<Position>();
     public DbSet<EvaluationIndicatorContext> EvaluationIndicatorContexts => Set<EvaluationIndicatorContext>();
     public DbSet<EvaluationCriterionContext> EvaluationCriterionContexts => Set<EvaluationCriterionContext>();
+    public DbSet<EvaluationTermChange> EvaluationTermChanges => Set<EvaluationTermChange>();
 
     // Tu, a nie w AddDbContext, żeby snake_case obowiązywał zawsze — schemat i aplikacja nie mogą się rozjechać.
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) =>
@@ -118,6 +119,27 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
                 .WithMany(e => e.Stages)
                 .HasForeignKey(s => s.EvaluationId)
                 .OnDelete(DeleteBehavior.Cascade);
+            b.Property(s => s.DueNote).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<EvaluationTermChange>(b =>
+        {
+            b.Property(c => c.Kind).HasConversion<string>().HasMaxLength(30);
+            b.Property(c => c.StageKey).HasMaxLength(50);
+            b.Property(c => c.Reason).HasMaxLength(1000);
+            b.Property(c => c.LegalRef).HasMaxLength(50);
+            b.Property(c => c.ChangedByName).HasMaxLength(200);
+            b.HasIndex(c => c.EvaluationId);
+
+            b.HasOne(c => c.Evaluation)
+                .WithMany()
+                .HasForeignKey(c => c.EvaluationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(c => c.ChangedBy)
+                .WithMany()
+                .HasForeignKey(c => c.ChangedById)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<EvaluationAnswer>(b =>
@@ -428,6 +450,20 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
         {
             b.Property(r => r.Name).HasMaxLength(200);
             b.HasIndex(r => r.Name).IsUnique();
+            b.Property(r => r.Kind).HasConversion<string>().HasMaxLength(20);
+
+            // Słownik stały (bez API do dopisywania), więc jawne Id nie zderzą się z sekwencją.
+            b.HasData(
+                new AbsenceReason { Id = 1, Name = "Urlop wypoczynkowy", Kind = AbsenceKind.Justified },
+                new AbsenceReason { Id = 2, Name = "Zwolnienie lekarskie", Kind = AbsenceKind.Justified },
+                new AbsenceReason { Id = 3, Name = "Urlop macierzyński", Kind = AbsenceKind.Justified },
+                new AbsenceReason { Id = 4, Name = "Urlop rodzicielski", Kind = AbsenceKind.Justified },
+                new AbsenceReason { Id = 5, Name = "Urlop wychowawczy", Kind = AbsenceKind.Justified },
+                new AbsenceReason { Id = 6, Name = "Urlop bezpłatny", Kind = AbsenceKind.Justified },
+                new AbsenceReason { Id = 7, Name = "Urlop szkoleniowy", Kind = AbsenceKind.Justified },
+                new AbsenceReason { Id = 8, Name = "Inna nieobecność usprawiedliwiona", Kind = AbsenceKind.Justified },
+                new AbsenceReason { Id = 9, Name = "Obowiązki służbowe poza miejscem pracy", Kind = AbsenceKind.OfficialDuty },
+                new AbsenceReason { Id = 10, Name = "Nieobecność nieusprawiedliwiona", Kind = AbsenceKind.Unjustified });
         });
 
         modelBuilder.Entity<Absence>(b =>

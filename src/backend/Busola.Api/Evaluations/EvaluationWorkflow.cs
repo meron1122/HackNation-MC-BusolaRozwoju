@@ -87,6 +87,11 @@ public static class EvaluationWorkflow
                 continue;
             }
 
+            // Nowy termin bazowy z arkusza; przedłużenie o nieobecności (art. 81 ust. 7) liczy się od niego od nowa
+            // (AbsenceDeadlines.RecalculateAsync po zapisie).
+            target.BaseDueTo = null;
+            target.DueNote = null;
+
             if (field.Type == "dateRange" && answer.ValueDateTo is { } to)
             {
                 target.DueFrom = from;
