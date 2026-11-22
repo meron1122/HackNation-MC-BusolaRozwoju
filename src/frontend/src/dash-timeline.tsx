@@ -4,6 +4,7 @@ import { useId, useState, type CSSProperties } from 'react'
 import { Avatar } from './Avatar'
 import { monthYear, stageLabel, stagePos, todayIso, yearFrac } from './dash-model'
 import { fmtDate, type Progress } from './evaluation/types'
+import './ml-motion.css'
 
 export type TimelineRow = {
   id: number
@@ -43,7 +44,7 @@ export function DashTimeline({ rows, onOpenEvaluation, onOpenProfile }: {
         <span />
       </div>
       <ul className="dash-tl-rows">
-        {sorted.map((r) => <Row key={r.id} r={r} pos={pos} now={now} onOpenEvaluation={onOpenEvaluation} onOpenProfile={onOpenProfile} />)}
+        {sorted.map((r, i) => <Row key={r.id} i={i} r={r} pos={pos} now={now} onOpenEvaluation={onOpenEvaluation} onOpenProfile={onOpenProfile} />)}
       </ul>
       <span className="dash-tl-grid" aria-hidden="true">
         {years.map((y) => <span key={y} style={{ left: `${pos(`${y}-01-01`)}%` }} />)}
@@ -53,8 +54,10 @@ export function DashTimeline({ rows, onOpenEvaluation, onOpenProfile }: {
   )
 }
 
-function Row({ r, pos, now, onOpenEvaluation, onOpenProfile }: {
+function Row({ r, i, pos, now, onOpenEvaluation, onOpenProfile }: {
   r: TimelineRow
+  /** Kolejność wejścia (stagger w ml-motion.css). */
+  i: number
   pos: (iso: string) => number
   now: number
   onOpenEvaluation: (id: number) => void
@@ -69,7 +72,7 @@ function Row({ r, pos, now, onOpenEvaluation, onOpenProfile }: {
   const label = p ? `${r.name}: ${stageLabel(p)}${r.end ? `, ocena ${fmtDate(r.end)}` : ''}` : r.name
 
   return (
-    <li className={r.action ? 'action' : undefined}>
+    <li className={r.action ? 'action' : undefined} style={{ '--i': i } as CSSProperties}>
       <span className="dash-tl-who">
         <Avatar path={`org/${r.id}/avatar`} name={r.name} size={32} decorative />
         <button type="button" className="link" onClick={() => onOpenProfile(r.id)}>{r.name}</button>

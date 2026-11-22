@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { api } from './api'
 import { Avatar } from './Avatar'
 import { addressee, termWord } from './dash-model'
-import { BellButton, MiniStepper, SheetMark } from './dash-parts'
+import { BellButton, CountUp, HrSkeleton, MiniStepper, SheetMark } from './dash-parts'
+import { EmptyEnter, Loadable, Refreshing, Reveal, SentConfirm } from './v2/motion'
 import { MedianCard } from './dash-median'
 import { EmptyState } from './EmptyState'
 import { fmtDate, plural, type EvaluationTerms, type Progress } from './evaluation/types'
@@ -45,9 +46,18 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState<number | 'all' | null>(null)
+  const [loading, setLoading] = useState(true)
+  /** Wiersz (albo „all”), któremu przed chwilą wysłano przypomnienie: dzwonek kołysze się raz, przycisk mówi „Wysłano ✓”. */
+  const [justSent, setJustSent] = useState<number | 'all' | null>(null)
   const seeded = useRef(false)
 
-  const load = useCallback(() => api<Hr>(`dashboard/hr?year=${year}`).then(setData, (e: Error) => setError(e.message)), [year])
+  // `silent`: odświeżenie po przypomnieniu, bez przygaszania listy.
+  const load = useCallback((silent = false) => {
+    if (!silent) setLoading(true)
+    return api<Hr>(`dashboard/hr?year=${year}`)
+      .then((d) => { setData(d); setError('') }, (e: Error) => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [year])
   useEffect(() => {
     load()
   }, [load])
@@ -101,6 +111,11 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
     const t = setTimeout(() => setStatus(''), 5000)
     return () => clearTimeout(t)
   }, [status])
+  useEffect(() => {
+    if (justSent === null) return
+    const t = setTimeout(() => setJustSent(null), 2400)
+    return () => clearTimeout(t)
+  }, [justSent])
 
   // Awatar przełożonego: szukamy go wśród ocenianych (ta sama osoba w kartotece), inaczej inicjały.
   const idByName = useMemo(() => new Map((data?.rows ?? []).map((r) => [display(r.employeeName), r.employeeId])), [data])
@@ -115,7 +130,8 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
         await api(`evaluations/${ids[0]}/reminders`, 'POST', {})
         setStatus('Wysłano przypomnienie.')
       }
-      await load()
+      setJustSent(scope)
+      await load(true)
     } catch (e) {
       setStatus((e as Error).message)
     } finally {
@@ -123,8 +139,34 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
     }
   }
 
-  if (error) return <p role="alert" className="error">{error}</p>
-  if (!data) return <p>Ładowanie…</p>
+  const head = (
+    <div className="dash-hr-head">
+      <h1>Oceny w departamencie</h1>
+      {departments.length > 1 ? (
+        <select value={department} onChange={(e) => setDepartment(e.target.value)} aria-label="Wydział">
+          <option value="">Wszystkie wydziały</option>
+          {departments.map(([id, name]) => <option key={id} value={String(id)}>{name}</option>)}
+        </select>
+      ) : departments[0] && <span className="m-fade-in">{departments[0][1]}</span>}
+      <span>{fmtDate(new Date().toISOString())}</span>
+    </div>
+  )
+
+  return (
+    <section className="hifi-page dash dash-hr">
+      {head}
+      {data && error && <p role="alert" className="error">{error}</p>}
+      <Loadable loading={loading && !data} error={data ? '' : error} onRetry={() => load()} skeleton={<HrSkeleton />}>
+        {() => data && <Refreshing busy={loading}>{body(data)}</Refreshing>}
+      </Loadable>
+
+      <div role="status" aria-live="polite" className={status ? 'hifi-toast show' : 'hifi-toast'}>
+        {status && <><Icon name="done" /> {status}</>}
+      </div>
+    </section>
+  )
+
+  function body(data: Hr) {
   const c = data.counters
   const visibleSelected = shown.map((g) => g.main.evaluation.evaluationId).filter((id) => selected.has(id))
   const toggle = (id: number) => setSelected((s) => {
@@ -180,6 +222,7 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
         </span>
         {canRemind && to ? (
           <BellButton name={to} avatarPath={toId ? `org/${toId}/avatar` : null} disabled={busy !== null} busy={busy === p.evaluationId}
+            justSent={justSent === p.evaluationId || (justSent === 'all' && selected.has(p.evaluationId))}
             sentAt={p.lastReminder ? fmtDate(p.lastReminder.sentAt) : null} onClick={() => remind([p.evaluationId], p.evaluationId)} />
         ) : <span />}
       </li>
@@ -187,21 +230,10 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
   }
 
   return (
-    <section className="hifi-page dash dash-hr">
-      <div className="dash-hr-head">
-        <h1>Oceny w departamencie</h1>
-        {departments.length > 1 ? (
-          <select value={department} onChange={(e) => setDepartment(e.target.value)} aria-label="Wydział">
-            <option value="">Wszystkie wydziały</option>
-            {departments.map(([id, name]) => <option key={id} value={String(id)}>{name}</option>)}
-          </select>
-        ) : departments[0] && <span>{departments[0][1]}</span>}
-        <span>{fmtDate(new Date().toISOString())}</span>
-      </div>
-
+    <>
       <div className="dash-kpi">
         <section className={`dash-late${c.overdue === 0 ? ' zero' : ''}`} aria-label="Po terminie">
-          <div className="dash-late-top"><strong>{c.overdue}</strong><span>⚠ Po terminie</span></div>
+          <div className="dash-late-top"><strong><CountUp value={c.overdue} /></strong><span>⚠ Po terminie</span></div>
           {firstLate ? (
             <span className="dash-late-who">
               <Avatar path={`org/${firstLate.main.employeeId}/avatar`} name={firstLate.name} size={32} decorative />
@@ -231,11 +263,12 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
                   <path d="M10 2.5a5 5 0 0 0-5 5v3.2L3.6 13.4a.8.8 0 0 0 .7 1.2h11.4a.8.8 0 0 0 .7-1.2L15 10.7V7.5a5 5 0 0 0-5-5Z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
                   <path d="M8 16.6a2 2 0 0 0 4 0" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                 </svg>
-                {busy === 'all' ? 'Wysyłanie…' : `Przypomnij (${visibleSelected.length})`}
+                <SentConfirm sent={justSent === 'all'}>{busy === 'all' ? 'Wysyłanie…' : `Przypomnij (${visibleSelected.length})`}</SentConfirm>
               </button>
             )}
           </div>
-          {shown.length === 0 ? <p className="dash-list-empty">Nic do zrobienia.</p> : (
+          <Reveal k={`${filter}|${department}`}>
+          {shown.length === 0 ? <EmptyEnter><p className="dash-list-empty">Nic do zrobienia.</p></EmptyEnter> : (
             <>
               <div className="dash-list-cols">
                 <input type="checkbox" checked={allOn} disabled={!canRemind} aria-label="Zaznacz wszystkie"
@@ -246,9 +279,10 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
                   })} />
                 <span>Osoba</span><span>Etap</span><span>Termin</span><span />
               </div>
-              <ul>{shown.map((g) => row(g, { check: true }))}</ul>
+              <ul className="m-stagger">{shown.map((g) => row(g, { check: true }))}</ul>
             </>
           )}
+          </Reveal>
           {recalculated.length > 0 && (
             <div className="dash-list-sub">
               <h3>Przeliczony termin <span className="dash-count">{recalculated.length}</span></h3>
@@ -264,13 +298,10 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
         </section>
         <MedianCard evaluationIds={groups.flatMap((g) => [g.main, ...g.others]).map((r) => r.evaluation.evaluationId).sort((a, b) => a - b)} />
       </div>
-      {groups.length === 0 && <EmptyState title="Brak ocen w tym wydziale">Wybierz inny wydział.</EmptyState>}
-
-      <div role="status" aria-live="polite" className={status ? 'hifi-toast show' : 'hifi-toast'}>
-        {status && <><Icon name="done" /> {status}</>}
-      </div>
-    </section>
+      {groups.length === 0 && <EmptyEnter><EmptyState title="Brak ocen w tym wydziale">Wybierz inny wydział.</EmptyState></EmptyEnter>}
+    </>
   )
+  }
 }
 
 /** Suma dni nieobecności, o które przesunięto termin (zmiany terminów + nieobecności oceny). */
@@ -288,21 +319,21 @@ function SegmentBar({ done, progress, out, year, onYear }: { done: number; progr
   const w = (n: number) => `${total ? Math.max(n ? 4 : 0, (n / total) * 100) : 0}%`
   return (
     <section className="card dash-segbar" aria-label="Stan ocen">
-      <div className="dash-segbar-total"><strong>{total}</strong><span>{plural(total, 'osoba', 'osoby', 'osób')}</span></div>
+      <div className="dash-segbar-total"><strong><CountUp value={total} /></strong><span>{plural(total, 'osoba', 'osoby', 'osób')}</span></div>
       <div className="dash-segbar-bar" aria-hidden="true">
-        {done > 0 && <span className="done" style={{ width: w(done) }} />}
-        {progress > 0 && <span className="progress" style={{ width: w(progress) }} />}
-        {(out ?? 0) > 0 && <span className="out" style={{ width: w(out ?? 0) }} />}
+        {done > 0 && <span className="done" style={{ width: w(done), '--i': 0 } as CSSProperties} />}
+        {progress > 0 && <span className="progress" style={{ width: w(progress), '--i': 1 } as CSSProperties} />}
+        {(out ?? 0) > 0 && <span className="out" style={{ width: w(out ?? 0), '--i': 2 } as CSSProperties} />}
       </div>
       <div className="dash-segbar-legend">
         <span>
-          <strong>{done}</strong> zakończone w
+          <strong><CountUp value={done} /></strong> zakończone w
           <select value={year} onChange={(e) => onYear(Number(e.target.value))} aria-label="Rok zamknięcia">
             {[thisYear, thisYear - 1, thisYear - 2].map((y) => <option key={y} value={y}>{y}</option>)}
           </select>
         </span>
-        <span><strong>{progress}</strong> w toku</span>
-        {out != null && <span><strong>{out}</strong> poza cyklem</span>}
+        <span><strong><CountUp value={progress} /></strong> w toku</span>
+        {out != null && <span><strong><CountUp value={out} /></strong> poza cyklem</span>}
       </div>
     </section>
   )

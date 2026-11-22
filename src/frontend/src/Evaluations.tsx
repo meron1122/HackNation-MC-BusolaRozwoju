@@ -13,6 +13,9 @@ import {
 import { SignaturePad } from './SignaturePad'
 import { Person } from './Person'
 import { SignatureLinkPanel } from './Signatures'
+import { ListSkeleton } from './dash-parts'
+import { Loadable } from './v2/motion'
+import './ml-motion.css'
 
 type ListItem = {
   id: number; employeeId: number; employeeName: string; templateTitle: string; statusLabel: string; isFinal: boolean
@@ -33,8 +36,12 @@ function EvaluationList({ canAdd, onOpen }: { canAdd: boolean; onOpen: (id: numb
   const [rows, setRows] = useState<ListItem[] | null>(null)
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
+  const [loading, setLoading] = useState(true)
 
-  const load = useCallback(() => api<ListItem[]>('evaluations').then(setRows, (e: Error) => setError(e.message)), [])
+  const load = useCallback(() => {
+    setLoading(true)
+    return api<ListItem[]>('evaluations').then((r) => { setRows(r); setError('') }, (e: Error) => setError(e.message)).finally(() => setLoading(false))
+  }, [])
   useEffect(() => {
     load()
   }, [load])
@@ -45,16 +52,18 @@ function EvaluationList({ canAdd, onOpen }: { canAdd: boolean; onOpen: (id: numb
         <h2>Oceny</h2>
         {canAdd && !adding && <button onClick={() => setAdding(true)}>Załóż ocenę</button>}
       </div>
-      {error && <p role="alert" className="error">{error}</p>}
+      {rows && error && <p role="alert" className="error">{error}</p>}
       {adding && <CreateForm onCancel={() => setAdding(false)} onCreated={(id) => onOpen(id)} />}
-      {rows === null ? <p>Ładowanie…</p> : rows.length === 0 ? <EmptyState title="Nie ma jeszcze żadnych ocen"
+      <Loadable loading={loading && !rows} error={rows ? '' : error} onRetry={load} skeleton={<ListSkeleton rows={6} card={false} />}
+        empty={rows?.length === 0} emptyNode={<EmptyState title="Nie ma jeszcze żadnych ocen"
           action={canAdd && !adding && <button onClick={() => setAdding(true)}>Załóż ocenę</button>}>
           {canAdd ? 'Załóż pierwszą ocenę, a Busola policzy jej terminy.' : 'Gdy przełożony albo kadry założą ocenę, pojawi się tutaj.'}
-        </EmptyState> : (
+        </EmptyState>}>
+      {() => rows && (
         <div className="table-wrap">
           <table>
             <thead><tr><th>Pracownik</th><th>Ścieżka</th><th>Faza</th><th>Najbliższy etap</th><th>Termin</th><th /></tr></thead>
-            <tbody>
+            <tbody className="ml-stagger">
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td><Person id={r.employeeId} name={r.employeeName} onOpen={() => onOpen(r.id)} /></td>
@@ -71,6 +80,7 @@ function EvaluationList({ canAdd, onOpen }: { canAdd: boolean; onOpen: (id: numb
           </table>
         </div>
       )}
+      </Loadable>
     </section>
   )
 }
@@ -139,7 +149,11 @@ function EvaluationCard({ id, onBack, backLabel = 'Wróć do listy' }: { id: num
     load()
   }, [load])
 
-  if (!detail) return error ? <p role="alert" className="error">{error}</p> : <p>Ładowanie…</p>
+  if (!detail) {
+    return (
+      <Loadable loading={!error} error={error} skeleton="detail" onRetry={() => { setError(''); load() }}>{null}</Loadable>
+    )
+  }
 
   return (
     <section className="evaluation">

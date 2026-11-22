@@ -1,0 +1,231 @@
+/* Busola Rozwoju · fundament ruchu (v2/motion).
+   Wzorzec: busola-postacie/animacje/podglad.html, sekcje 1 i 2 (karty 02–19, bez 01).
+   Zasady: ruch 120–320 ms, easing --m-ease; pętle tylko w loaderach i u asystenta;
+   stan bazowy klasy = stan końcowy (fill: both), więc „animation: none” przy ograniczonym ruchu daje poprawny widok.
+   Uwaga: var() nie działa w animation-timing-function wewnątrz @keyframes, dlatego krzywe sprężyny w keyframes są wpisane dosłownie. */
+
+:root {
+  --m-fast: 120ms;
+  --m-base: 200ms;
+  --m-slow: 320ms;
+  --m-ease: cubic-bezier(.2, .8, .2, 1);
+  --m-ease-io: cubic-bezier(.45, 0, .55, 1); /* tylko pętle wskaźników */
+  /* tłumiona sprężyna: przestrzał ok. 6,7%, odbicie, wyrównanie (igła busoli, 1025 ms przy 180°) */
+  --m-spring: linear(0, 0.0037 1.8%, 0.0112 3.6%, 0.0215 5.4%, 0.0341 7.1%, 0.0487 8.9%, 0.0652 10.7%, 0.0835 12.5%, 0.1034 14.3%, 0.1248 16.1%, 0.1477 17.9%, 0.1720 19.6%, 0.1977 21.4%, 0.2247 23.2%, 0.2530 25.0%, 0.2826 26.8%, 0.3133 28.6%, 0.3452 30.4%, 0.3783 32.1%, 0.4125 33.9%, 0.4477 35.7%, 0.4841 37.5%, 0.5215 39.3%, 0.5599 41.1%, 0.5994 42.9%, 0.6398 44.6%, 0.6813 46.4%, 0.7237 48.2%, 0.7671 50.0%, 0.8114 51.8%, 0.8566 53.6%, 0.9027 55.4%, 0.9498 57.1%, 0.9977 58.9%, 1.0382 60.7%, 1.0607 62.5%, 1.0666 64.3%, 1.0599 66.1%, 1.0452 67.9%, 1.0273 69.6%, 1.0102 71.4%, 0.9963 73.2%, 0.9870 75.0%, 0.9826 76.8%, 0.9823 78.6%, 0.9850 80.4%, 0.9894 82.1%, 0.9943 83.9%, 0.9987 85.7%, 1.0020 87.5%, 1.0041 89.3%, 1.0048 91.1%, 1.0046 92.9%, 1.0037 94.6%, 1.0024 96.4%, 1.0011 98.2%, 1);
+  /* mała sprężyna „krok”: przestrzał 30% (wahnięcia igły, sukces) */
+  --m-spring-step: linear(0, 0.079 3.6%, 0.276 7.1%, 0.531 10.7%, 0.790 14.3%, 1.013 17.9%, 1.177 21.4%, 1.271 25.0%, 1.300 28.6%, 1.276 32.1%, 1.217 35.7%, 1.141 39.3%, 1.063 42.9%, 0.996 46.4%, 0.947 50.0%, 0.919 53.6%, 0.910 57.1%, 0.917 60.7%, 0.935 64.3%, 0.958 67.9%, 0.981 71.4%, 1.001 75.0%, 1.016 78.6%, 1.024 82.1%, 1.027 85.7%, 1.025 89.3%, 1.020 92.9%, 1.013 96.4%, 1);
+  --m-needle: 1025ms;
+
+  --m-skel: #EEF1F6;
+  --m-skel-hi: #F6F8FB;
+  --m-error: #B42318; /* tylko ikona błędu systemu */
+  --m-navy: #1F2A5A;
+  --m-blue: #5AA9E6;
+  --m-lav: var(--ai, #8E7CE0);
+}
+
+/* ---------- klasy pomocnicze ---------- */
+@keyframes m-fade { from { opacity: 0; } }
+@keyframes m-rise { from { opacity: 0; transform: translateY(6px); } }
+@keyframes m-pop { from { opacity: 0; transform: scale(.6); } }
+
+.m-fade-in { animation: m-fade var(--m-base) var(--m-ease) both; }
+.m-rise-in { animation: m-rise var(--m-slow) var(--m-ease) both; }
+.m-stagger > * { animation: m-rise var(--m-slow) var(--m-ease) calc(var(--i, 0) * 40ms) both; }
+.m-stagger > :nth-child(2) { --i: 1; } .m-stagger > :nth-child(3) { --i: 2; } .m-stagger > :nth-child(4) { --i: 3; }
+.m-stagger > :nth-child(5) { --i: 4; } .m-stagger > :nth-child(6) { --i: 5; } .m-stagger > :nth-child(7) { --i: 6; }
+.m-stagger > :nth-child(n+8) { --i: 7; }
+.m-pop { display: inline-block; animation: m-pop 180ms var(--m-ease) both; }
+.m-press { transition: transform var(--m-fast) var(--m-ease); }
+.m-press:active:not(:disabled):not([aria-disabled="true"]) { transform: scale(.98); }
+
+.m-sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ---------- igła busoli ---------- */
+.m-needle { display: inline-block; flex: none; overflow: visible; vertical-align: middle; }
+.m-needle-g { transform-box: view-box; transform-origin: 50% 50%; }
+/* pętla loadera: dwa obroty po 180° (sprężyna 1025 ms + 400 ms spoczynku), cykl 2850 ms */
+.m-needle--spin .m-needle-g { animation: m-turn 2850ms linear infinite; }
+@keyframes m-turn {
+  0%           { transform: rotate(0deg);   animation-timing-function: linear(0, 0.0037 1.8%, 0.0112 3.6%, 0.0215 5.4%, 0.0341 7.1%, 0.0487 8.9%, 0.0652 10.7%, 0.0835 12.5%, 0.1034 14.3%, 0.1248 16.1%, 0.1477 17.9%, 0.1720 19.6%, 0.1977 21.4%, 0.2247 23.2%, 0.2530 25.0%, 0.2826 26.8%, 0.3133 28.6%, 0.3452 30.4%, 0.3783 32.1%, 0.4125 33.9%, 0.4477 35.7%, 0.4841 37.5%, 0.5215 39.3%, 0.5599 41.1%, 0.5994 42.9%, 0.6398 44.6%, 0.6813 46.4%, 0.7237 48.2%, 0.7671 50.0%, 0.8114 51.8%, 0.8566 53.6%, 0.9027 55.4%, 0.9498 57.1%, 0.9977 58.9%, 1.0382 60.7%, 1.0607 62.5%, 1.0666 64.3%, 1.0599 66.1%, 1.0452 67.9%, 1.0273 69.6%, 1.0102 71.4%, 0.9963 73.2%, 0.9870 75.0%, 0.9826 76.8%, 0.9823 78.6%, 0.9850 80.4%, 0.9894 82.1%, 0.9943 83.9%, 0.9987 85.7%, 1.0020 87.5%, 1.0041 89.3%, 1.0048 91.1%, 1.0046 92.9%, 1.0037 94.6%, 1.0024 96.4%, 1.0011 98.2%, 1); }
+  35.96%, 50%  { transform: rotate(180deg); animation-timing-function: linear(0, 0.0037 1.8%, 0.0112 3.6%, 0.0215 5.4%, 0.0341 7.1%, 0.0487 8.9%, 0.0652 10.7%, 0.0835 12.5%, 0.1034 14.3%, 0.1248 16.1%, 0.1477 17.9%, 0.1720 19.6%, 0.1977 21.4%, 0.2247 23.2%, 0.2530 25.0%, 0.2826 26.8%, 0.3133 28.6%, 0.3452 30.4%, 0.3783 32.1%, 0.4125 33.9%, 0.4477 35.7%, 0.4841 37.5%, 0.5215 39.3%, 0.5599 41.1%, 0.5994 42.9%, 0.6398 44.6%, 0.6813 46.4%, 0.7237 48.2%, 0.7671 50.0%, 0.8114 51.8%, 0.8566 53.6%, 0.9027 55.4%, 0.9498 57.1%, 0.9977 58.9%, 1.0382 60.7%, 1.0607 62.5%, 1.0666 64.3%, 1.0599 66.1%, 1.0452 67.9%, 1.0273 69.6%, 1.0102 71.4%, 0.9963 73.2%, 0.9870 75.0%, 0.9826 76.8%, 0.9823 78.6%, 0.9850 80.4%, 0.9894 82.1%, 0.9943 83.9%, 0.9987 85.7%, 1.0020 87.5%, 1.0041 89.3%, 1.0048 91.1%, 1.0046 92.9%, 1.0037 94.6%, 1.0024 96.4%, 1.0011 98.2%, 1); }
+  85.96%, 100% { transform: rotate(360deg); }
+}
+/* wahanie „szukam”: nieregularne wahnięcia do ±9°, każde jak mała sprężyna */
+.m-needle--seek .m-needle-g { animation: m-seek 3600ms linear infinite; }
+@keyframes m-seek {
+  0%       { transform: rotate(0deg);  animation-timing-function: linear(0, 0.079 3.6%, 0.276 7.1%, 0.531 10.7%, 0.790 14.3%, 1.013 17.9%, 1.177 21.4%, 1.271 25.0%, 1.300 28.6%, 1.276 32.1%, 1.217 35.7%, 1.141 39.3%, 1.063 42.9%, 0.996 46.4%, 0.947 50.0%, 0.919 53.6%, 0.910 57.1%, 0.917 60.7%, 0.935 64.3%, 0.958 67.9%, 0.981 71.4%, 1.001 75.0%, 1.016 78.6%, 1.024 82.1%, 1.027 85.7%, 1.025 89.3%, 1.020 92.9%, 1.013 96.4%, 1); }
+  14%      { transform: rotate(9deg);  animation-timing-function: linear(0, 0.079 3.6%, 0.276 7.1%, 0.531 10.7%, 0.790 14.3%, 1.013 17.9%, 1.177 21.4%, 1.271 25.0%, 1.300 28.6%, 1.276 32.1%, 1.217 35.7%, 1.141 39.3%, 1.063 42.9%, 0.996 46.4%, 0.947 50.0%, 0.919 53.6%, 0.910 57.1%, 0.917 60.7%, 0.935 64.3%, 0.958 67.9%, 0.981 71.4%, 1.001 75.0%, 1.016 78.6%, 1.024 82.1%, 1.027 85.7%, 1.025 89.3%, 1.020 92.9%, 1.013 96.4%, 1); }
+  25%, 30% { transform: rotate(4deg);  animation-timing-function: linear(0, 0.079 3.6%, 0.276 7.1%, 0.531 10.7%, 0.790 14.3%, 1.013 17.9%, 1.177 21.4%, 1.271 25.0%, 1.300 28.6%, 1.276 32.1%, 1.217 35.7%, 1.141 39.3%, 1.063 42.9%, 0.996 46.4%, 0.947 50.0%, 0.919 53.6%, 0.910 57.1%, 0.917 60.7%, 0.935 64.3%, 0.958 67.9%, 0.981 71.4%, 1.001 75.0%, 1.016 78.6%, 1.024 82.1%, 1.027 85.7%, 1.025 89.3%, 1.020 92.9%, 1.013 96.4%, 1); }
+  45%      { transform: rotate(-8deg); animation-timing-function: linear(0, 0.079 3.6%, 0.276 7.1%, 0.531 10.7%, 0.790 14.3%, 1.013 17.9%, 1.177 21.4%, 1.271 25.0%, 1.300 28.6%, 1.276 32.1%, 1.217 35.7%, 1.141 39.3%, 1.063 42.9%, 0.996 46.4%, 0.947 50.0%, 0.919 53.6%, 0.910 57.1%, 0.917 60.7%, 0.935 64.3%, 0.958 67.9%, 0.981 71.4%, 1.001 75.0%, 1.016 78.6%, 1.024 82.1%, 1.027 85.7%, 1.025 89.3%, 1.020 92.9%, 1.013 96.4%, 1); }
+  56%, 61% { transform: rotate(-2deg); animation-timing-function: linear(0, 0.079 3.6%, 0.276 7.1%, 0.531 10.7%, 0.790 14.3%, 1.013 17.9%, 1.177 21.4%, 1.271 25.0%, 1.300 28.6%, 1.276 32.1%, 1.217 35.7%, 1.141 39.3%, 1.063 42.9%, 0.996 46.4%, 0.947 50.0%, 0.919 53.6%, 0.910 57.1%, 0.917 60.7%, 0.935 64.3%, 0.958 67.9%, 0.981 71.4%, 1.001 75.0%, 1.016 78.6%, 1.024 82.1%, 1.027 85.7%, 1.025 89.3%, 1.020 92.9%, 1.013 96.4%, 1); }
+  74%      { transform: rotate(6deg);  animation-timing-function: linear(0, 0.079 3.6%, 0.276 7.1%, 0.531 10.7%, 0.790 14.3%, 1.013 17.9%, 1.177 21.4%, 1.271 25.0%, 1.300 28.6%, 1.276 32.1%, 1.217 35.7%, 1.141 39.3%, 1.063 42.9%, 0.996 46.4%, 0.947 50.0%, 0.919 53.6%, 0.910 57.1%, 0.917 60.7%, 0.935 64.3%, 0.958 67.9%, 0.981 71.4%, 1.001 75.0%, 1.016 78.6%, 1.024 82.1%, 1.027 85.7%, 1.025 89.3%, 1.020 92.9%, 1.013 96.4%, 1); }
+  88%, 100%{ transform: rotate(0deg); }
+}
+
+/* ---------- 11. loader strony ---------- */
+.m-page-loader { display: grid; place-items: center; min-height: 40vh; padding: 32px 16px; }
+.m-page-loader-box { display: grid; justify-items: center; gap: 12px; text-align: center; animation: m-fade var(--m-base) var(--m-ease) both; }
+.m-page-loader-text { font-size: 16px; font-weight: 600; color: var(--text, #1F2A5A); }
+.m-page-loader-sub { font-size: 14px; color: var(--muted, #5D6680); max-width: 30ch; animation: m-fade var(--m-base) var(--m-ease) both; }
+
+/* ---------- 12. szkielet ---------- */
+.m-skeleton { position: relative; display: grid; gap: 16px; align-content: start; }
+.m-skel { display: block; height: 12px; border-radius: 6px; background: var(--m-skel); }
+.m-skeleton[aria-busy="true"] .m-skel {
+  background: linear-gradient(90deg, var(--m-skel) 0 35%, var(--m-skel-hi) 50%, var(--m-skel) 65% 100%) var(--m-skel);
+  background-size: 300% 100%;
+  animation: m-shimmer 1800ms linear infinite;
+}
+@keyframes m-shimmer { 0% { background-position: 100% 0; } 75%, 100% { background-position: 0 0; } }
+.m-skel--circle { border-radius: 50%; flex: none; }
+.m-skel--pill { border-radius: 999px; }
+.m-skel--title { height: 24px; border-radius: 8px; }
+.m-skel--block { border-radius: 12px; }
+.m-skel-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.m-skel-stack { display: grid; gap: 8px; flex: 1; min-width: 0; }
+.m-skel-panel { border-radius: 16px; background: var(--surface, #fff); box-shadow: 0 8px 28px rgba(31, 42, 90, .06); padding: 20px; display: grid; gap: 12px; align-content: start; }
+.m-skeleton--list .m-skel-row { padding: 12px 0; border-top: 1px solid var(--border, #E4E7EF); }
+.m-skeleton--list .m-skel-row:first-of-type { border-top: 0; }
+.m-skeleton--cards { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.m-skeleton--detail .m-skel-cols { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
+.m-skeleton--wizard { grid-template-columns: 240px minmax(0, 1fr); gap: 24px; }
+.m-skel-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.m-skel-note { font-size: 14px; color: var(--muted, #5D6680); }
+@media (max-width: 900px) {
+  .m-skeleton--wizard, .m-skeleton--detail .m-skel-cols { grid-template-columns: minmax(0, 1fr); }
+  .m-skeleton--wizard > .m-skel-rail { display: none; }
+}
+
+/* ---------- Reveal ---------- */
+.m-reveal { min-width: 0; }
+
+/* ---------- 13. przycisk ze stanem (Zapisz / Spróbuj ponownie / Przypomnij) ---------- */
+.m-state-btn, .m-sent { display: inline-grid; white-space: nowrap; }
+.m-state-btn > .m-state-lbl, .m-sent > .m-state-lbl {
+  grid-area: 1 / 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  opacity: 0; visibility: hidden; transform: translateY(4px);
+  transition: opacity var(--m-fast) var(--m-ease), transform var(--m-fast) var(--m-ease), visibility 0s linear var(--m-fast);
+}
+.m-state-btn > .m-state-lbl.is-on, .m-sent > .m-state-lbl.is-on {
+  opacity: 1; visibility: visible; transform: none;
+  transition: opacity var(--m-fast) var(--m-ease), transform var(--m-fast) var(--m-ease), visibility 0s;
+}
+.m-state-btn[aria-disabled="true"] { cursor: progress; }
+.m-check { display: inline-block; font-weight: 700; }
+.is-on > .m-check { animation: m-pop 180ms var(--m-ease) 40ms both; }
+
+.m-dots { display: inline-flex; gap: 5px; align-items: center; height: 12px; }
+.m-dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: m-dot 1100ms var(--m-ease-io) calc(var(--n, 0) * 160ms) infinite both; }
+.m-dots i:nth-child(2) { --n: 1; } .m-dots i:nth-child(3) { --n: 2; }
+@keyframes m-dot { 0%, 60%, 100% { opacity: .4; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+
+/* mały pierścień do wskaźników w linii */
+.m-spin { width: 14px; height: 14px; flex: none; display: block; animation: m-spin-r 1000ms linear infinite; }
+@keyframes m-spin-r { to { transform: rotate(360deg); } }
+
+/* ---------- 14. autozapis ---------- */
+.m-autosave { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted, #5D6680); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.m-autosave-txt { animation: m-fade var(--m-fast) var(--m-ease) both; display: inline-flex; align-items: center; gap: 6px; }
+.m-autosave-ok { font-weight: 700; color: var(--text, #1F2A5A); }
+.m-autosave-err { color: var(--m-error); font-weight: 700; }
+
+/* ---------- 15. PDF ---------- */
+.m-pdf { display: grid; gap: 12px; }
+.m-pdf-title { font-size: 15px; font-weight: 650; color: var(--text, #1F2A5A); margin: 0; overflow-wrap: anywhere; }
+.m-prog { position: relative; height: 6px; border-radius: 3px; background: var(--blue-soft, #DCEEFB); overflow: hidden; }
+.m-prog-seg { position: absolute; inset: 0 auto 0 0; width: 35%; border-radius: 3px; background: #33437F; animation: m-indet 1600ms var(--m-ease-io) infinite; }
+@keyframes m-indet { from { transform: translateX(-100%); } to { transform: translateX(286%); } }
+.m-prog-fill { position: absolute; inset: 0; background: var(--m-navy); transform: scaleX(0); transform-origin: left; }
+.m-prog.is-done .m-prog-seg { display: none; }
+.m-prog.is-done .m-prog-fill { transform: none; transition: transform var(--m-slow) var(--m-ease); }
+.m-psteps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 15px; }
+.m-psteps li { display: flex; align-items: center; gap: 10px; color: var(--muted, #5D6680); }
+.m-psteps-m { display: grid; place-items: center; width: 20px; height: 20px; flex: none; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--field-border, #7D869D); font-size: 12px; font-weight: 700; }
+.m-psteps li[data-s="now"] { color: var(--text, #1F2A5A); font-weight: 650; }
+.m-psteps li[data-s="now"] .m-psteps-m { box-shadow: none; }
+.m-psteps li[data-s="done"] { color: var(--text, #1F2A5A); }
+.m-psteps li[data-s="done"] .m-psteps-m { background: var(--m-navy); box-shadow: none; color: #fff; animation: m-pop 180ms var(--m-ease) both; }
+
+/* ---------- 16. asystent pisze (tylko AI) ---------- */
+.m-typing { display: inline-flex; align-items: center; color: var(--m-lav); }
+.m-typing .m-dots i { width: 7px; height: 7px; }
+
+/* ---------- 17. przeładowanie fragmentu ---------- */
+.m-refresh { position: relative; }
+.m-refresh-body { transition: opacity var(--m-fast) var(--m-ease); }
+.m-refresh.is-pending > .m-refresh-body { opacity: .55; }
+.m-refresh[aria-busy="true"] > .m-refresh-body { pointer-events: none; }
+.m-refresh-chip {
+  position: absolute; top: 12px; right: 12px; z-index: 2; display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px 3px 6px; border-radius: 999px; background: var(--surface, #fff); box-shadow: 0 0 0 1px var(--border, #E4E7EF), 0 4px 12px rgba(31, 42, 90, .08);
+  font-size: 14px; font-weight: 600; color: var(--text, #1F2A5A);
+  opacity: 0; visibility: hidden; transition: opacity var(--m-fast) var(--m-ease), visibility 0s linear var(--m-fast);
+}
+.m-refresh.is-pending > .m-refresh-chip { opacity: 1; visibility: visible; transition: opacity var(--m-fast) var(--m-ease), visibility 0s; }
+
+/* ---------- 18. pusty stan ---------- */
+.m-empty-enter { display: grid; gap: 8px; justify-items: start; }
+
+/* ---------- 19. błąd ładowania ---------- */
+.m-error { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: start; animation: m-rise var(--m-base) var(--m-ease) both; }
+.m-error-ico { width: 40px; height: 40px; display: block; }
+.m-error-title { margin: 0; font-weight: 700; font-size: 17px; color: var(--text, #1F2A5A); }
+.m-error-detail { margin: 4px 0 12px; font-size: 15px; color: var(--muted, #5D6680); }
+.m-error-title + .m-error-actions { margin-top: 12px; }
+
+/* =====================================================================
+   GLOBALNY POLISH (bez zmiany układu). Plik ładuje się po index.css i busola-hifi.css.
+   ===================================================================== */
+button {
+  transition: transform var(--m-fast) var(--m-ease), box-shadow var(--m-base) var(--m-ease),
+    background-color var(--m-base) var(--m-ease), border-color var(--m-base) var(--m-ease), color var(--m-base) var(--m-ease),
+    opacity var(--m-base) var(--m-ease), outline-color var(--m-fast) var(--m-ease), outline-offset var(--m-fast) var(--m-ease);
+}
+/* przyciski główne: lekkie wciśnięcie (.m-press) */
+button:not(.secondary):not(.link):not(.tab):not(.step-link):not(.option):not(.score-button):active:not(:disabled):not([aria-disabled="true"]) { transform: scale(.98); }
+button.secondary:active:not(:disabled):not([aria-disabled="true"]) { transform: scale(.98); }
+
+a { transition: color var(--m-base) var(--m-ease), text-decoration-color var(--m-base) var(--m-ease), outline-color var(--m-fast) var(--m-ease), outline-offset var(--m-fast) var(--m-ease); }
+button.link { text-decoration-color: transparent; text-underline-offset: 3px; }
+button.link:hover:not(:disabled) { text-decoration-line: underline; text-decoration-color: currentColor; }
+
+/* płynny focus-ring: obrys jest zawsze, przezroczysty; focus-visible zmienia kolor i odsunięcie (z index.css) */
+:is(button, a, summary, [role="button"], [role="tab"], [role="radio"], [role="checkbox"]):not(:focus-visible) { outline: 2px solid transparent; outline-offset: 0; }
+
+/* karty klikalne: lift 1 px + cień */
+:is(a.card, button.card, .card[role="button"], .card.is-clickable, .m-lift, .sv2-tile) {
+  transition: transform var(--m-base) var(--m-ease), box-shadow var(--m-base) var(--m-ease), border-color var(--m-base) var(--m-ease), background-color var(--m-base) var(--m-ease);
+}
+:is(a.card, button.card, .card[role="button"], .card.is-clickable, .m-lift, .sv2-tile):hover:not(:disabled) {
+  transform: translateY(-1px); box-shadow: 0 12px 32px rgba(31, 42, 90, .14);
+}
+:is(input, select, textarea) { transition: border-color var(--m-base) var(--m-ease), box-shadow var(--m-base) var(--m-ease), outline-color var(--m-fast) var(--m-ease); }
+.tab { transition: background-color var(--m-base) var(--m-ease), color var(--m-base) var(--m-ease), outline-color var(--m-fast) var(--m-ease); }
+
+/* =====================================================================
+   OGRANICZONY RUCH: wszystko statycznie, stany końcowe od razu.
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .m-fade-in, .m-rise-in, .m-stagger > *, .m-pop, .m-needle-g, .m-page-loader-box, .m-page-loader-sub,
+  .m-skel, .m-dots i, .m-spin, .m-autosave-txt, .m-prog-seg, .m-psteps-m, .m-error, .m-check, .m-state-lbl {
+    animation: none !important;
+  }
+  .m-press, .m-state-lbl, .m-refresh-body, .m-refresh-chip, .m-prog-fill, button, a, .tab, input, select, textarea,
+  :is(a.card, button.card, .card[role="button"], .card.is-clickable, .m-lift, .sv2-tile) { transition: none !important; }
+  .m-press:active, button:active, :is(a.card, button.card, .card[role="button"], .card.is-clickable, .m-lift, .sv2-tile):hover { transform: none !important; }
+  .m-skeleton[aria-busy="true"] .m-skel { background: var(--m-skel); }
+  .m-skeleton .m-skel-note.m-sr { position: static; width: auto; height: auto; margin: 0; clip: auto; overflow: visible; white-space: normal; }
+  .m-prog-seg { display: none; }
+  .m-prog:not(.is-done) { background: repeating-linear-gradient(90deg, var(--blue-soft, #DCEEFB) 0 8px, #C5DDF2 8px 16px); }
+}
+
+/* wejście strony robi .m-page.m-rise-in (App.tsx), więc stara animacja całego <main> nie dubluje ruchu */
+.content { animation: none; }
+.m-page { min-width: 0; }
+
+/* fokus zakładek w pasku: nav ma overflow-x, więc obrys do środka, żeby nie był przycinany */
+.topbar nav .tab:focus-visible { outline-offset: -2px; }

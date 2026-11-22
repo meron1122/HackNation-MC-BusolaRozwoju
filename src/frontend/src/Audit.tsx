@@ -1,6 +1,9 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react'
 import { api, apiDownload } from './api'
 import { DateInput } from './DateInput'
+import { ListSkeleton } from './dash-parts'
+import { Loadable } from './v2/motion'
+import './ml-motion.css'
 
 type Entry = {
   id: number
@@ -74,6 +77,7 @@ export function AuditPage() {
   const [data, setData] = useState<{ items: Entry[]; total: number } | null>(null)
   const [open, setOpen] = useState<number | null>(null)
   const [error, setError] = useState('')
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let current = true
@@ -83,7 +87,7 @@ export function AuditPage() {
       (e: Error) => current && setError(e.message),
     )
     return () => { current = false }
-  }, [query, page])
+  }, [query, page, attempt])
 
   function search(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -124,17 +128,16 @@ export function AuditPage() {
         <label>Adres IP (początek)<input name="ip" /></label>
         <div className="buttons"><button type="submit">Szukaj</button></div>
       </form>
-      {error && <p role="alert" className="error">{error}</p>}
-      {data === null ? (
-        !error && <p>Ładowanie…</p>
-      ) : data.items.length === 0 ? (
-        <p className="muted">Brak wpisów dla tych filtrów.</p>
-      ) : (
+      {data && error && <p role="alert" className="error">{error}</p>}
+      <Loadable loading={data === null && !error} error={data ? '' : error} onRetry={() => { setError(''); setAttempt((n) => n + 1) }}
+        skeleton={<ListSkeleton rows={8} card={false} />} empty={data?.items.length === 0}
+        emptyNode={<p className="muted" style={{ margin: 0 }}>Brak wpisów dla tych filtrów. Zmień filtry i wyszukaj ponownie.</p>}>
+      {() => data && (
         <>
           <div className="table-wrap">
             <table>
               <thead><tr><th>Kiedy</th><th>Użytkownik</th><th>Akcja</th><th>Encja</th><th>Status</th><th>IP</th><th></th></tr></thead>
-              <tbody>
+              <tbody className="ml-stagger">
                 {data.items.map((a) => (
                   <Fragment key={a.id}>
                     <tr>
@@ -163,6 +166,7 @@ export function AuditPage() {
           </div>
         </>
       )}
+      </Loadable>
     </section>
   )
 }

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { api } from '../api'
 import { SheetForm } from '../Evaluations'
 import { AiFrame, Info, Source, askAssistant } from '../v2'
+import { AutosaveStatus } from '../v2/motion'
 import { StartHead } from './start-head'
 import type { StepProps } from './common'
 import { saveAnswers } from './data'
@@ -50,6 +51,8 @@ function CriteriaBoard({ detail, field, section, reload }: { detail: Detail; fie
   const [selected, setSelected] = useState<string[]>(savedKeys)
   const [sources, setSources] = useState<Record<string, string>>({})
   const [status, setStatus] = useState('')
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [savedAt, setSavedAt] = useState<Date | undefined>(undefined)
   const [busy, setBusy] = useState(false)
   const [all, setAll] = useState(false)
   const [proposal, setProposal] = useState<Proposal>({ state: 'idle' })
@@ -74,13 +77,16 @@ function CriteriaBoard({ detail, field, section, reload }: { detail: Detail; fie
     const previous = selected
     setSelected(next)
     setBusy(true)
-    setStatus('Zapisywanie…')
+    setStatus('')
+    setSaveState('saving')
     try {
       await saveAnswers(detail.id, answers)
-      setStatus('Zapisano.')
+      setSaveState('saved')
+      setSavedAt(new Date())
       await reload()
     } catch (e) {
       setSelected(previous)
+      setSaveState('error')
       setStatus((e as Error).message)
     } finally {
       setBusy(false)
@@ -203,7 +209,8 @@ function CriteriaBoard({ detail, field, section, reload }: { detail: Detail; fie
             )}
             {!editable && selected.length === 0 && <p className="sv2-muted">Bez kryteriów dodatkowych.</p>}
             {locked && <p className="sv2-muted"><UiIcon name="lock" size={15} /> Zablokowane po zamknięciu części I.</p>}
-            {status && <p className="sv2-muted" role="status">{status}</p>}
+            {saveState !== 'idle' && <p className="sv2-muted"><AutosaveStatus state={saveState} savedAt={savedAt} /></p>}
+            {status && <p className="sv2-muted" role="alert">{status}</p>}
           </div>
 
           {editable && !full && (

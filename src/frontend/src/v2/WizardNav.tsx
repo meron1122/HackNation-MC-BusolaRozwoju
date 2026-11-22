@@ -1,4 +1,7 @@
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import type { Step } from '../evaluation/common'
+import { usePrevious } from '../evaluation/mw-motion'
+import '../evaluation/mw-wizard.css'
 import { daysUntil, fmtDate, type Detail } from '../evaluation/types'
 
 /** Pięć etapów v5 (H08 v2). Ostatni — okno sprzeciwu — z krokiem „Sprzeciw” (H16), gdy szablon ma etap objection. */
@@ -42,8 +45,16 @@ export function StageNav({ sheet, steps, currentId, onGo, lockedAfter = null }: 
 }) {
   const current = steps.find((s) => s.id === currentId) ?? steps[0]
   const open = current ? stageIndexOf(current) : 0
+  // ✓ wskakuje (m-pop) tylko przy odhaczeniu w trakcie pracy, nie przy wejściu na ekran.
+  const doneIds = steps.filter((s) => s.done).map((s) => s.id).join('|')
+  const prevDone = usePrevious(doneIds)
+  const fresh = (id: string) => prevDone !== undefined && !prevDone.split('|').includes(id)
+  const freshStage = (i: number) => {
+    const own = steps.filter((s) => stageIndexOf(s) === i)
+    return own.length > 0 && own.some((s) => s.done && fresh(s.id))
+  }
   return (
-    <nav className="wz-nav" aria-label="Etapy i kroki oceny">
+    <nav className="wz-nav mw-nav" aria-label="Etapy i kroki oceny">
       <p className="wz-sheet">{sheet}</p>
       <ol className="wz-stages">
         {STAGES.map((label, i) => {
@@ -53,7 +64,8 @@ export function StageNav({ sheet, steps, currentId, onGo, lockedAfter = null }: 
           const locked = lockedAfter != null && i > lockedAfter && !done
           const marker = (
             <span className={`wz-mark${done ? ' done' : isOpen && !locked ? ' now' : ''}`} aria-hidden="true">
-              {done ? <Check /> : isOpen && !locked ? <span className="wz-mark-dot" /> : i + 1}
+              {done ? <span className={freshStage(i) ? 'mw-mark-in m-pop' : 'mw-mark-in'}><Check /></span>
+                : isOpen && !locked ? <span key={`now-${i}`} className="wz-mark-dot mw-dot-in" /> : i + 1}
             </span>
           )
           const state = done ? ' (gotowe)' : locked ? ' (jeszcze nie rozpoczęty, tylko podgląd)' : isOpen ? ' (bieżący etap)' : ''
@@ -68,8 +80,9 @@ export function StageNav({ sheet, steps, currentId, onGo, lockedAfter = null }: 
                 </button>
               )}
               {own.length > 0 && (
-                // Pod-kroki innych etapów zostają w DOM ukryte (hidden): niewidoczne i poza kolejnością Tab.
-                <ul className="wz-substeps" hidden={!isOpen}>
+                // Pod-kroki innych etapów zostają w DOM zwinięte (inert): niewidoczne i poza kolejnością Tab.
+                // Rozwinięcie wysokości (grid 0fr → 1fr) i przesuwane podświetlenie bieżącego kroku.
+                <SubSteps open={isOpen} currentId={current?.id}>
                   {own.map((s) => (
                     <li key={s.id}>
                       <button type="button" className={s.id === current?.id ? 'step-link active' : 'step-link'}
@@ -77,18 +90,49 @@ export function StageNav({ sheet, steps, currentId, onGo, lockedAfter = null }: 
                         <span>{s.title}</span>
                         {locked && <Lock />}
                         {locked && <span className="sr-only">(tylko podgląd)</span>}
-                        {s.done && <span className="wz-sub-done" aria-hidden="true"><Check /></span>}
+                        {s.done && <span className={fresh(s.id) ? 'wz-sub-done m-pop' : 'wz-sub-done'} aria-hidden="true"><Check /></span>}
                         {s.done && <span className="sr-only">(gotowe)</span>}
                       </button>
                     </li>
                   ))}
-                </ul>
+                </SubSteps>
               )}
             </li>
           )
         })}
       </ol>
     </nav>
+  )
+}
+
+/**
+ * Pod-kroki etapu: zwijane wysokością (bez `hidden`, żeby przejście było płynne; zwinięte = `inert`) z jednym
+ * podświetleniem, które przesuwa się do bieżącego kroku (250 ms). Przy reduced motion — od razu.
+ */
+function SubSteps({ open, currentId, children }: { open: boolean; currentId: string | undefined; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [hl, setHl] = useState<{ top: number; height: number } | null>(null)
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el || !open) return
+    const measure = () => {
+      const active = el.querySelector<HTMLElement>('.step-link.active')
+      // Pozycja względem .mw-sub-inner (position: relative), niezależnie od marginesów listy.
+      const top = active ? active.getBoundingClientRect().top - el.getBoundingClientRect().top : 0
+      setHl(active ? { top, height: active.offsetHeight } : null)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [open, currentId])
+  return (
+    <div className="mw-sub-wrap" data-open={open} inert={!open}>
+      <div ref={box} className="mw-sub-inner">
+        {hl && <span className="mw-sub-hl" aria-hidden="true" style={{ transform: `translateY(${hl.top}px)`, height: hl.height }} />}
+        <ul className={hl ? 'wz-substeps mw-substeps has-hl' : 'wz-substeps mw-substeps'}>{children}</ul>
+      </div>
+    </div>
   )
 }
 

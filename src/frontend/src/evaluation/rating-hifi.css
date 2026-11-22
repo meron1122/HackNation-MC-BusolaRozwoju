@@ -67,7 +67,7 @@
   display: flex; align-items: center; gap: 16px; width: 100%; min-height: 64px; padding: 12px 16px; text-align: left;
   background: var(--surface); color: var(--text); border: 1px solid var(--rh-line); border-radius: 12px;
   font: inherit; font-size: 16px; font-weight: 400; line-height: 1.45;
-  animation: rh-rise .22s var(--ease) both; transition: background .15s, border-color .15s, box-shadow .15s;
+  animation: rh-rise .22s var(--ease) backwards; transition: background .15s, border-color .15s, box-shadow .15s, opacity .15s;
 }
 .rh-option:hover:not(:disabled) { border-color: var(--text); background: color-mix(in srgb, var(--blue-soft) 35%, var(--surface)); }
 .rh-option:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--focus); }
@@ -219,7 +219,7 @@
 
 @keyframes rh-slide { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 @keyframes rh-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-@keyframes rh-pop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes rh-pop { from { transform: scale(.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
   .rh *, .rh { animation: none !important; transition: none !important; }

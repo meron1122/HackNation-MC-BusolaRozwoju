@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import { AssistantChat } from '../assistant/AssistantChat'
 import { FOCUS_ASSISTANT_EVENT } from '../assistant/AssistantWidget'
 import { dock } from '../assistant/store'
 import { useApi } from '../evaluation/data'
 import { fmtDate, type Detail, type Notes } from '../evaluation/types'
+import './ma-panel.css'
 
 type Tab = 'notes' | 'asst'
 
@@ -94,6 +95,23 @@ export function WizardPanel({ detail, step, onAddNote }: { detail: Detail; step:
   ]
   const active = tabs.some((t) => t.id === tab) ? tab : 'asst'
 
+  // Wskaźnik zakładek: jedno podkreślenie przesuwa się pod aktywną zakładkę (mierzone po zmianie zakładki i etykiety).
+  const tablist = useRef<HTMLDivElement>(null)
+  const [ink, setInk] = useState<{ x: number; w: number; still: boolean } | null>(null)
+  const tabsKey = tabs.map((t) => t.label).join('|')
+  useLayoutEffect(() => {
+    const measure = (still: boolean) => {
+      const el = tablist.current?.querySelector<HTMLElement>(`#wz-tab-${active}`)
+      if (el) setInk((prev) => ({ x: el.offsetLeft, w: el.offsetWidth, still: still || prev == null }))
+    }
+    measure(false)
+    const el = tablist.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => measure(true))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [active, tabsKey, visible])
+
   return (
     <>
       <div className="wz-rail" aria-label="Panel boczny" role="group">
@@ -109,8 +127,9 @@ export function WizardPanel({ detail, step, onAddNote }: { detail: Detail; step:
           </button>
         ))}
       </div>
-      <aside ref={panel} className={`wz-panel${open ? ' open' : ''}`} aria-label="Notatki i asystent">
-        <div className="wz-tabs" role="tablist" aria-label="Panel boczny">
+      {!wide && <div className={`ma-scrim${open ? ' open' : ''}`} aria-hidden="true" onClick={() => setOpen(false)} />}
+      <aside ref={panel} className={`wz-panel ma-drawer${open ? ' open' : ''}`} aria-label="Notatki i asystent">
+        <div ref={tablist} className="wz-tabs ma-tabs" role="tablist" aria-label="Panel boczny">
           {tabs.map((t) => (
             <button key={t.id} type="button" role="tab" id={`wz-tab-${t.id}`} aria-controls={`wz-tabpanel-${t.id}`}
               aria-selected={active === t.id} tabIndex={active === t.id ? 0 : -1}
@@ -125,10 +144,14 @@ export function WizardPanel({ detail, step, onAddNote }: { detail: Detail; step:
               {t.label}
             </button>
           ))}
+          {ink && (
+            <span aria-hidden="true" className={`ma-tab-ink${active === 'asst' ? ' ai' : ''}${ink.still ? ' ma-still' : ''}`}
+              style={{ '--ma-ink-x': `${ink.x}px`, '--ma-ink-w': `${ink.w}px` } as CSSProperties} />
+          )}
           <span className="grow" />
           <button type="button" className="wz-panel-close" aria-label="Zamknij panel" onClick={() => setOpen(false)}>×</button>
         </div>
-        <div className="wz-tabpanel" role="tabpanel" id={`wz-tabpanel-${active}`} aria-labelledby={`wz-tab-${active}`}>
+        <div key={active} className="wz-tabpanel ma-tab-in" role="tabpanel" id={`wz-tabpanel-${active}`} aria-labelledby={`wz-tab-${active}`}>
           {visible && (active === 'notes'
             ? <NotesList key={step} detail={detail} onAdd={onAddNote && (() => { onAddNote(); setOpen(false) })} />
             : <AssistantChat variant="panel" />)}

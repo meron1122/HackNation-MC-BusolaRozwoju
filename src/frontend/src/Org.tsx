@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
 import { Avatar } from './Avatar'
+import { TilesSkeleton } from './dash-parts'
+import { Loadable } from './v2/motion'
 
 type Card = { id: number; name: string; jobTitle: string | null; departmentName: string; hasAvatar: boolean; reportsCount: number; isMe: boolean }
 type OrgView = { focus: Card; managers: Card[]; reports: Card[] }
@@ -10,15 +12,19 @@ export function OrgChart({ startId, onOpenProfile }: { startId: number; onOpenPr
   const [focusId, setFocusId] = useState(startId)
   const [view, setView] = useState<OrgView | null>(null)
   const [error, setError] = useState('')
+  const [retry, setRetry] = useState(0)
 
   useEffect(() => {
     api<OrgView>(`org?employeeId=${focusId}`).then(
       (v) => { setView(v); setError('') },
       (e: Error) => setError(e.message),
     )
-  }, [focusId])
+  }, [focusId, retry])
 
-  if (!view) return error ? <p role="alert" className="error">{error}</p> : <p>Ładowanie…</p>
+  if (!view) {
+    return <Loadable loading={!error} error={error} onRetry={() => { setError(''); setRetry((n) => n + 1) }}
+      skeleton={<TilesSkeleton tiles={3} />}>{null}</Loadable>
+  }
 
   const card = (c: Card, kind: 'manager' | 'focus' | 'report') => (
     <div className={`org-card ${kind}${c.isMe ? ' me' : ''}`}>
@@ -44,7 +50,7 @@ export function OrgChart({ startId, onOpenProfile }: { startId: number; onOpenPr
         <div className="org-back"><button className="secondary" onClick={() => setFocusId(startId)}>Wróć na początek</button></div>
       )}
       {error && <p role="alert" className="error">{error}</p>}
-      <div className="org">
+      <div className="org m-fade-in" key={view.focus.id}>
         {view.managers.length > 0 && (
           <ol className="org-chain" aria-label="Przełożeni">
             {view.managers.map((m) => <li key={m.id}>{card(m, 'manager')}</li>)}
@@ -53,7 +59,7 @@ export function OrgChart({ startId, onOpenProfile }: { startId: number; onOpenPr
         <div className="org-focus">{card(view.focus, 'focus')}</div>
         <h3 className="org-reports-title">Podwładni ({view.reports.length})</h3>
         {view.reports.length ? (
-          <ul className="org-reports">
+          <ul className="org-reports m-stagger">
             {view.reports.map((r) => <li key={r.id}>{card(r, 'report')}</li>)}
           </ul>
         ) : (

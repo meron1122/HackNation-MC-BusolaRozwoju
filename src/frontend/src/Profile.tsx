@@ -7,6 +7,9 @@ import { DateInput } from './DateInput'
 import { EmptyState } from './EmptyState'
 import { fmtDate } from './evaluation/types'
 import { OrgChart } from './Org'
+import { ListSkeleton, ProfileSkeleton } from './dash-parts'
+import { EmptyEnter, Loadable, SaveButton, useSaveState } from './v2/motion'
+import './ml-motion.css'
 
 type Values = Record<string, string | number | null>
 type Profile = {
@@ -182,7 +185,7 @@ export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation, initi
         </section>
       )
     }
-    return error ? <p role="alert" className="error">{error}</p> : <p>Ładowanie…</p>
+    return <Loadable loading={!error} error={error} onRetry={() => { setError(''); load() }} skeleton={<ProfileSkeleton />}>{null}</Loadable>
   }
 
   const e = profile.employee
@@ -192,7 +195,7 @@ export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation, initi
   const save = (section: string, body: unknown) => api(`${base}/${section}`, 'PUT', body).then(load)
 
   return (
-    <div className="profile">
+    <div className="profile m-fade-in">
       <aside className="profile-side card">
         <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={name} size={136} version={avatarVersion} />
         <h2>{name}</h2>
@@ -207,7 +210,7 @@ export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation, initi
         </nav>
       </aside>
 
-      <div className="profile-main">
+      <div className="profile-main m-fade-in" key={tab}>
         {tab === 'personal' && (
           <SectionForm key={`p${e.id}`} title="Dane osobowe" fields={PERSONAL} values={profile.personal}
             editable={canSelf} hr={profile.canEdit} onSave={(v) => save('personal', v)} />
@@ -288,16 +291,18 @@ function EvaluationHistory({ employeeId, onOpen }: { employeeId: number; onOpen:
     api<EvaluationRow[]>(`evaluations?employeeId=${employeeId}`).then(setRows, (e: Error) => setError(e.message))
   }, [employeeId])
 
-  if (error) return <p role="alert" className="error">{error}</p>
-  if (!rows) return <p>Ładowanie…</p>
-  if (!rows.length) return <EmptyState title="Ten pracownik nie ma jeszcze ocen">Pierwsza ocena i oceny okresowe pojawią się tutaj po ich założeniu.</EmptyState>
+  if (error || !rows) {
+    return <Loadable loading={!error} error={error} skeleton={<ListSkeleton rows={3} card={false} />}
+      onRetry={() => { setError(''); api<EvaluationRow[]>(`evaluations?employeeId=${employeeId}`).then(setRows, (e: Error) => setError(e.message)) }}>{null}</Loadable>
+  }
+  if (!rows.length) return <EmptyEnter><EmptyState title="Ten pracownik nie ma jeszcze ocen">Pierwsza ocena i oceny okresowe pojawią się tutaj po ich założeniu.</EmptyState></EmptyEnter>
   return (
     <div className="table-wrap">
       <table>
         <thead>
           <tr><th>Arkusz</th><th>Status</th><th>Początek</th><th>Najbliższy etap</th><th>Termin</th><th><span className="sr-only">Akcje</span></th></tr>
         </thead>
-        <tbody>
+        <tbody className="ml-stagger">
           {rows.map((r) => (
             <tr key={r.id}>
               <td>{r.templateTitle}</td>
@@ -363,13 +368,14 @@ function SectionForm({ title, fields, values, editable, hr, onSave }: {
   onSave: (values: Values) => Promise<unknown>
 }) {
   const [status, setStatus] = useState('')
+  const save = useSaveState()
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    setStatus('Zapisywanie…')
+    const values = readForm(e.currentTarget, fields)
+    setStatus('')
     try {
-      await onSave(readForm(e.currentTarget, fields))
-      setStatus('Zapisano.')
+      await save.run(() => onSave(values))
     } catch (err) {
       setStatus((err as Error).message)
     }
@@ -383,7 +389,7 @@ function SectionForm({ title, fields, values, editable, hr, onSave }: {
         <div className="section-footer">
           <span role="status" className="muted">{status}</span>
           {fields.some((f) => f.required) && <span className="muted small">* wymagane</span>}
-          <button type="submit">Zapisz zmiany</button>
+          <SaveButton type="submit" state={save.state}>Zapisz zmiany</SaveButton>
         </div>
       )}
     </form>
@@ -400,10 +406,11 @@ function ListSection({ title, fields, items, editable, onSave }: {
 }) {
   const [editing, setEditing] = useState<number | 'new' | null>(null)
   const [error, setError] = useState('')
+  const save = useSaveState()
 
   async function persist(next: Values[]) {
     try {
-      await onSave(next)
+      await save.run(() => onSave(next))
       setEditing(null)
       setError('')
     } catch (err) {
@@ -434,7 +441,7 @@ function ListSection({ title, fields, items, editable, onSave }: {
         <form onSubmit={submit} className="list-editor" key={String(editing)}>
           <Inputs fields={fields} values={editing === 'new' ? {} : items[editing]} disabled={false} hr />
           <div className="buttons">
-            <button type="submit">Zapisz wpis</button>
+            <SaveButton type="submit" state={save.state}>Zapisz wpis</SaveButton>
             <button type="button" className="secondary" onClick={() => setEditing(null)}>Anuluj</button>
           </div>
         </form>
@@ -450,7 +457,7 @@ function ListSection({ title, fields, items, editable, onSave }: {
                 {editable && <th><span className="sr-only">Akcje</span></th>}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="ml-stagger">
               {items.map((item, i) => (
                 <tr key={i}>
                   {fields.map((f) => <td key={f.name}>{label(f, item[f.name])}</td>)}

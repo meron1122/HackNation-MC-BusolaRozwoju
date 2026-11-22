@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { PdfProgress, useDelayedFlag } from '../v2/motion'
 import { apiDownload } from '../api'
 import { DateInput } from '../DateInput'
 import { Icon, type IconName } from '../Icon'
@@ -64,24 +65,47 @@ export function StatusPill({ status, detail }: { status: EvaluationStatus; detai
 }
 
 /** Domyślnie arkusz oceny; `report` = formularz sprawozdania (załącznik nr 3). */
+const PDF_STEPS = ['Generuję arkusz na serwerze', 'Gotowe, pobieram plik']
+
+/**
+ * Karta 15: PDF etapami. Po 300 ms pod przyciskiem rozwija się pasek nieokreślony i etapy (bez procentów, których
+ * nie znamy); po odpowiedzi pasek się wypełnia, zostaje nazwa pliku, a panel znika po 2 s.
+ */
 export function PdfButton({ detail, label = 'Pobierz PDF', report = false }: { detail: Detail; label?: string; report?: boolean }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(false)
+  const fileName = `${report ? 'sprawozdanie' : 'ocena'}-${detail.id}.pdf`
+  const shown = useDelayedFlag(busy)
+  const [panel, setPanel] = useState(false)
+  useEffect(() => { if (shown) setPanel(true) }, [shown])
+  useEffect(() => {
+    if (!done) return
+    const t = window.setTimeout(() => { setPanel(false); setDone(false) }, 2000)
+    return () => window.clearTimeout(t)
+  }, [done])
   async function download() {
     setBusy(true)
+    setDone(false)
     try {
-      await apiDownload(report ? `evaluations/${detail.id}/self-assessment/pdf` : `evaluations/${detail.id}/pdf`,
-        `${report ? 'sprawozdanie' : 'ocena'}-${detail.id}.pdf`)
+      await apiDownload(report ? `evaluations/${detail.id}/self-assessment/pdf` : `evaluations/${detail.id}/pdf`, fileName)
       setError('')
+      setDone(true)
     } catch (e) {
       setError((e as Error).message)
+      setPanel(false)
     } finally {
       setBusy(false)
     }
   }
   return (
-    <span className="pdf-button">
+    <span className="pdf-button mw-pdf">
       <button type="button" className="secondary" onClick={download} disabled={busy}>{busy ? 'Pobieranie…' : label}</button>
+      {panel && (
+        <span className="mw-pdf-pop">
+          <PdfProgress steps={PDF_STEPS} current={done ? 1 : 0} done={done} fileName={fileName} />
+        </span>
+      )}
       {error && <span role="alert" className="error small">{error}</span>}
     </span>
   )

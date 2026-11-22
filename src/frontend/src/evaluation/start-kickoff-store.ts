@@ -56,6 +56,9 @@ export async function saveKickoff(evaluationId: number, record: KickoffRecord): 
 export function useKickoff(evaluationId: number) {
   const [record, setRecord] = useState<KickoffRecord>(() => readKickoffCache(evaluationId))
   const [error, setError] = useState('')
+  // Stan autozapisu dla wskaźnika „Zapisuję… / ✓ Zapisano 12:04” (karta 14); sam zapis bez zmian.
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [savedAt, setSavedAt] = useState<Date | undefined>(undefined)
   const latest = useRef(record)
   useEffect(() => {
     let alive = true
@@ -66,7 +69,10 @@ export function useKickoff(evaluationId: number) {
     const next = { ...latest.current, ...patch }
     latest.current = next
     setRecord(next)
-    saveKickoff(evaluationId, next).then(() => setError(''), (e: Error) => setError(e.message))
+    setSaveState('saving')
+    saveKickoff(evaluationId, next).then(
+      () => { setError(''); setSaveState('saved'); setSavedAt(new Date()) },
+      (e: Error) => { setError(e.message); setSaveState('error') })
   }, [evaluationId])
-  return { record, update, error }
+  return { record, update, error, saveState, savedAt }
 }

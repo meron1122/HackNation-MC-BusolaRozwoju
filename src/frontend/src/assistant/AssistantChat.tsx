@@ -1,13 +1,15 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { api, LOGOUT_EVENT } from '../api'
 import { Avatar } from '../Avatar'
 import { AiFrame, Compass, Info, ScaleBar, Spark, Warn } from '../v2'
+import { ErrorState, Needle, TypingDots, usePrefersReducedMotion } from '../v2/motion'
 import { DOCS, parseReply, type Parsed, type SourceRef } from './parse'
 import { ask, contextFor, hasEntity, resetChat, useAssistant, type Mode, type Msg } from './store'
 
 const CONTEXT_LABELS = new Map<string, string>()
 if (typeof window !== 'undefined') window.addEventListener(LOGOUT_EVENT, () => CONTEXT_LABELS.clear())
 import './assistant.css'
+import './ma-assistant.css'
 import { extractGuide, guideTried, startGuide, type GuideStep } from './tours'
 
 export type Variant = 'page' | 'panel' | 'pop'
@@ -95,17 +97,26 @@ function DocIcon() {
   )
 }
 
-/** Ilustracja „lupa nad półką” (brak w bazie). */
+/** Ilustracja „lupa nad półką” (brak w bazie, karta 09): półka, dokumenty po kolei, lawendowa lupa (AI). Potem statycznie. */
 function ShelfIllustration() {
   return (
-    <svg viewBox="0 0 72 56" width="72" height="56" aria-hidden="true" className="asst-shelf">
-      <rect x="6" y="20" width="9" height="24" rx="2" fill="#DCEEFB" stroke="#5D6680" strokeWidth="1.5" />
-      <rect x="17" y="26" width="8" height="18" rx="2" fill="#E4E7EF" stroke="#5D6680" strokeWidth="1.5" />
-      <rect x="27" y="30" width="7" height="14" rx="2" fill="#fff" stroke="#5D6680" strokeWidth="1.5" strokeDasharray="2 2" />
-      <path d="M2 46h60" stroke="#5D6680" strokeWidth="2" strokeLinecap="round" />
-      <path d="M38 40h22" stroke="#5D6680" strokeWidth="1.5" strokeDasharray="2 3" />
-      <circle cx="48" cy="16" r="9" fill="#fff" stroke="#1F2A5A" strokeWidth="3" />
-      <path d="M54.5 22.5l7 7" stroke="#1F2A5A" strokeWidth="3.5" strokeLinecap="round" />
+    <svg viewBox="0 0 150 116" width="104" height="80" aria-hidden="true" className="ma-empty-art">
+      <g className="ma-empty-shelf">
+        <rect x="6" y="98" width="138" height="6" rx="3" fill="#33437F" />
+        <rect x="16" y="104" width="5" height="8" rx="1.5" fill="#33437F" />
+        <rect x="129" y="104" width="5" height="8" rx="1.5" fill="#33437F" />
+      </g>
+      <rect className="ma-empty-doc" style={{ '--d': 0 } as CSSProperties} x="18" y="54" width="18" height="44" rx="3" fill="#5AA9E6" />
+      <rect className="ma-empty-doc" style={{ '--d': 1 } as CSSProperties} x="39" y="62" width="15" height="36" rx="3" fill="#1F2A5A" />
+      <rect className="ma-empty-doc" style={{ '--d': 2 } as CSSProperties} x="57" y="50" width="20" height="48" rx="3" fill="#8CC4EE" />
+      <g className="ma-empty-doc" style={{ '--d': 3 } as CSSProperties}>
+        <rect x="84" y="64" width="16" height="34" rx="3" fill="#DCEEFB" stroke="#8CC4EE" strokeWidth="1.5" transform="rotate(14 92 98)" />
+      </g>
+      <g className="ma-empty-lens">
+        <circle cx="104" cy="34" r="20" fill="#E7E2FA" fillOpacity=".7" stroke="#8E7CE0" strokeWidth="6" />
+        <line x1="118.5" y1="48.5" x2="132" y2="62" stroke="#8E7CE0" strokeWidth="8" strokeLinecap="round" />
+        <path d="M96 30h16" stroke="#6A55C8" strokeWidth="3" strokeLinecap="round" opacity=".5" />
+      </g>
     </svg>
   )
 }
@@ -116,8 +127,8 @@ function SourceChips({ sources, active, onPick, secondary = false }: {
   if (!sources.length) return null
   return (
     <div className="asst-sources">
-      {sources.map((s) => (
-        <button key={s.n} type="button" className={`asst-src${active === s.n ? ' active' : ''}${secondary ? ' secondary' : ''}`}
+      {sources.map((s, i) => (
+        <button key={s.n} type="button" style={{ '--ma-i': i } as CSSProperties} className={`asst-src${active === s.n ? ' active' : ''}${secondary ? ' secondary' : ''}`}
           aria-expanded={active === s.n} onClick={() => onPick(s.n)}>
           <DocIcon />
           {!secondary && <sup>{s.n}</sup>}
@@ -133,10 +144,16 @@ export function SourcePreview({ parsed, n, onClose, onPick, mode }: {
   parsed: Parsed; n: number; onClose?: () => void; onPick: (n: number) => void; mode: Mode
 }) {
   const s = parsed.sources.find((x) => x.n === n)
+  const box = useRef<HTMLElement>(null)
+  // W wąskim panelu podgląd otwiera się pod kartą — przewijamy go do widoku (płynnie, gdy ruch jest dozwolony).
+  useEffect(() => {
+    const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches
+    box.current?.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' })
+  }, [])
   if (!s) return null
   const sentences = parsed.text.split(/(?<=[.!?])\s+/).filter((t) => t.includes(`⟦${n}⟧`))
   return (
-    <aside className="asst-preview" aria-label={`Źródło ${n}: ${s.label}`}>
+    <aside ref={box} className="asst-preview ma-enter" aria-label={`Źródło ${n}: ${s.label}`}>
       <header className="asst-preview-head">
         <span className="asst-preview-icon"><DocIcon /></span>
         <div>
@@ -180,10 +197,17 @@ function GuideButton({ steps }: { steps: GuideStep[] }) {
   )
 }
 
-function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
-  msg: Msg; last: boolean; mode: Mode; active: number | null; onPick: (n: number | null) => void; inlinePreview: boolean
+function Answer({ msg, last, mode, active, onPick, inlinePreview, fresh }: {
+  msg: Msg; last: boolean; mode: Mode; active: number | null; onPick: (n: number | null) => void; inlinePreview: boolean; fresh: boolean
 }) {
-  if (msg.error) return <Warn title="Asystent jest chwilowo niedostępny"><p>{msg.content}</p></Warn>
+  const card = `asst-card${fresh ? ' ma-new' : ''}`
+  if (msg.error) {
+    return (
+      <div className={`${card} asst-error`}>
+        <ErrorState title="Asystent jest chwilowo niedostępny" detail={msg.content} />
+      </div>
+    )
+  }
   const { text: replyText, steps: guide } = extractGuide(msg.content)
   const p = parseReply(replyText)
   const tourButtons = <GuideButton steps={guide} />
@@ -200,7 +224,7 @@ function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
     const firstLine = p.text.split(/\n+/).map((l) => l.trim()).filter(Boolean)
     const body = firstLine.filter((l) => !/^nie znalaz/i.test(l)).join(' ') || firstLine.join(' ')
     return (
-      <AiFrame className="asst-card asst-missing">
+      <AiFrame className={`${card} asst-missing`}>
         <div className="asst-missing-row">
           <ShelfIllustration />
           <div>
@@ -215,14 +239,14 @@ function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
             )}
           </div>
         </div>
-        {inlinePreview && active && <SourcePreview parsed={p} n={active} mode={mode} onPick={onPick} onClose={() => onPick(null)} />}
+        {inlinePreview && active && <SourcePreview key={active} parsed={p} n={active} mode={mode} onPick={onPick} onClose={() => onPick(null)} />}
       </AiFrame>
     )
   }
 
   if (p.kind === 'clarify') {
     return (
-      <AiFrame className="asst-card">
+      <AiFrame className={card}>
         <h3 className="asst-q">{p.text}</h3>
         {last && (
           <div className="asst-choices">
@@ -235,7 +259,7 @@ function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
   }
 
   return (
-    <AiFrame className="asst-card" aside={p.scope && <span className="asst-scope">{p.scope}</span>}>
+    <AiFrame className={card} aside={p.scope && <span className="asst-scope">{p.scope}</span>}>
       {(p.verdict || avg) && (
         <div className="asst-verdict">
           {p.verdict && <strong>{p.verdict}</strong>}
@@ -246,9 +270,41 @@ function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
       <SourceChips sources={p.sources} active={active} onPick={pick} />
       {tourButtons}
       {unverified}
-      {inlinePreview && active && <SourcePreview parsed={p} n={active} mode={mode} onPick={onPick} onClose={() => onPick(null)} />}
+      {inlinePreview && active && <SourcePreview key={active} parsed={p} n={active} mode={mode} onPick={onPick} onClose={() => onPick(null)} />}
     </AiFrame>
   )
+}
+
+/** Ile trwa faza „szukam” (igła), zanim przejdzie w „piszę” (kropki). Backend nie strumieniuje, więc fazę wyznacza czas. */
+const SEEK_MS = 1400
+
+/** 02 + 16: najpierw igła „szuka” i „Szukam w bazie wiedzy…”, potem lawendowy dymek z kropkami. Pętla tylko w trakcie odpowiedzi. */
+function BusyLine({ big, onPhase }: { big: boolean; onPhase: (p: 'seek' | 'type') => void }) {
+  const [phase, setPhase] = useState<'seek' | 'type'>('seek')
+  useEffect(() => {
+    onPhase('seek')
+    const t = setTimeout(() => { setPhase('type'); onPhase('type') }, SEEK_MS)
+    return () => clearTimeout(t)
+  }, [onPhase])
+  return (
+    <div className="ma-busy" aria-hidden="true">
+      {phase === 'seek' ? (
+        <span className="ma-seek"><Needle size={big ? 32 : 20} motion="seek" />Szukam w bazie wiedzy…</span>
+      ) : (
+        <span className="ma-typing"><TypingDots /></span>
+      )}
+    </div>
+  )
+}
+
+/** Tekst odpowiedzi do ogłoszenia czytnikowi ekranu (bez znaczników przypisów i prowadzenia). */
+function spoken(m: Msg): string {
+  if (m.error) return `Asystent jest chwilowo niedostępny. ${m.content}`
+  const p = parseReply(extractGuide(m.content).text)
+  const head = p.kind === 'notFound' ? 'Nie znalazłem tego w bazie wiedzy. ' : p.kind === 'unresolved' ? 'Baza tego nie rozstrzyga. ' : ''
+  const body = p.text.replace(/^\s*Nie znalazłem[^.]*\.\s*/i, '').replace(/⟦\d+⟧/g, '').replace(/\*\*/g, '').replace(/\s+/g, ' ').trim()
+  const src = p.sources.length ? ` Źródła: ${p.sources.map((x) => x.label).join('; ')}.` : ''
+  return `Asystent odpowiedział. ${head}${body}${src}`
 }
 
 function Composer({ mode, setMode, big = false, autoFocus = false, contextLabel }: {
@@ -301,6 +357,13 @@ export function AssistantChat({ variant, autoFocus = false }: { variant: Variant
   const [label, setLabel] = useState('')
   const [active, setActive] = useState<{ id: number; n: number } | null>(null)
   const end = useRef<HTMLDivElement>(null)
+  const reduced = usePrefersReducedMotion()
+  // Animujemy tylko wiadomości, które przyszły po zamontowaniu (przełączenie zakładki nie odtwarza całej rozmowy).
+  const mountedMax = useRef(msgs.reduce((a, m) => Math.max(a, m.id), 0))
+  const isFresh = (m: Msg) => m.id > mountedMax.current
+  // Jeden region aria-live: ogłasza fazę pracy i gotową odpowiedź, nie każdą klatkę animacji.
+  const [phase, setPhase] = useState<'seek' | 'type' | null>(null)
+  const onPhase = useRef((p: 'seek' | 'type') => setPhase(p)).current
   const effectiveMode: Mode = entity ? mode : 'rules'
   const ctxKey = JSON.stringify(contextFor(effectiveMode))
 
@@ -317,9 +380,12 @@ export function AssistantChat({ variant, autoFocus = false }: { variant: Variant
     return () => { on = false; clearTimeout(t) }
   }, [effectiveMode, ctxKey])
 
-  useEffect(() => { end.current?.scrollIntoView({ block: 'end', behavior: 'auto' }) }, [msgs.length, busy])
+  useEffect(() => { end.current?.scrollIntoView({ block: 'end', behavior: reduced ? 'auto' : 'smooth' }) }, [msgs.length, busy, reduced])
 
   const lastAssistant = [...msgs].reverse().find((m) => m.role === 'assistant')
+  const announce = busy
+    ? (phase === 'type' ? 'Asystent pisze odpowiedź…' : 'Szukam w bazie wiedzy…')
+    : lastAssistant && isFresh(lastAssistant) && msgs[msgs.length - 1] === lastAssistant ? spoken(lastAssistant) : ''
   const activeMsg = active ? msgs.find((m) => m.id === active.id) : null
   const preview = variant === 'page' && activeMsg && active ? parseReply(activeMsg.content) : null
   const chips = (step && STEP_CHIPS[step.id]) ?? PAGE_CHIPS[screen.evaluationId ? 'evaluations' : screen.page] ?? DEFAULT_CHIPS
@@ -338,12 +404,11 @@ export function AssistantChat({ variant, autoFocus = false }: { variant: Variant
     return (
       <div className="asst asst-page-start">
         {toggle}
-        <Compass size={120} state="settle" halo />
         <h2 className="asst-hello">W czym pomóc{hello ? `, ${hello}` : ''}?</h2>
         <Composer mode={effectiveMode} setMode={setMode} big autoFocus={autoFocus} contextLabel={label} />
         <div className="asst-tiles">
-          {TILES.map((t) => (
-            <button key={t.title} type="button" className="asst-tile" onClick={() => ask(t.q, effectiveMode)}>
+          {TILES.map((t, i) => (
+            <button key={t.title} type="button" style={{ '--ma-i': i } as CSSProperties} className="asst-tile" onClick={() => ask(t.q, effectiveMode)}>
               <span className="asst-tile-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{t.icon}</svg>
               </span>
@@ -369,43 +434,39 @@ export function AssistantChat({ variant, autoFocus = false }: { variant: Variant
             {msgs.length > 0 && <button type="button" className="link" onClick={() => { resetChat(); setActive(null) }}>Nowa rozmowa</button>}
           </div>
         )}
-        <div className="asst-feed" aria-live="polite">
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announce}</p>
+        <div className="asst-feed">
           {msgs.length === 0 && (
             <div className="asst-start">
-              <Compass size={56} state="settle" />
+              <Compass size={56} state="still" />
               <p className="asst-start-title">W czym pomóc{hello ? `, ${hello}` : ''}?</p>
               <div className="asst-chips">
-                <button type="button" className={guideTried() ? 'asst-chip' : 'asst-chip asst-chip-new'} onClick={() => ask(guideTry, effectiveMode)}>
+                <button type="button" style={{ '--ma-i': 0 } as CSSProperties} className={guideTried() ? 'asst-chip' : 'asst-chip asst-chip-new'} onClick={() => ask(guideTry, effectiveMode)}>
                   {!guideTried() && <span className="asst-new">Nowe</span>}➜ {guideTry}
                 </button>
-                {chips.map((c) => <button key={c} type="button" className="asst-chip" onClick={() => { if (entity) setMode('context'); void ask(c, entity ? 'context' : effectiveMode) }}>{c}</button>)}
+                {chips.map((c, i) => <button key={c} type="button" style={{ '--ma-i': i + 1 } as CSSProperties} className="asst-chip" onClick={() => { if (entity) setMode('context'); void ask(c, entity ? 'context' : effectiveMode) }}>{c}</button>)}
               </div>
             </div>
           )}
           {msgs.map((m) => m.role === 'user' ? (
-            <div key={m.id} className="asst-user">
+            <div key={m.id} className={`asst-user${isFresh(m) ? ' ma-new' : ''}`}>
               <p className="asst-bubble">{m.content}</p>
               {variant === 'page' && <Avatar path="account/avatar" name={userName || 'Ty'} size={32} decorative />}
             </div>
           ) : (
             <Answer key={m.id} msg={m} last={m === lastAssistant && !busy} mode={effectiveMode}
-              active={active?.id === m.id ? active.n : null} inlinePreview={variant !== 'page'}
+              active={active?.id === m.id ? active.n : null} inlinePreview={variant !== 'page'} fresh={isFresh(m)}
               onPick={(n) => setActive(n == null ? null : { id: m.id, n })} />
           ))}
-          {busy && (
-            <div className="v2-ai asst-card asst-busy" role="status">
-              <Compass size={44} state="search" />
-              <span>Szukam w bazie wiedzy…</span>
-            </div>
-          )}
+          {busy && <BusyLine big={variant === 'page'} onPhase={onPhase} />}
           <div ref={end} />
         </div>
         <Composer mode={effectiveMode} setMode={setMode} autoFocus={autoFocus} contextLabel={label} />
         {variant !== 'page' && <p className="asst-note"><Spark /> Asystent może się mylić — sprawdzaj ważne informacje.</p>}
       </div>
       {preview && active && (
-        <div className="asst-side">
-          <SourcePreview parsed={preview} n={active.n} mode={effectiveMode} onPick={(n) => setActive({ id: active.id, n })} onClose={() => setActive(null)} />
+        <div className="asst-side ma-enter">
+          <SourcePreview key={`${active.id}-${active.n}`} parsed={preview} n={active.n} mode={effectiveMode} onPick={(n) => setActive({ id: active.id, n })} onClose={() => setActive(null)} />
         </div>
       )}
     </div>

@@ -1,0 +1,17 @@
+v2/motion gotowe (API stabilne). Import: from '<ścieżka>/v2/motion'. Style ładuje main.tsx (motion.css).
+Hooki: useDelayedFlag(active, {delay=300,min=500}?) → boolean · useSaveState() → {state:'idle'|'saving'|'saved', run(fn: () => Promise<unknown>)} (błąd: idle + rethrow) · usePrefersReducedMotion()
+Needle({size=20, motion?:'none'|'seek'|'spin', label?})
+PageLoader({active=true, label='Wczytuję…'})                       role=status, po 300 ms, po 10 s „To trwa dłużej…”
+Skeleton({variant:'wizard'|'list'|'cards'|'text'|'detail', rows?})   aria-busy
+Reveal({children, k?})                                              fade 200 ms przy mount i zmianie k, NIE przemontowuje dzieci
+Loadable({loading, error?, empty?, skeleton: wariant|ReactNode, onRetry?, emptyNode?, children: ReactNode|() => ReactNode})
+ErrorState({title='Nie udało się wczytać danych', detail?, onRetry?, retrying?})
+EmptyEnter({children})                                              rise + stagger dzieci
+SaveButton({state, onClick?, children='Zapisz', className?, disabled?, type='button'})
+AutosaveStatus({state:'idle'|'saving'|'saved'|'error', savedAt?: Date})
+Refreshing({busy, children})
+PdfProgress({steps: string[], current: number, done?, fileName?})
+TypingDots()                                                        tylko AI
+SentConfirm({sent, children, doneLabel='Wysłano'})                  treść przycisku: <button><SentConfirm sent={x}>Przypomnij</SentConfirm></button>
+CSS: --m-fast 120ms, --m-base 200ms, --m-slow 320ms, --m-ease, --m-spring (linear), --m-spring-step; klasy .m-fade-in .m-rise-in .m-stagger(>* z --i) .m-pop .m-press .m-sr .m-lift (karta klikalna: lift 1 px)
+Ograniczony ruch: wszystko statyczne.

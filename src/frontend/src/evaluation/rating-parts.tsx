@@ -1,5 +1,6 @@
 // Elementy ekranów H07–H09 v2 (agent „Ocena”): oś okresu z notatkami, skala z osią średniej, radar.
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { reducedMotion } from './mw-motion'
 import { fmtDate, type Notes, type ScaleOption } from './types'
 
 type Note = Notes['notes'][number]
@@ -114,6 +115,20 @@ export function ScaleTiles({ scale, value, suggested, mean, disabled, label, onP
     const t = Math.max(0, Math.min(1, (mean - values[i]) / (values[i + 1] - values[i])))
     meanPos = ((i + 0.5 + t) / n) * 100
   }
+  // Karta 04: przy pierwszym pokazaniu średnia „jedzie” od punktu startu (środek skali, „na poziomie”) do wartości.
+  const startPos = n > 0 ? ((Math.floor(n / 2) + 0.5) / n) * 100 : 50
+  const [shownPos, setShownPos] = useState<number | null>(() => (meanPos != null && !reducedMotion() ? startPos : meanPos))
+  useEffect(() => {
+    if (meanPos == null) { setShownPos(null); return }
+    if (shownPos == null && !reducedMotion()) {
+      setShownPos(startPos)
+      return
+    }
+    if (shownPos === meanPos) return
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => setShownPos(meanPos)))
+    return () => cancelAnimationFrame(raf)
+  }, [meanPos, shownPos, startPos])
+  const markPos = shownPos ?? (reducedMotion() ? meanPos : startPos)
   const lower = (o: ScaleOption) => o.label.charAt(0).toLowerCase() + o.label.slice(1)
   const short = (o: ScaleOption) => lower(o).replace(' oczekiwań', '')
   return (
@@ -123,8 +138,8 @@ export function ScaleTiles({ scale, value, suggested, mean, disabled, label, onP
         {values.map((v, i) => <span key={v} className="rh-scale-tick" style={{ left: `${((i + 0.5) / n) * 100}%` }} />)}
         {meanPos != null && (
           <>
-            <span className="rh-scale-mean" style={{ left: `${meanPos}%` }} />
-            <span className="rh-scale-mean-label" style={{ left: `${meanPos}%` }}>średnia {fmtAvg(mean!)}</span>
+            <span className="rh-scale-mean" style={{ left: `${markPos}%` }} />
+            <span className="rh-scale-mean-label" style={{ left: `${markPos}%` }}>średnia {fmtAvg(mean!)}</span>
           </>
         )}
       </div>
@@ -143,7 +158,9 @@ export function ScaleTiles({ scale, value, suggested, mean, disabled, label, onP
         })}
       </div>
       <div className="rh-tiles rh-tiles-marks" aria-hidden="true">
-        {scale.map((o) => <span key={o.value}>{suggested.includes(o.value) ? '▲ sugestia' : ''}</span>)}
+        {scale.map((o) => suggested.includes(o.value)
+          ? <span key={`${o.value}-s`} className="mw-sugg">▲ sugestia</span>
+          : <span key={o.value} />)}
       </div>
     </div>
   )

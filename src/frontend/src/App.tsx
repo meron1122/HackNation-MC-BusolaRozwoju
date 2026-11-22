@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AccountPage } from './Account'
 import { AuditPage } from './Audit'
 import { LOGOUT_EVENT, api, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
@@ -22,6 +22,7 @@ import { Logo } from './Logo'
 import { ProfilePage, type ProfileTab } from './Profile'
 import { UserMenu } from './UserMenu'
 import { UsersPage } from './Users'
+import { PageLoader } from './v2/motion'
 
 // shortcut: lista pracowników to pierwsze 200 rekordów (API stronicuje); przy większej bazie dodać stronicowanie
 const EMPLOYEES_QUERY = 'pageSize=200'
@@ -445,6 +446,9 @@ export default function App() {
           onProfile={() => openMyProfile('personal')} onStructure={() => openMyProfile('structure')} onLogout={logout} />
       </header>
       <main className="content" ref={serviceMain} tabIndex={-1}>
+        {/* Wejście strony: klucz widoku przemontowuje opakowanie, więc .m-rise-in gra przy każdej zmianie strony. */}
+        <Suspense fallback={<PageLoader />}>
+        <div key={onMyProfile ? `me-${myProfileTab}` : onProfile ? `p-${profileId}` : page?.key ?? 'none'} className="m-page m-rise-in">
         {onMyProfile ? (
           <ProfilePage key={`me-${myProfileTab}`} employeeId="me" initialTab={myProfileTab} avatarVersion={avatarVersion}
             onOpenProfile={nav.showProfile} onOpenEvaluation={nav.showEvaluation}
@@ -456,6 +460,8 @@ export default function App() {
         ) : (
           <EmptyState title="Nie masz jeszcze dostępu do żadnego modułu">Poproś administratora o nadanie roli, a moduły pojawią się w menu.</EmptyState>
         )}
+        </div>
+        </Suspense>
       </main>
       <AssistantWidget screen={{
         page: onMyProfile ? MY_PROFILE_PAGE : onProfile ? PROFILE_PAGE : page?.key ?? '',

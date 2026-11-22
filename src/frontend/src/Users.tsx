@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api } from './api'
 import { ConfirmButton } from './ConfirmButton'
 import type { Row } from './Crud'
+import { ListSkeleton } from './dash-parts'
+import { Loadable } from './v2/motion'
+import './ml-motion.css'
 
 type User = { id: string; email: string; employeeId: number | null; roles: string[]; twoFactorEnabled: boolean }
 
@@ -15,9 +18,13 @@ export function UsersPage({ superAdmin }: { superAdmin: boolean }) {
   const [employees, setEmployees] = useState<Row[]>([])
   const [error, setError] = useState('')
   const [adding, setAdding] = useState(false)
+  const [loading, setLoading] = useState(true)
   const roles = superAdmin ? ROLES : ROLES.filter((r) => r !== 'SuperAdmin')
 
-  const load = useCallback(() => api<User[]>('users').then(setUsers, (e: Error) => setError(e.message)), [])
+  const load = useCallback(() => {
+    setLoading(true)
+    return api<User[]>('users').then(setUsers, (e: Error) => setError(e.message)).finally(() => setLoading(false))
+  }, [])
   useEffect(() => {
     load()
     // shortcut: max 200 pracowników na liście wyboru; przy większej bazie potrzebne wyszukiwanie
@@ -71,7 +78,7 @@ export function UsersPage({ superAdmin }: { superAdmin: boolean }) {
         <h2>Konta</h2>
         {!adding && <button onClick={() => setAdding(true)}>Dodaj użytkownika</button>}
       </div>
-      {error && <p role="alert" className="error">{error}</p>}
+      {users && error && <p role="alert" className="error">{error}</p>}
       {adding && (
         <form onSubmit={create} className="form card">
           <label>E-mail<input name="email" type="email" required /></label>
@@ -94,13 +101,13 @@ export function UsersPage({ superAdmin }: { superAdmin: boolean }) {
           </div>
         </form>
       )}
-      {users === null ? (
-        <p>Ładowanie…</p>
-      ) : (
+      <Loadable loading={loading && !users} error={users ? '' : error} onRetry={() => { setError(''); load() }}
+        skeleton={<ListSkeleton rows={5} card={false} />}>
+      {() => users && (
         <div className="table-wrap">
           <table>
             <thead><tr><th>E-mail</th><th>Pracownik</th><th>Weryfikacja dwuetapowa</th><th>Role</th></tr></thead>
-            <tbody>
+            <tbody className="ml-stagger">
               {users.map((u) => (
                 <tr key={u.id}>
                   <td>{u.email}</td>
@@ -127,6 +134,7 @@ export function UsersPage({ superAdmin }: { superAdmin: boolean }) {
           </table>
         </div>
       )}
+      </Loadable>
     </section>
   )
 }

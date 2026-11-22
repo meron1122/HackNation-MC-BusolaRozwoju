@@ -4,6 +4,9 @@ import { ConfirmButton } from './ConfirmButton'
 import { EmptyState } from './EmptyState'
 import { DateInput } from './DateInput'
 import { Field as FormField } from './Field'
+import { ListSkeleton } from './dash-parts'
+import { Loadable } from './v2/motion'
+import './ml-motion.css'
 
 // Wiersze to DTO z API, kształt zależy od strony.
 export type Row = { id: number } & Record<string, any>
@@ -52,11 +55,14 @@ export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit,
   const [error, setError] = useState('')
   const [editing, setEditing] = useState<Row | 'new' | null>(null)
   const [notice, setNotice] = useState<ReactNode>(null)
+  const [loading, setLoading] = useState(true)
 
-  const load = useCallback(
-    () => api<Row[]>(query ? `${path}?${query}` : path).then(setRows, (e: Error) => setError(e.message)),
-    [path, query],
-  )
+  const load = useCallback(() => {
+    setLoading(true)
+    return api<Row[]>(query ? `${path}?${query}` : path)
+      .then((r) => { setRows(r); setError('') }, (e: Error) => setError(e.message))
+      .finally(() => setLoading(false))
+  }, [path, query])
   useEffect(() => {
     load()
   }, [load])
@@ -89,7 +95,7 @@ export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit,
         <h2>{title}</h2>
         {canAdd && editing === null && <button onClick={() => { setEditing('new'); setNotice(null) }}>Dodaj wpis</button>}
       </div>
-      {error && <p role="alert" className="error">{error}</p>}
+      {rows && error && <p role="alert" className="error">{error}</p>}
       {notice && (
         <div className="created-notice" role="status">
           {notice}
@@ -105,14 +111,13 @@ export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit,
           onCancel={() => setEditing(null)}
         />
       )}
-      {rows === null ? (
-        <p>Ładowanie…</p>
-      ) : rows.length === 0 ? (
+      <Loadable loading={loading && !rows} error={rows ? '' : error} onRetry={load} skeleton={<ListSkeleton rows={6} card={false} />}
+        empty={rows?.length === 0} emptyNode={
         <EmptyState title="Ta lista jest jeszcze pusta"
           action={canAdd && editing === null && <button onClick={() => { setEditing('new'); setNotice(null) }}>Dodaj pierwszy wpis</button>}>
           {canAdd ? 'Dodaj pierwszy wpis, a pojawi się w tej tabeli.' : 'Gdy ktoś doda pierwszy wpis, pojawi się w tej tabeli.'}
-        </EmptyState>
-      ) : (
+        </EmptyState>}>
+      {() => rows && (
         <div className="table-wrap">
           <table>
             <thead>
@@ -121,7 +126,7 @@ export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit,
                 {(canEdit || canDelete) && <th><span className="sr-only">Akcje</span></th>}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="ml-stagger">
               {rows.map((row) => (
                 <tr key={row.id}>
                   {columns.map(([label, value]) => <td key={label}>{value(row)}</td>)}
@@ -137,6 +142,7 @@ export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit,
           </table>
         </div>
       )}
+      </Loadable>
     </section>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ASK_ASSISTANT_EVENT } from '../v2'
 import { AssistantChat } from './AssistantChat'
 import { GUIDE_TRIED_EVENT, TOUR_STARTED_EVENT, guideTried } from './tours'
@@ -18,6 +18,18 @@ export const FOCUS_ASSISTANT_EVENT = 'busola-focus-assistant'
  */
 export function AssistantWidget({ screen, userName = '' }: { screen: Screen; userName?: string }) {
   const [open, setOpen] = useState(false)
+  // Okno zostaje chwilę po zamknięciu, żeby zjechać do przycisku (bez ograniczonego ruchu).
+  const [leaving, setLeaving] = useState(false)
+  const wasOpen = useRef(false)
+  useEffect(() => {
+    if (open) { wasOpen.current = true; setLeaving(false); return }
+    if (!wasOpen.current) return
+    wasOpen.current = false
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    setLeaving(true)
+    const t = setTimeout(() => setLeaving(false), 160)
+    return () => clearTimeout(t)
+  }, [open])
   // Zachęta: dopóki użytkownik nie spróbuje prowadzenia po ekranie, przycisk ma znacznik i dymek.
   const [fresh, setFresh] = useState(() => !guideTried())
   useEffect(() => {
@@ -62,15 +74,15 @@ export function AssistantWidget({ screen, userName = '' }: { screen: Screen; use
   if (docked) return null
   return (
     <>
-      {open && (
-        <section className="assistant-pop" role="dialog" aria-label="Asystent">
+      {(open || leaving) && (
+        <section className={`assistant-pop ma-pop${open ? '' : ' ma-leaving'}`} role="dialog" aria-label="Asystent" aria-hidden={!open || undefined}>
           <header className="assistant-head">
             <span className="v2-spark" aria-hidden="true">✦</span>
             <h2>Asystent</h2>
             <span className="grow" />
             <button type="button" className="assistant-close" aria-label="Zamknij asystenta" onClick={() => setOpen(false)}>×</button>
           </header>
-          <AssistantChat variant="pop" autoFocus />
+          <AssistantChat variant="pop" autoFocus={open} />
         </section>
       )}
       {fresh && !open && (

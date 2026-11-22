@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from './api'
 import { Info, Radar } from './v2'
+import { EmptyEnter, Reveal } from './v2/motion'
+import './ml-motion.css'
 import { criterionScores } from './evaluation/final-model'
 import { sheetLetter, type Detail } from './evaluation/types'
 
@@ -50,8 +52,14 @@ export function MedianCard({ evaluationIds, sheet = 'C' }: { evaluationIds: numb
         {details && <span className="dash-count">n = {result.n}</span>}
         <Info align="end" label="Jak liczona jest mediana">Mediana ocen kryteriów obowiązkowych z zakończonych ocen. Tylko grupy od {MIN_N} osób, bez nazwisk.</Info>
       </div>
-      {!details ? <p className="dash-median-empty">Ładowanie…</p> : ready ? (
-        <>
+      {!details ? (
+        <div className="m-skeleton" aria-busy="true" role="status">
+          <span className="m-sr">Wczytuję medianę…</span>
+          <span className="m-skel m-skel--circle" style={{ width: 200, height: 200 }} />
+          <span className="m-skel" style={{ width: '60%' }} />
+        </div>
+      ) : ready ? (
+        <Reveal>
           <Radar axes={result.axes.map((a) => a.label)} size={220}
             series={[{ name: 'mediana', values: result.axes.map((a) => a.value) }]}
             title={result.axes.map((a) => `${a.label}: ${a.value}`).join('; ')} />
@@ -61,9 +69,9 @@ export function MedianCard({ evaluationIds, sheet = 'C' }: { evaluationIds: numb
               <strong>{String(weakest.value).replace('.', ',')}</strong>
             </div>
           )}
-        </>
+        </Reveal>
       ) : (
-        <p className="dash-median-empty">Mediana od {MIN_N} zakończonych ocen.</p>
+        <EmptyEnter><p className="dash-median-empty">Mediana od {MIN_N} zakończonych ocen.</p></EmptyEnter>
       )}
     </section>
   )

@@ -1,0 +1,33 @@
+/* Ruch prawego panelu kreatora: wskaźnik zakładek i szuflada z przygaszeniem tła. Prefiks ma-.
+   Ograniczony ruch wyłącza globalna reguła w busola-hifi.css (bez animacji i przejść). */
+
+/* zakładki: jedno podkreślenie, które przesuwa się między „Notatki” a „✦ Asystent” */
+.wz-tabs.ma-tabs { position: relative; }
+.wz-tabs.ma-tabs .wz-tab { border-bottom-color: transparent !important; transition: color 200ms cubic-bezier(.2, .8, .2, 1); }
+.ma-tab-ink {
+  position: absolute; left: 0; bottom: -1px; height: 3px; width: var(--ma-ink-w, 0); border-radius: 2px 2px 0 0;
+  background: var(--text); transform: translateX(var(--ma-ink-x, 0)); pointer-events: none;
+  transition: transform 240ms cubic-bezier(.2, .8, .2, 1), width 240ms cubic-bezier(.2, .8, .2, 1), background-color 240ms linear;
+}
+.ma-tab-ink.ai { background: var(--ai, var(--lavender)); }
+.ma-tab-ink.ma-still { transition: none; }
+
+/* treść zakładki wchodzi przenikaniem */
+.wz-tabpanel.ma-tab-in { animation: ma-tab-in 200ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes ma-tab-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* szuflada poniżej 1366 px: wysuwa się transformem 240 ms, tło przygasa */
+.ma-scrim { display: none; }
+@media (max-width: 1365px) {
+  .wz-panel.ma-drawer {
+    transform: translateX(105%);
+    transition: transform 240ms cubic-bezier(.4, 0, .2, 1), visibility 0s linear 240ms;
+  }
+  .wz-panel.ma-drawer.open { transform: none; transition: transform 240ms cubic-bezier(.2, .8, .2, 1), visibility 0s; }
+  .ma-scrim {
+    display: block; position: fixed; inset: var(--topbar-h) 0 0 0; z-index: 39;
+    background: rgba(31, 42, 90, .28); opacity: 0; visibility: hidden;
+    transition: opacity 240ms cubic-bezier(.2, .8, .2, 1), visibility 0s linear 240ms;
+  }
+  .ma-scrim.open { opacity: 1; visibility: visible; transition: opacity 240ms cubic-bezier(.2, .8, .2, 1), visibility 0s; }
+}

@@ -31,7 +31,7 @@ export function ConfirmButton({ children, question, confirmLabel, onConfirm, pri
     return <button ref={triggerRef} type="button" className={tone} disabled={disabled} onClick={() => setAsking(true)}>{children}</button>
   }
   return (
-    <span className="confirm" role="group" onKeyDown={(e) => { if (e.key === 'Escape') setAsking(false) }}>
+    <span className="confirm m-fade-in" role="group" onKeyDown={(e) => { if (e.key === 'Escape') setAsking(false) }}>
       <span>{question}</span>
       <button ref={confirmRef} type="button" className={tone} disabled={disabled} onClick={() => { setAsking(false); onConfirm() }}>{confirmLabel}</button>
       <button type="button" className={compact ? 'secondary compact' : 'secondary'} onClick={() => setAsking(false)}>Anuluj</button>

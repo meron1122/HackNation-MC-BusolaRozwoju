@@ -4,6 +4,8 @@ import { Avatar } from '../Avatar'
 import { DateInput } from '../DateInput'
 import { SheetForm, SignatureField } from '../Evaluations'
 import { AiFrame, Info, Radar, ScaleBar, Source, bandsFromLevels, useStepHeader } from '../v2'
+import { SaveButton, useSaveState } from '../v2/motion'
+import { CountUp } from './mw-motion'
 import { CompleteStage, IssueList, NextButton, PdfButton, type Step, type StepProps } from './common'
 import { completeStage, saveAnswers, withoutAutoFilled } from './data'
 import {
@@ -99,7 +101,7 @@ export function ResultFigure({ detail, compact = false }: { detail: Detail; comp
         <div className="final-avg">
           <span className="final-avg-label"><Lock /> {first ? 'Ocena łączna' : 'Średnia'}
             {legal(avgField?.legalRef) && <Source refText={legal(avgField?.legalRef)!} />}</span>
-          <strong className={`final-avg-value${s?.average == null ? ' empty' : ''}`} aria-live="polite">{s?.average != null ? fmtAvg(s.average) : '–'}</strong>
+          <strong className={`final-avg-value${s?.average == null ? ' empty' : ''}`} aria-live="polite"><CountUp value={s?.average ?? null} format={fmtAvg} /></strong>
         </div>
         <div className="final-verdict">
           {s?.levelLabel
@@ -187,7 +189,8 @@ function ResultForm({ detail, fields, promotion, steps, go, reload }: {
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(fields.map((f) => [f.key, answerOf(detail, f.key)?.valueText ?? ''])))
   const [status, setStatus] = useState('')
   const [dirty, setDirty] = useState(false)
-  const [busy, setBusy] = useState(false)
+  const saver = useSaveState()
+  const busy = saver.state === 'saving'
   const [draft, setDraft] = useState<'shown' | 'rejected'>('shown')
   const section = detail.schema.sections.find((s) => s.fields.some((f) => fields.includes(f)))
   const locked = !!section && detail.lockedSections.includes(section.key)
@@ -201,20 +204,19 @@ function ResultForm({ detail, fields, promotion, steps, go, reload }: {
 
   const set = (key: string, value: string) => { setValues((v) => ({ ...v, [key]: value })); setDirty(true); setStatus('') }
 
+  // Karta 13: „Zapisz szkic” → kropki (po 300 ms) → „Zapisano ✓” przez 1,5 s; błąd zostaje jako komunikat obok.
   async function save(): Promise<boolean> {
-    setBusy(true)
-    setStatus('Zapisywanie…')
+    setStatus('')
     try {
-      await saveAnswers(detail.id, fields.map((f) => ({ ...emptyAnswer(f.key, null), valueText: values[f.key] ?? '' })))
-      setDirty(false)
-      setStatus('Zapisano.')
-      await reload()
+      await saver.run(async () => {
+        await saveAnswers(detail.id, fields.map((f) => ({ ...emptyAnswer(f.key, null), valueText: values[f.key] ?? '' })))
+        setDirty(false)
+        await reload()
+      })
       return true
     } catch (e) {
       setStatus((e as Error).message)
       return false
-    } finally {
-      setBusy(false)
     }
   }
 
@@ -275,8 +277,8 @@ function ResultForm({ detail, fields, promotion, steps, go, reload }: {
         )}
       </div>
       <div className="step-actions final-actions">
-        {editable && <button type="button" className="secondary" onClick={save} disabled={busy || !dirty}>{busy ? 'Zapisywanie…' : 'Zapisz szkic'}</button>}
-        {status && <span className="muted small" role="status">{status}</span>}
+        {editable && <SaveButton state={saver.state} className="secondary" onClick={() => { if (dirty) void save() }} disabled={!busy && saver.state !== 'saved' && !dirty}>Zapisz szkic</SaveButton>}
+        {status && <span className="error small" role="alert">{status}</span>}
         {locked && <span className="muted small"><Lock /> Ocena sporządzona</span>}
         <span className="grow" />
         {next && (
@@ -565,7 +567,7 @@ function SheetCard({ detail }: { detail: Detail }) {
       <button type="button" className="final-thumb-button" onClick={preview} aria-label="Podgląd arkusza (PDF)"><SheetThumb /></button>
       <div className="final-sheet-body">
         <h3>{first ? 'Arkusz pierwszej oceny' : `Arkusz ${sheetLetter(detail.templateCode) ?? ''}`}</h3>
-        <strong className="final-sheet-avg">{s?.average != null ? fmtAvg(s.average) : '–'}</strong>
+        <strong className="final-sheet-avg"><CountUp value={s?.average ?? null} format={fmtAvg} /></strong>
         <span>{s?.levelLabel?.toLowerCase() ?? 'wynik po ocenach cząstkowych'}</span>
         <div className="final-sheet-actions">
           <button type="button" className="secondary" onClick={preview}><FIcon name="eye" /> Podgląd</button>

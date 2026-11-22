@@ -1,0 +1,94 @@
+/* Ruch asystenta (karty 02, 08, 09, 16 z galerii mikroanimacji). Prefiks ma-.
+   Stan bazowy każdej klasy = stan końcowy; animacja startuje od stanu początkowego (fill: both).
+   Ograniczony ruch: globalna reguła w busola-hifi.css wyłącza animacje i przejścia, więc treść stoi od razu na miejscu. */
+
+:root {
+  --ma-ease: cubic-bezier(.2, .8, .2, 1);
+  --ma-t-xs: 160ms;
+  --ma-t-s: 200ms;
+  --ma-t-m: 250ms;
+}
+
+@keyframes ma-fade { from { opacity: 0; } }
+@keyframes ma-fade-up { from { opacity: 0; transform: translateY(4px); } }
+@keyframes ma-rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes ma-from-right { from { opacity: 0; transform: translateX(14px); } }
+@keyframes ma-user-in { from { opacity: 0; transform: translate(12px, 4px); } }
+
+/* ---------- wiadomość użytkownika: wjeżdża z prawej, 160 ms ---------- */
+.asst-user.ma-new .asst-bubble { animation: ma-user-in var(--ma-t-xs) var(--ma-ease) both; }
+/* stara animacja dymka (busola-in) nie gra przy każdym przemontowaniu */
+.asst-user:not(.ma-new) .asst-bubble, .asst-card:not(.ma-new) { animation: none; }
+
+/* ---------- 08. karta odpowiedzi: karta 250 ms, potem przypisy i źródła ---------- */
+.asst-card.ma-new { animation: ma-fade-up var(--ma-t-m) var(--ma-ease) both; }
+.asst-card.ma-new .asst-fn { animation: ma-fade var(--ma-t-s) var(--ma-ease) 260ms both; }
+.asst-card.ma-new .asst-sources > * { animation: ma-fade-up var(--ma-t-s) var(--ma-ease) calc(320ms + var(--ma-i, 0) * 60ms) both; }
+.asst-card.ma-new .asst-tours,
+.asst-card.ma-new .v2-warn { animation: ma-fade-up var(--ma-t-s) var(--ma-ease) 420ms both; }
+.asst-card.ma-new .asst-verdict .v2-scale { animation: ma-fade var(--ma-t-m) var(--ma-ease) 180ms both; }
+
+/* podgląd źródła: panel wjeżdża z prawej, zacytowane zdanie krótko błyska */
+.asst-side.ma-enter { animation: ma-from-right var(--ma-t-m) var(--ma-ease) both; }
+.asst-card .asst-preview.ma-enter { animation: ma-fade-up var(--ma-t-m) var(--ma-ease) both; }
+.asst-preview .asst-quote { animation: ma-flash 900ms linear 200ms both; }
+@keyframes ma-flash { 0% { background: transparent; } 13%, 45% { background: #c4e1f8; } 100% { background: var(--blue-soft); } }
+.asst-fn button.active { border-radius: 5px; animation: ma-fn 900ms linear 200ms both; }
+@keyframes ma-fn { 0% { background: transparent; } 13%, 45% { background: var(--blue-soft); } 100% { background: transparent; } }
+.asst-src { transition: background-color var(--ma-t-xs) var(--ma-ease), border-color var(--ma-t-xs) var(--ma-ease); }
+
+/* ---------- 09. „Nie znalazłem w bazie wiedzy”: półka, dokumenty po kolei, lawendowa lupa; potem statycznie ---------- */
+.ma-empty-art { display: block; flex: none; overflow: visible; margin-top: 2px; }
+.ma-empty-doc, .ma-empty-lens { transform-box: fill-box; transform-origin: 50% 100%; }
+.asst-card.ma-new .ma-empty-shelf { animation: ma-fade var(--ma-t-s) var(--ma-ease) both; }
+.asst-card.ma-new .ma-empty-doc { animation: ma-rise var(--ma-t-m) var(--ma-ease) calc(80ms + var(--d) * 60ms) both; }
+.asst-card.ma-new .ma-empty-lens { animation: ma-lens 340ms var(--ma-ease) 260ms both; }
+@keyframes ma-lens { from { opacity: 0; transform: translate(-14px, 6px) rotate(-12deg); } }
+.asst-card.ma-new .asst-missing-row > div { animation: ma-fade-up var(--ma-t-m) var(--ma-ease) 200ms both; }
+
+/* ---------- 02 + 16. asystent pracuje: igła „szuka”, potem lawendowe kropki ---------- */
+.ma-busy { display: flex; align-items: center; min-height: 40px; }
+.ma-seek {
+  display: inline-flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; color: var(--ai-text, var(--lavender-text));
+  animation: ma-fade var(--ma-t-s) var(--ma-ease) both;
+}
+.asst-panel .ma-seek, .assistant-pop .ma-seek { font-size: 14px; gap: 8px; }
+.ma-typing {
+  display: inline-flex; align-items: center; gap: 10px; height: 38px; padding: 0 14px;
+  border: 1.5px dashed var(--ai, var(--lavender)); border-radius: 14px 14px 14px 4px;
+  background: var(--surface); color: var(--ai, var(--lavender));
+  animation: ma-fade var(--ma-t-s) var(--ma-ease) both;
+}
+.ma-dots { display: inline-flex; gap: 5px; align-items: center; height: 12px; }
+.ma-dots i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: ma-dot 1100ms cubic-bezier(.45, 0, .55, 1) calc(var(--n, 0) * 160ms) infinite both; }
+.ma-dots i:nth-child(2) { --n: 1; }
+.ma-dots i:nth-child(3) { --n: 2; }
+@keyframes ma-dot { 0%, 60%, 100% { opacity: .4; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+/* zapasowa igła (gdy biblioteka ruchu nie jest dostępna) */
+.ma-needle { display: block; overflow: visible; flex: none; }
+.ma-needle g { transform-box: view-box; transform-origin: 50% 50%; }
+
+/* ---------- start: kafle i podpowiedzi wchodzą kolejno ---------- */
+.asst-tiles .asst-tile { animation: ma-rise var(--ma-t-m) var(--ma-ease) calc(80ms + var(--ma-i, 0) * 50ms) both; }
+.asst-tile { transition: transform var(--ma-t-s) var(--ma-ease), box-shadow var(--ma-t-s) var(--ma-ease); }
+.asst-chips .asst-chip { animation: ma-fade-up var(--ma-t-s) var(--ma-ease) calc(60ms + var(--ma-i, 0) * 50ms) both; }
+.asst-chip { transition: border-color var(--ma-t-xs) var(--ma-ease), background-color var(--ma-t-xs) var(--ma-ease); }
+.asst-chip:hover { background: color-mix(in srgb, var(--blue-soft) 45%, var(--surface)); }
+.asst-kb { animation: ma-fade var(--ma-t-m) var(--ma-ease) 360ms both; }
+
+/* przełącznik Zasady / Ten ekran: tło przechodzi płynnie */
+.asst-mode button { transition: background-color var(--ma-t-s) var(--ma-ease), color var(--ma-t-s) var(--ma-ease); }
+
+/* ---------- okno w rogu: skaluje się od punktu przycisku ---------- */
+.assistant-pop.ma-pop {
+  transform-origin: calc(100% - 56px) calc(100% + 40px);
+  animation: ma-pop-in 220ms var(--ma-ease) both;
+}
+.assistant-pop.ma-pop.ma-leaving { animation: ma-pop-out 160ms cubic-bezier(.4, 0, 1, 1) both; pointer-events: none; }
+@keyframes ma-pop-in { from { opacity: 0; transform: scale(.9) translateY(8px); } }
+@keyframes ma-pop-out { to { opacity: 0; transform: scale(.94) translateY(6px); } }
+
+/* autoscroll płynny tylko bez ograniczonego ruchu */
+@media (prefers-reduced-motion: no-preference) {
+  .asst-feed { scroll-behavior: smooth; }
+}

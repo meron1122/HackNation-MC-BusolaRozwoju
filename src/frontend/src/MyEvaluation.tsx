@@ -2,7 +2,8 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { api } from './api'
 import { DuePill } from './evaluation/common'
 import { Avatar } from './Avatar'
-import { MiniStepper } from './dash-parts'
+import { MiniStepper, MySkeleton } from './dash-parts'
+import { Loadable } from './v2/motion'
 import './dash-v2.css'
 import { Icon } from './Icon'
 import './hifi-pages.css'
@@ -60,9 +61,12 @@ function tasksOf(detail: Detail, self: SelfAssessment | null): Task[] {
 export function MyEvaluationPage({ onOpen }: { onOpen: (id: number) => void }) {
   const [details, setDetails] = useState<{ detail: Detail; self: SelfAssessment | null }[] | null>(null)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let active = true
+    setLoading(true)
     api<{ employee: { id: number } }>('employees/me/profile')
       .then((p) => api<ListItem[]>(`evaluations?employeeId=${p.employee.id}`))
       .then((rows) => {
@@ -78,21 +82,21 @@ export function MyEvaluationPage({ onOpen }: { onOpen: (id: number) => void }) {
           return { detail, self }
         }))
       })
-      .then((d) => { if (active) setDetails(d) }, (e: Error) => { if (active) setError(e.message) })
+      .then((d) => { if (active) { setDetails(d); setError(''); setLoading(false) } },
+        (e: Error) => { if (active) { setError(e.message); setLoading(false) } })
     return () => {
       active = false
     }
-  }, [])
+  }, [attempt])
 
-  if (error) return <p role="alert" className="error">{error}</p>
-  if (!details) return <p>Ładowanie…</p>
   return (
-    <section className="hifi-page dash-my">
+    <section className="hifi-page dash-my" aria-busy={loading || undefined}>
       <div className="hifi-head">
         <h1>Moja ocena</h1>
       </div>
-      {details.length === 0 && <div className="card"><p className="dash-muted">Nie masz jeszcze oceny w systemie.</p></div>}
-      {details.map(({ detail: d, self }, i) => {
+      <Loadable loading={loading} error={error} onRetry={() => setAttempt((n) => n + 1)} skeleton={<MySkeleton />}
+        empty={details?.length === 0} emptyNode={<div className="card"><p className="dash-muted">Nie masz jeszcze oceny w systemie.</p></div>}>
+      {() => (details ?? []).map(({ detail: d, self }, i) => {
         const tasks = tasksOf(d, self)
         const current = d.stages.find((s) => s.key === d.currentStageKey)
         return (
@@ -103,10 +107,10 @@ export function MyEvaluationPage({ onOpen }: { onOpen: (id: number) => void }) {
                 <h2 id={`my-${d.id}`}>{kindLabel(d.templateCode)}</h2>
                 <p>od {fmtDate(d.startDate)}</p>
               </div>
-              <MiniStepper progress={progressOf(d)} caption="count" />
+              <span className="ml-steps-pop"><MiniStepper progress={progressOf(d)} caption="count" /></span>
             </div>
             {tasks.length > 0 ? (
-              <ul className="dash-my-tasks">
+              <ul className="dash-my-tasks m-stagger">
                 {tasks.map((t) => (
                   <li key={t.text} className={t.tone}>
                     <Icon name={t.tone === 'action' ? 'sign' : t.tone === 'waiting' ? 'clock' : 'planned'} />
@@ -134,6 +138,7 @@ export function MyEvaluationPage({ onOpen }: { onOpen: (id: number) => void }) {
           </article>
         )
       })}
+      </Loadable>
     </section>
   )
 }

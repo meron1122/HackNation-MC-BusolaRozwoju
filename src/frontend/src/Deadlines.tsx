@@ -8,6 +8,8 @@ import { Info } from './v2/Info'
 import { deadlineReason } from './hifi-helpers'
 import './hifi-pages.css'
 import { Person } from './Person'
+import { ListSkeleton } from './dash-parts'
+import { EmptyEnter, Loadable, Refreshing, Reveal } from './v2/motion'
 
 type Deadline = {
   evaluationId: number; employeeId: number; employeeName: string; templateTitle: string; stageKey: string; stageTitle: string
@@ -21,10 +23,20 @@ export function DeadlinesPage({ onOpen }: { onOpen: (evaluationId: number) => vo
   const [days, setDays] = useState(60)
   const [rows, setRows] = useState<Deadline[] | null>(null)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [attempt, setAttempt] = useState(0)
+  const [shownDays, setShownDays] = useState(days)
 
+  // Zmiana zakresu: lista zostaje na ekranie i przygasa (po 300 ms), nowa wchodzi przenikaniem.
   useEffect(() => {
-    api<Deadline[]>(`dashboard/deadlines?days=${days}`).then(setRows, (e: Error) => setError(e.message))
-  }, [days])
+    let active = true
+    setLoading(true)
+    api<Deadline[]>(`dashboard/deadlines?days=${days}`).then(
+      (r) => { if (active) { setRows(r); setShownDays(days); setError(''); setLoading(false) } },
+      (e: Error) => { if (active) { setError(e.message); setLoading(false) } },
+    )
+    return () => { active = false }
+  }, [days, attempt])
 
   const overdue = rows?.filter((r) => r.overdue).length ?? 0
 
@@ -33,8 +45,8 @@ export function DeadlinesPage({ onOpen }: { onOpen: (evaluationId: number) => vo
       <div className="hifi-head">
         <div className="dash-hr-head">
           <h1>Terminy</h1>
-          {rows && <span className="dash-count">{rows.length}</span>}
-          {overdue > 0 && <span className="late">{overdue} po terminie</span>}
+          {rows && <span className="dash-count m-fade-in">{rows.length}</span>}
+          {overdue > 0 && <span className="late m-fade-in">{overdue} po terminie</span>}
         </div>
         <div className="hifi-filter" role="group" aria-label="Zakres">
           {RANGES.map((d) => (
@@ -42,10 +54,14 @@ export function DeadlinesPage({ onOpen }: { onOpen: (evaluationId: number) => vo
           ))}
         </div>
       </div>
-      {error && <p role="alert" className="error">{error}</p>}
-      {rows === null ? <p>Ładowanie…</p> : rows.length === 0 ? <EmptyState title="W tym okresie nie ma terminów">Wybierz dłuższy zakres.</EmptyState> : (
+      {rows && error && <p role="alert" className="error">{error}</p>}
+      <Loadable loading={loading && !rows} error={rows ? '' : error} onRetry={() => setAttempt((n) => n + 1)} skeleton={<ListSkeleton rows={6} />}>
+      {() => rows && (
+      <Refreshing busy={loading}>
+      <Reveal k={shownDays}>
+      {rows.length === 0 ? <EmptyEnter><EmptyState title="W tym okresie nie ma terminów">Wybierz dłuższy zakres.</EmptyState></EmptyEnter> : (
         <section className="card dash-dl-list" aria-label="Terminy etapów">
-          <ul>
+          <ul className="m-stagger">
             {rows.map((r) => {
               const reason = deadlineReason(r.stageKey, r.dueTo, /pierwsz/i.test(r.templateTitle))
               const first = /pierwsz/i.test(r.templateTitle)
@@ -76,6 +92,10 @@ export function DeadlinesPage({ onOpen }: { onOpen: (evaluationId: number) => vo
           </ul>
         </section>
       )}
+      </Reveal>
+      </Refreshing>
+      )}
+      </Loadable>
       <WithoutEvaluationList />
     </section>
   )
@@ -97,7 +117,7 @@ function WithoutEvaluationList() {
 
   if (!rows || rows.length === 0) return null
   return (
-    <section className="card dash-dl-without" aria-labelledby="dl-without">
+    <section className="card dash-dl-without m-rise-in" aria-labelledby="dl-without">
       <h2 id="dl-without">Bez otwartej oceny <span className="dash-count">{rows.length}</span></h2>
       <ul>
         {rows.map((r) => (

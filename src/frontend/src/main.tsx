@@ -4,6 +4,8 @@ import { createRoot } from 'react-dom/client'
 import '@fontsource-variable/inter/opsz.css'
 import './index.css'
 import './busola-hifi.css'
+// Ruch i globalny polish (tokeny --m-*, klasy .m-*): po busola-hifi.css, żeby nadpisać przejścia przycisków.
+import './v2/motion/motion.css'
 import App from './App.tsx'
 import { SignPage } from './SignPage.tsx'
 

@@ -4,6 +4,7 @@
 // wydziału (zapis jak dotąd: PUT context/indicators).
 import { useState, type ReactNode } from 'react'
 import { AiFrame, Info, Source, askAssistant } from '../v2'
+import { AutosaveStatus } from '../v2/motion'
 import { PdfButton, type StepProps } from './common'
 import { useWorkContext, type WorkContextApi } from './data'
 import { PersonPair, StartHead } from './start-head'
@@ -25,7 +26,7 @@ type Update = (patch: Partial<KickoffRecord>) => void
 export function KickoffStep({ detail, steps, go }: StepProps) {
   const first = isFirstTemplate(detail.templateCode)
   const topics = kickoffTopics(detail)
-  const { record, update, error } = useKickoff(detail.id)
+  const { record, update, error, saveState, savedAt } = useKickoff(detail.id)
   const firstOpen = topics.findIndex((_, i) => !record.topics.includes(i))
   const [tab, setTab] = useState(firstOpen < 0 ? Math.max(0, topics.findIndex((t) => t.kind === 'expectations')) : firstOpen)
   const { evaluator } = useOrg(detail)
@@ -86,6 +87,7 @@ export function KickoffStep({ detail, steps, go }: StepProps) {
             <div className="step-actions sv2-actions">
               {preview}
               <span className="grow" />
+              {saveState !== 'idle' && <AutosaveStatus state={saveState} savedAt={savedAt} />}
               {nextLabel && <button type="button" onClick={() => advance()}>Dalej: {nextLabel}</button>}
             </div>
           </>
@@ -345,13 +347,18 @@ function IndicatorRow({ n, indicator, scale, work, editable }: {
 function ExampleField({ label, initial, disabled, onSave }: { label: string; initial: string; disabled: boolean; onSave: (v: string) => Promise<void> }) {
   const [value, setValue] = useState(initial)
   const [status, setStatus] = useState('')
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [savedAt, setSavedAt] = useState<Date | undefined>(undefined)
   async function save() {
     if (value === initial) return
-    setStatus('Zapisywanie…')
+    setStatus('')
+    setState('saving')
     try {
       await onSave(value.trim())
-      setStatus('Zapisano.')
+      setState('saved')
+      setSavedAt(new Date())
     } catch (e) {
+      setState('error')
       setStatus((e as Error).message)
     }
   }
@@ -363,7 +370,8 @@ function ExampleField({ label, initial, disabled, onSave }: { label: string; ini
         <textarea rows={1} value={value} disabled={disabled} onChange={(e) => setValue(e.target.value)} onBlur={save}
           placeholder="Przykład z pracy wydziału (opcjonalnie)" />
       </label>
-      {status && <span className="sv2-muted" role="status">{status}</span>}
+      {state !== 'idle' && <AutosaveStatus state={state} savedAt={savedAt} />}
+      {status && <span className="sv2-muted" role="alert">{status}</span>}
     </div>
   )
 }

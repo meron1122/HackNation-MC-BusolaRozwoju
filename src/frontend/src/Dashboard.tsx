@@ -2,7 +2,8 @@ import { useEffect, useId, useState, type CSSProperties } from 'react'
 import { api } from './api'
 import { EmptyState } from './EmptyState'
 import { DashTimeline, type TimelineRow } from './dash-timeline'
-import { MiniStepper } from './dash-parts'
+import { DashSkeleton, MiniStepper, TilesSkeleton, useLoad } from './dash-parts'
+import { EmptyEnter, Loadable } from './v2/motion'
 import { cycleEnd, shortAction, stageLabel, stageRef, stageWindow, taskOf, termWord } from './dash-model'
 import { progressReason } from './hifi-helpers'
 import './hifi-pages.css'
@@ -21,12 +22,8 @@ const NOT_STARTED = 'Oczekuje na start'
 const ATTENTION_DAYS = 30 // W06: przypomnienie 30 dni przed terminem oceny
 
 function useTeam() {
-  const [team, setTeam] = useState<Team | null>(null)
-  const [error, setError] = useState('')
-  useEffect(() => {
-    api<Team>(`dashboard/team?days=${ATTENTION_DAYS}`).then(setTeam, (e: Error) => setError(e.message))
-  }, [])
-  return { team, error }
+  const { data: team, error, loading, retry } = useLoad(() => api<Team>(`dashboard/team?days=${ATTENTION_DAYS}`), [])
+  return { team, error, loading, retry }
 }
 
 /** Daty startu cykli (oś zespołu). `dashboard/team` ich nie podaje, więc bierzemy je z listy ocen. */
@@ -77,16 +74,33 @@ export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
   onOpenEvaluation: (id: number) => void
   onOpenProfile: (employeeId: number) => void
 }) {
-  const { team, error } = useTeam()
+  const { team, error, loading, retry } = useTeam()
   const starts = useStarts()
-  if (error) return <p role="alert" className="error">{error}</p>
-  if (!team) return <p>Ładowanie…</p>
+  const first = userName.includes('@') ? '' : userName.split(' ')[0]
+  return (
+    <section className="hifi-page dash" aria-busy={loading || undefined}>
+      <div className="dash-hello">
+        {/* Nazwa w tokenie bywa e-mailem konta — wtedy bez imienia. */}
+        <h1>Dzień dobry{first ? `, ${vocative(first)}` : ''}</h1>
+        <span>{longToday()}</span>
+      </div>
+      <Loadable loading={loading} error={error} onRetry={retry} skeleton={<DashSkeleton />}>
+        {() => <DashBody team={team!} starts={starts} onOpenEvaluation={onOpenEvaluation} onOpenProfile={onOpenProfile} />}
+      </Loadable>
+    </section>
+  )
+}
 
+function DashBody({ team, starts, onOpenEvaluation, onOpenProfile }: {
+  team: Team
+  starts: Record<number, string>
+  onOpenEvaluation: (id: number) => void
+  onOpenProfile: (employeeId: number) => void
+}) {
   const attention = team.members
     .filter((m) => m.needsAttention && m.evaluation && !m.evaluation.isFinal)
     .sort((a, b) => urgency(a.evaluation!) - urgency(b.evaluation!))
   const [next, ...queue] = attention
-  const first = userName.includes('@') ? '' : userName.split(' ')[0]
 
   const rows: TimelineRow[] = team.members.map((m) => {
     const p = m.evaluation
@@ -98,23 +112,20 @@ export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
   })
 
   return (
-    <section className="hifi-page dash">
-      <div className="dash-hello">
-        {/* Nazwa w tokenie bywa e-mailem konta — wtedy bez imienia. */}
-        <h1>Dzień dobry{first ? `, ${vocative(first)}` : ''}</h1>
-        <span>{longToday()}</span>
-      </div>
+    <>
       <div className="dash-top">
         {next ? <NextStep m={next} onOpen={onOpenEvaluation} /> : (
           <section className="card dash-hero dash-hero-empty" aria-labelledby="dash-next">
-            <p className="dash-eyebrow" id="dash-next">Następny krok</p>
-            <h2>Wszystko w terminie</h2>
+            <EmptyEnter>
+              <p className="dash-eyebrow" id="dash-next">Następny krok</p>
+              <h2>Wszystko w terminie</h2>
+            </EmptyEnter>
           </section>
         )}
         <div className="dash-side">
           <section className="card dash-queue" aria-labelledby="dash-queue">
             <h2 id="dash-queue">W kolejce <span className="dash-count">{queue.length}</span></h2>
-            {queue.length === 0 ? <p className="dash-muted">Pusto.</p> : (
+            {queue.length === 0 ? <EmptyEnter><p className="dash-muted">Pusto.</p></EmptyEnter> : (
               <ul>
                 {queue.map((m, i) => <QueueRow key={m.employeeId} m={m} i={i} onOpen={onOpenEvaluation} />)}
               </ul>
@@ -131,10 +142,10 @@ export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
       <section className="card dash-team" aria-labelledby="dash-team">
         <h2 id="dash-team">Mój zespół</h2>
         {team.members.length === 0
-          ? <EmptyState title="W zespole nie ma jeszcze pracowników">Gdy kadry przypiszą Ci pracowników, pojawią się tutaj.</EmptyState>
+          ? <EmptyEnter><EmptyState title="W zespole nie ma jeszcze pracowników">Gdy kadry przypiszą Ci pracowników, pojawią się tutaj.</EmptyState></EmptyEnter>
           : <DashTimeline rows={rows} onOpenEvaluation={onOpenEvaluation} onOpenProfile={onOpenProfile} />}
       </section>
-    </section>
+    </>
   )
 }
 
@@ -157,7 +168,7 @@ function NextStep({ m, onOpen }: { m: TeamMember; onOpen: (id: number) => void }
           <p>{[fullName(m), m.positionName, isFirstTemplate(p.templateCode) ? 'pierwsza ocena' : sheet && `arkusz ${sheet}`].filter(Boolean).join(' · ')}</p>
         </div>
         {p.dueTo && (
-          <div className="dash-hero-due">
+          <div className="dash-hero-due ml-ring">
             <Ring value={days} max={stageWindow(p)} size={128} overdue={p.overdue} caption={Math.abs(days) === 1 ? 'dzień' : 'dni'}
               label={p.overdue ? `${Math.abs(days)} ${Math.abs(days) === 1 ? 'dzień' : 'dni'} po terminie` : `Zostało ${days} ${days === 1 ? 'dzień' : 'dni'}`} />
             <span className="dash-hero-date">
@@ -167,7 +178,7 @@ function NextStep({ m, onOpen }: { m: TeamMember; onOpen: (id: number) => void }
           </div>
         )}
       </div>
-      <div className="dash-hero-foot">
+      <div className="dash-hero-foot ml-steps-pop">
         <MiniStepper progress={p} caption="count" size="lg" />
         <button type="button" className="dash-primary" onClick={() => onOpen(p.evaluationId)}>
           {task.action} <span aria-hidden="true">→</span>
@@ -205,18 +216,18 @@ type OrgCard = { id: number; name: string; jobTitle: string | null; departmentNa
 
 /** „Mój zespół”: drzewko — ja na górze, pod spodem kafelki podwładnych z fazą, etapem i terminem oceny. */
 export function TeamPage({ onOpenEvaluation, onOpenProfile }: { onOpenEvaluation: (id: number) => void; onOpenProfile: (employeeId: number) => void }) {
-  const { team, error } = useTeam()
+  const { team, error, loading, retry } = useTeam()
   const [me, setMe] = useState<OrgCard | null>(null)
   useEffect(() => {
     // Konto bez pracownika (np. SuperAdmin) dostaje 404 — wtedy drzewko bez korzenia.
     api<{ focus: OrgCard }>('org').then((v) => setMe(v.focus), () => setMe(null))
   }, [])
-  if (error) return <p role="alert" className="error">{error}</p>
-  if (!team) return <p>Ładowanie…</p>
   return (
-    <section>
-      <div className="toolbar"><h2>Mój zespół</h2><span className="muted">{team.departmentName}</span></div>
-      {team.members.length === 0 ? <EmptyState title="W zespole nie ma jeszcze pracowników">Gdy kadry przypiszą Ci pracowników, pojawią się tutaj, a Busola policzy ich terminy ocen.</EmptyState> : (
+    <section aria-busy={loading || undefined}>
+      <div className="toolbar"><h2>Mój zespół</h2>{team && <span className="muted m-fade-in">{team.departmentName}</span>}</div>
+      <Loadable loading={loading} error={error} onRetry={retry} skeleton={<TilesSkeleton />} empty={team?.members.length === 0}
+        emptyNode={<EmptyState title="W zespole nie ma jeszcze pracowników">Gdy kadry przypiszą Ci pracowników, pojawią się tutaj, a Busola policzy ich terminy ocen.</EmptyState>}>
+      {() => team && (
         <div className="org">
           {me && (
             <div className="org-focus">
@@ -233,7 +244,7 @@ export function TeamPage({ onOpenEvaluation, onOpenProfile }: { onOpenEvaluation
             </div>
           )}
           <h3 className="org-reports-title">Podwładni ({team.members.length})</h3>
-          <ul className="org-reports">
+          <ul className="org-reports m-stagger">
             {team.members.map((m) => {
               const p = m.evaluation
               return (
@@ -264,6 +275,7 @@ export function TeamPage({ onOpenEvaluation, onOpenProfile }: { onOpenEvaluation
           </ul>
         </div>
       )}
+      </Loadable>
     </section>
   )
 }

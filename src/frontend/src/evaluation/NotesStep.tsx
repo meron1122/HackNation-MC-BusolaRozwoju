@@ -3,6 +3,7 @@ import { api } from '../api'
 import { ConfirmButton } from '../ConfirmButton'
 import { DateInput } from '../DateInput'
 import { Info } from '../v2'
+import { SaveButton, useSaveState } from '../v2/motion'
 import { CompleteStage, DuePill, IssueList, PdfButton, Pill, type StepProps } from './common'
 import { useApi } from './data'
 import { TermPanel } from './TermPanel'
@@ -166,7 +167,9 @@ function NoteForm({ id, title, employee, options, initial, indicator, onIndicato
   onCancel?: () => void
 }) {
   const [error, setError] = useState('')
-  const [busy, setBusy] = useState(false)
+  // Karta 13: „Zapisz notatkę” → kropki → „Zapisano ✓” (stała szerokość przycisku, aria-live w SaveButton).
+  const saver = useSaveState()
+  const busy = saver.state === 'saving'
   const [formKey, setFormKey] = useState(0)
   const [localIndicator, setLocalIndicator] = useState<string>(initial?.indicatorKey ?? '')
   const [text, setText] = useState<Record<string, string>>(() => ({
@@ -187,12 +190,13 @@ function NoteForm({ id, title, employee, options, initial, indicator, onIndicato
     const form = new FormData(e.currentTarget)
     const field = (name: string) => String(form.get(name) ?? '').trim()
     if (!field('situation') && !field('action') && !field('result')) {
+      // Kliknięcie w „Zapisano ✓” zaraz po zapisie (formularz już pusty) — nic do zrobienia.
+      if (saver.state === 'saved') return
       setError('Opisz przynajmniej sytuację, działanie albo rezultat.')
       return
     }
-    setBusy(true)
     try {
-      await onSubmit({
+      await saver.run(() => onSubmit({
         observedOn: field('observedOn'),
         situation: field('situation'),
         action: field('action'),
@@ -200,7 +204,7 @@ function NoteForm({ id, title, employee, options, initial, indicator, onIndicato
         indicatorKey: field('indicatorKey') || null,
         isPrivate: form.get('isPrivate') === 'on',
         discussedWithEmployee: form.get('discussedWithEmployee') === 'on',
-      })
+      }))
       setError('')
       if (!initial) {
         setFormKey((k) => k + 1)
@@ -209,8 +213,6 @@ function NoteForm({ id, title, employee, options, initial, indicator, onIndicato
       }
     } catch (err) {
       setError((err as Error).message)
-    } finally {
-      setBusy(false)
     }
   }
 
@@ -260,9 +262,9 @@ function NoteForm({ id, title, employee, options, initial, indicator, onIndicato
         <label className="check"><input type="checkbox" name="discussedWithEmployee" defaultChecked={initial?.discussedWithEmployee} /> Omówiono z {nameCase(employee, 'inst')}</label>
         <label className="check"><input type="checkbox" name="isPrivate" defaultChecked={initial?.isPrivate} /> Tylko dla mnie</label>
         <span className="grow" />
-        {saved && <span className="sv2-muted" role="status">{saved}</span>}
+        {saved && <span className="sv2-muted m-fade-in">{saved}</span>}
         {onCancel && <button type="button" className="secondary" onClick={onCancel}>Anuluj</button>}
-        <button type="submit" className={alert ? 'nv2-outline' : undefined} disabled={busy || empty}>{busy ? 'Zapisywanie…' : 'Zapisz notatkę'}</button>
+        <SaveButton type="submit" state={saver.state} className={alert ? 'nv2-outline' : undefined} disabled={!busy && saver.state !== 'saved' && empty}>Zapisz notatkę</SaveButton>
       </div>
       {error && <p role="alert" className="error">{error}</p>}
     </form>

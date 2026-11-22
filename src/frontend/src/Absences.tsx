@@ -3,6 +3,8 @@ import { api } from './api'
 import { ConfirmButton } from './ConfirmButton'
 import { DateInput } from './DateInput'
 import { fmtDate, type Absence, type AbsenceReason } from './evaluation/types'
+import { Loadable, SaveButton, Skeleton, useSaveState } from './v2/motion'
+import './ml-motion.css'
 
 const KIND_LABELS: Record<string, string> = {
   Justified: 'usprawiedliwiona',
@@ -26,6 +28,7 @@ export function AbsencesSection({ employeeId, editable }: { employeeId: number; 
   const [reasons, setReasons] = useState<AbsenceReason[]>([])
   const [editing, setEditing] = useState<Absence | 'new' | null>(null)
   const [error, setError] = useState('')
+  const save = useSaveState()
 
   const load = useCallback(() => api<Absence[]>(`employees/${employeeId}/absences`).then(setItems, (e: Error) => setError(e.message)), [employeeId])
   useEffect(() => {
@@ -42,8 +45,8 @@ export function AbsencesSection({ employeeId, editable }: { employeeId: number; 
       reasonId: Number(form.get('reasonId')),
     }
     try {
-      await api(editing === 'new' ? `employees/${employeeId}/absences` : `employees/${employeeId}/absences/${(editing as Absence).id}`,
-        editing === 'new' ? 'POST' : 'PUT', body)
+      await save.run(() => api(editing === 'new' ? `employees/${employeeId}/absences` : `employees/${employeeId}/absences/${(editing as Absence).id}`,
+        editing === 'new' ? 'POST' : 'PUT', body))
       setEditing(null)
       setError('')
       await load()
@@ -86,15 +89,16 @@ export function AbsencesSection({ employeeId, editable }: { employeeId: number; 
             </label>
           </div>
           <div className="buttons">
-            <button type="submit">Zapisz nieobecność</button>
+            <SaveButton type="submit" state={save.state}>Zapisz nieobecność</SaveButton>
             <button type="button" className="secondary" onClick={() => setEditing(null)}>Anuluj</button>
           </div>
         </form>
       )}
-      {error && <p role="alert" className="error">{error}</p>}
-      {!items ? <p className="muted small">Ładowanie…</p> : items.length === 0 ? (
-        <p className="muted small">{editable ? 'Brak nieobecności. Dodaj przyciskiem „Dodaj”.' : 'Brak nieobecności.'}</p>
-      ) : (
+      {items && error && <p role="alert" className="error">{error}</p>}
+      <Loadable loading={!items && !error} error={items ? '' : error} onRetry={() => { setError(''); load() }}
+        skeleton={<Skeleton variant="text" rows={3} />} empty={items?.length === 0}
+        emptyNode={<p className="muted small" style={{ margin: 0 }}>{editable ? 'Brak nieobecności. Dodaj przyciskiem „Dodaj”.' : 'Brak nieobecności.'}</p>}>
+      {() => items && (
         <div className="table-wrap">
           <table>
             <thead>
@@ -103,7 +107,7 @@ export function AbsencesSection({ employeeId, editable }: { employeeId: number; 
                 {editable && <th><span className="sr-only">Akcje</span></th>}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="ml-stagger">
               {items.map((a) => (
                 <tr key={a.id}>
                   <td>{fmtDate(a.startDate)}</td>
@@ -123,6 +127,7 @@ export function AbsencesSection({ employeeId, editable }: { employeeId: number; 
           </table>
         </div>
       )}
+      </Loadable>
     </section>
   )
 }

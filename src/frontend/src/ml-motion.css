@@ -1,0 +1,85 @@
+/* Ruch pulpitów i list (H01, H14, Moja ocena, listy). Wszystko raz przy wejściu, bez pętli.
+   Prefiks ml-; komponenty v2 (Ring, Radar) animujemy tylko w obrębie naszych ekranów.
+   Ograniczony ruch: stan końcowy od razu (reguła na dole + globalna w index.css). */
+
+/* Pierścień dni: łuk dorasta od 0 do wartości (600 ms); liczba stoi od pierwszej klatki. */
+.ml-ring .v2-ring:not(.overdue) .v2-ring-arc { animation: ml-ring-draw .6s var(--ease, cubic-bezier(.2, .7, .2, 1)) .12s backwards; }
+@keyframes ml-ring-draw { from { stroke-dasharray: 0 2000; } }
+
+/* Pasek segmentów (stan ocen): segmenty rosną od lewej, kolejno. */
+.dash-segbar-bar > span { transform-origin: left center; animation: ml-grow-x .5s var(--ease, ease) backwards; animation-delay: calc(120ms + var(--i, 0) * 90ms); }
+@keyframes ml-grow-x { from { transform: scaleX(0); } }
+
+/* Radar mediany: wielokąt rozwija się ze środka, wartości dochodzą po nim. */
+.dash-median .v2-radar-series { transform-box: view-box; transform-origin: center; animation: ml-radar .6s var(--ease, ease) .15s backwards; }
+.dash-median .v2-radar-value { animation: ml-fade .3s ease .6s backwards; }
+@keyframes ml-radar { from { transform: scale(.15); opacity: 0; } }
+@keyframes ml-fade { from { opacity: 0; } }
+
+/* Oś zespołu: pozostały czas wysuwa się od „dziś”, wiersze kolejno (max 8, dalej razem). */
+.dash-tl-rows > li { animation: ml-fade .26s var(--ease, ease) backwards; animation-delay: calc(min(var(--i, 0), 8) * 40ms + 80ms); }
+.dash-tl-left { transform-origin: left center; animation: ml-grow-x .5s var(--ease, ease) backwards; animation-delay: calc(min(var(--i, 0), 8) * 40ms + 200ms); }
+.dash-tl-end, .dash-tl-date { animation: ml-fade .25s ease backwards; animation-delay: calc(min(var(--i, 0), 8) * 40ms + 520ms); }
+
+/* Mini-stepper: kropka bieżącego etapu „wskakuje” raz. */
+.ml-steps-pop .dash-steps-dots > .now { animation: ml-pop .32s cubic-bezier(.3, 1.4, .5, 1) .25s backwards; }
+@keyframes ml-pop { from { transform: scale(.4); } }
+
+/* Listy i kafle: delikatny stagger (indeks ograniczony do 7). */
+.ml-stagger > * { animation: ml-rise .24s var(--ease, ease) backwards; animation-delay: calc(min(var(--i, 0), 7) * 45ms); }
+@keyframes ml-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Tabele: wiersze wchodzą przenikaniem, kolejno (bez przesuwania układu tabeli). */
+tbody.ml-stagger > tr { animation: ml-fade .24s ease backwards; animation-delay: calc(min(var(--i, 0), 7) * 35ms); }
+
+/* Przeładowanie fragmentu (filtr listy HR, zakres terminów): po progu przygaszenie + znacznik w rogu. */
+.ml-frag { position: relative; }
+.ml-frag[aria-busy="true"] .ml-frag-body { opacity: .5; pointer-events: none; transition: opacity .15s ease; }
+.ml-frag-body { transition: opacity .2s ease; }
+
+/* Wysłano ✓: dzwonek kołysze się raz przy przejściu w stan wysłany. */
+.dash-bell.ml-just-sent svg { transform-origin: 50% 12%; animation: ml-bell .4s ease backwards; }
+@keyframes ml-bell { 25% { transform: rotate(14deg); } 55% { transform: rotate(-10deg); } 80% { transform: rotate(4deg); } }
+.dash-bell .ml-bell-check {
+  position: absolute; right: -4px; top: -4px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text, #1f2a5a); color: #fff; font-size: 11px; font-weight: 700; line-height: 1;
+  animation: ml-pop .3s cubic-bezier(.3, 1.4, .5, 1) .25s backwards;
+}
+.dash-bell { position: relative; }
+
+/* Liczniki KPI: liczba przewija się raz (JS), cyfry stałej szerokości, żeby nie skakał układ. */
+.ml-count { font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ml-ring .v2-ring-arc, .dash-segbar-bar > span, .dash-median .v2-radar-series, .dash-median .v2-radar-value,
+  .dash-tl-rows > li, .dash-tl-left, .dash-tl-end, .dash-tl-date, .ml-steps-pop .dash-steps-dots > .now,
+  .ml-stagger > *, tbody.ml-stagger > tr, .dash-bell.ml-just-sent svg, .dash-bell .ml-bell-check { animation: none !important; }
+  .ml-frag-body, .ml-frag[aria-busy="true"] .ml-frag-body { transition: none; }
+}
+
+/* Szkielety ekranów (kształt docelowej treści) i obudowy Loadable/Refreshing w siatce strony. */
+.hifi-page > .m-reveal, .hifi-page > .m-refresh > .m-refresh-body, .ml-grid > .m-reveal { display: grid; gap: inherit; min-width: 0; }
+.hifi-page > .m-refresh, .ml-grid > .m-refresh { display: grid; }
+.ml-skel { gap: 20px; }
+.ml-skel .dash-kpi, .ml-skel .dash-top, .ml-skel .dash-hr-grid { animation: none; }
+.ml-skel-hero { gap: 22px; padding: 24px; min-height: 300px; align-content: space-between; }
+.ml-skel-line { padding: 10px 0; border-top: 1px solid var(--border, #e4e7ef); }
+.ml-skel-line:first-of-type, .m-skel-panel > .m-skel--title + .ml-skel-line { border-top: 0; }
+.ml-skel-root { max-width: 420px; justify-self: center; width: 100%; }
+.ml-skel-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+.ml-skel-list .m-skel-panel { padding: 8px 24px; }
+.hifi-page > .m-reveal > .m-refresh, .hifi-page > .m-reveal > .m-refresh > .m-refresh-body { display: grid; gap: inherit; min-width: 0; }
+.dash-median .m-skeleton { justify-items: center; padding: 8px 0; }
+.dash-median > .m-reveal { display: grid; gap: 12px; }
+tbody.ml-stagger > tr:nth-child(2) { --i: 1; } tbody.ml-stagger > tr:nth-child(3) { --i: 2; } tbody.ml-stagger > tr:nth-child(4) { --i: 3; }
+tbody.ml-stagger > tr:nth-child(5) { --i: 4; } tbody.ml-stagger > tr:nth-child(6) { --i: 5; } tbody.ml-stagger > tr:nth-child(7) { --i: 6; }
+tbody.ml-stagger > tr:nth-child(n+8) { --i: 7; }
+.account > .m-reveal, .ml-account { display: grid; gap: inherit; }
+.ml-skel-profile { grid-template-columns: 260px minmax(0, 1fr); align-items: start; }
+.ml-skel-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.org-reports.m-stagger > li { animation-duration: var(--m-base, 200ms); }
+/* Licznik w <strong>: nie dziedziczy reguł podpisów (np. `.dash-late-top span`). */
+.dash-late-top strong > .ml-count, .dash-segbar-total strong > .ml-count, .dash-segbar-legend strong > .ml-count {
+  font: inherit; font-variant-numeric: tabular-nums; color: inherit; padding: 0; margin: 0;
+}
+.ml-skel-list { gap: 0; }

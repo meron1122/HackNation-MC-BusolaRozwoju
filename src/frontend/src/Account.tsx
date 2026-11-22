@@ -2,6 +2,8 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from 'react'
 import { api, apiUpload } from './api'
 import { Avatar } from './Avatar'
+import { Loadable, SaveButton, Skeleton } from './v2/motion'
+import './ml-motion.css'
 
 type Account = {
   email: string
@@ -31,15 +33,25 @@ export function AccountPage({ onToken, avatarVersion, onAvatarChange, showTitle 
     load()
   }, [load])
 
-  if (!account) return error ? <p role="alert" className="error">{error}</p> : <p>Ładowanie…</p>
-
   return (
     <section className="account">
       {showTitle && <div className="toolbar"><h2>Moje konto</h2></div>}
+      <Loadable loading={!account && !error} error={account ? '' : error} onRetry={() => { setError(''); load() }} skeleton={<Skeleton variant="cards" rows={3} />}>
+      {() => account && <AccountBody account={account} avatarVersion={avatarVersion} onAvatarChange={onAvatarChange} onToken={onToken} load={load} />}
+      </Loadable>
+    </section>
+  )
+}
+
+function AccountBody({ account, avatarVersion, onAvatarChange, onToken, load }: {
+  account: Account; avatarVersion: number; onAvatarChange: () => void; onToken: (token: string) => void; load: () => void
+}) {
+  return (
+    <div className="m-stagger ml-account">
       <AvatarSection account={account} version={avatarVersion} onChange={() => { onAvatarChange(); load() }} />
       <PasswordSection onToken={onToken} />
       <TwoFactorSection account={account} onToken={onToken} onChange={load} />
-    </section>
+    </div>
   )
 }
 
@@ -131,7 +143,7 @@ function PasswordSection({ onToken }: { onToken: (token: string) => void }) {
       <p className="muted">Min. 6 znaków, wielka i mała litera, cyfra i znak specjalny. Pozostałe sesje zostaną wylogowane.</p>
       {error && <p role="alert" className="error">{error}</p>}
       {done && <p role="status" className="success">Hasło zostało zmienione.</p>}
-      <div className="buttons"><button type="submit" disabled={busy}>Zmień hasło</button></div>
+      <div className="buttons"><SaveButton type="submit" state={busy ? 'saving' : 'idle'}>Zmień hasło</SaveButton></div>
     </form>
   )
 }

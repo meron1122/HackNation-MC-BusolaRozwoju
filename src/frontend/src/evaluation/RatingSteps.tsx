@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { DateInput } from '../DateInput'
 import { SheetForm } from '../Evaluations'
 import { Info, Radar, Segments, Source, useStepHeader } from '../v2'
+import { AutosaveStatus, Refreshing } from '../v2/motion'
 import { PdfButton, type StepProps } from './common'
 import { saveAnswers, useApi, useWorkContext } from './data'
 import { byDate, PeriodAxis, ScaleTiles, shortCriterion } from './rating-parts'
@@ -67,9 +68,14 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
   // Nagłówek kreatora: „Katarzyna Nowak · Rzetelność” i segmenty kryteriów „2/6”.
   useStepHeader(criterion ? shortCriterion(criterion.key, criterion.label) : null, criterion ? { current: pos.c + 1, total: criteria.length, label: `Kryterium ${pos.c + 1} z ${criteria.length}` } : null)
 
+  // Kierunek wjazdu pytania / podsumowania (dalej = z prawej, wstecz = z lewej) i czekanie na zapis przy zmianie kryterium.
+  const [dir, setDir] = useState<'next' | 'back'>('next')
+  const [waiting, setWaiting] = useState(false)
+  const order = (p: { c: number; i: number | 'summary' }) => p.c * 1000 + (p.i === 'summary' ? 999 : p.i)
   const move = (next: { c: number; i: number | 'summary' }) => {
     window.clearTimeout(timer.current)
     setNeedScore(false)
+    setDir(order(next) < order(pos) ? 'back' : 'next')
     setPos(next)
   }
 
@@ -80,6 +86,7 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
     const from = { c: pos.c, i: pos.i }
     window.clearTimeout(timer.current)
     timer.current = window.setTimeout(() => {
+      setDir('next')
       setPos((p) => (p.c === from.c && p.i === from.i ? { c: from.c, i: from.i < indicators.length - 1 ? from.i + 1 : 'summary' } : p))
     }, ADVANCE_MS)
     try {
@@ -115,7 +122,8 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
     else if (!scored(criterion.key) && editable) { setNeedScore(true); return }
     else if (saving.current) {
       // Najpierw zapis oceny kryterium; przy błędzie zostajemy na podsumowaniu (komunikat pokazuje CriterionSummary).
-      const ok = await saving.current.then(() => true, () => false)
+      setWaiting(true)
+      const ok = await saving.current.then(() => true, () => false).finally(() => setWaiting(false))
       if (!ok) return
       if (pos.c < criteria.length - 1) move({ c: pos.c + 1, i: 0 })
     }
@@ -124,7 +132,11 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
   }
   // Ostatnie kryterium: przejście do rozmowy dopiero po zapisie oceny (rozmowa pokazuje oceny robocze z backendu).
   const finish = async () => {
-    if (saving.current && !(await saving.current.then(() => true, () => false))) return
+    if (saving.current) {
+      setWaiting(true)
+      const ok = await saving.current.then(() => true, () => false).finally(() => setWaiting(false))
+      if (!ok) return
+    }
     const after = steps[steps.findIndex((s) => s.id === 'indicators') + 1]
     if (after) go(after.id)
   }
@@ -139,12 +151,13 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
   return (
     <div className="step rh">
       <div className="rh-with-aside">
-        <div className="rh-main">
+        <div className="rh-main" data-dir={dir}>
           {!editable && (
             <p className="rh-readonly">Tylko do odczytu{detail.lockedSections.includes(scores.section.key) ? ' · etap oceny zamknięty' : ''}</p>
           )}
           {error && <p role="alert" className="error">{error}</p>}
 
+          <Refreshing busy={waiting}>
           {indicator ? (
             <IndicatorQuestion key={indicator.key} indicator={indicator} index={pos.i as number} total={indicators.length}
               answered={(i) => answered(indicators[i].key)} scale={scale}
@@ -166,6 +179,7 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
               onRevert={(value) => setPicked((p) => ({ ...p, [criterion.key]: value }))}
               onChange={(i) => move({ c: pos.c, i })} />
           )}
+          </Refreshing>
 
           <div className="rh-actions">
             {indicator
@@ -215,7 +229,7 @@ function IndicatorQuestion({ indicator, index, total, answered, scale, choice, e
       {expectation && (
         <p className="rh-chip"><strong>Oczekiwanie</strong><span>{expectation}</span></p>
       )}
-      <div className="rh-options" role="radiogroup" aria-labelledby={headingId}>
+      <div className={choice?.valueNumber != null ? 'rh-options has-choice' : 'rh-options'} role="radiogroup" aria-labelledby={headingId}>
         {shuffled(scale, indicator.key).map((o, i) => {
           const checked = choice?.valueNumber === o.value
           return (
@@ -352,13 +366,18 @@ function ReasonField({ initial, title, hint, disabled, onSave }: {
 }) {
   const [value, setValue] = useState(initial)
   const [status, setStatus] = useState('')
+  const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [savedAt, setSavedAt] = useState<Date | undefined>(undefined)
   async function save() {
     if (value === initial) return
-    setStatus('Zapisywanie…')
+    setStatus('')
+    setState('saving')
     try {
       await onSave(value.trim())
-      setStatus('Zapisano')
+      setState('saved')
+      setSavedAt(new Date())
     } catch (e) {
+      setState('error')
       setStatus((e as Error).message)
     }
   }
@@ -369,7 +388,8 @@ function ReasonField({ initial, title, hint, disabled, onSave }: {
         <Info label={`${title} — wyjaśnienie`} align="start">{hint}</Info>
       </span>
       <textarea id="rh-reason" rows={1} value={value} disabled={disabled} onChange={(e) => setValue(e.target.value)} onBlur={save} />
-      {status && <span className="rh-muted" role="status">{status}</span>}
+      {state !== 'idle' && <AutosaveStatus state={state} savedAt={savedAt} />}
+      {status && <span className="rh-muted" role="alert">{status}</span>}
     </div>
   )
 }

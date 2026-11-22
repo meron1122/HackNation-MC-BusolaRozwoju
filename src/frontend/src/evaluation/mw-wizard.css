@@ -1,0 +1,98 @@
+/* =====================================================================
+   Ruch w kreatorze oceny (agent „Kreator”). Wzorzec: busola-postacie/animacje/podglad.html,
+   karty 03, 04, 07, 10, 12–15, 17. Stan bazowy każdej reguły = stan końcowy, więc przy
+   prefers-reduced-motion (reguły globalne w index.css / busola-hifi.css) wszystko stoi od razu.
+   Bez pętli i konfetti (H12).
+   ===================================================================== */
+
+/* ---------- 07. Przejście między krokami: dalej = z prawej, wstecz = z lewej, 220 ms ---------- */
+.mw-step-frame { min-width: 0; display: grid; }
+.wizard-main .mw-step-frame > .step { animation: none; }
+.mw-step-frame[data-dir="back"] { --mw-dir: -1; }
+@media (prefers-reduced-motion: no-preference) {
+  .mw-step-frame { animation: mw-step-in .22s var(--ease) backwards; }
+}
+@keyframes mw-step-in { from { opacity: 0; transform: translateX(calc(10px * var(--mw-dir, 1))); } }
+/* Fokus po przejściu trafia na nagłówek kroku (tabindex=-1): bez ramki przy myszy, z ramką przy klawiaturze. */
+.mw-step-frame :is(h1, h2)[tabindex="-1"]:focus { outline: none; }
+.mw-step-frame :is(h1, h2)[tabindex="-1"]:focus-visible { outline: 3px solid var(--focus); outline-offset: 4px; border-radius: 6px; }
+.v2-stephead-title[tabindex="-1"]:focus { outline: none; }
+
+/* ---------- Stepper w lewej kolumnie ---------- */
+.mw-nav .wz-mark { transition: background-color .25s var(--ease), border-color .25s var(--ease), color .25s var(--ease); }
+.mw-nav .mw-mark-in { display: inline-flex; }
+.mw-nav .mw-dot-in { animation: mw-pop .25s var(--ease) backwards; }
+.mw-nav .wz-stage-head { transition: background-color .15s var(--ease); }
+
+/* Pod-kroki: rozwinięcie wysokości (grid 0fr → 1fr), zwinięte są `inert`. */
+.mw-sub-wrap {
+  display: grid; grid-template-rows: 0fr; opacity: 0;
+  transition: grid-template-rows .26s var(--ease), opacity .2s var(--ease);
+}
+.mw-sub-wrap[data-open="true"] { grid-template-rows: 1fr; opacity: 1; }
+/* overflow: hidden przycina wysokość; ujemny margines + padding listy zostawiają miejsce na ramkę fokusu. */
+.mw-sub-inner { position: relative; min-height: 0; overflow: hidden; margin: 0 -4px 0 20px; }
+.wz-stage .mw-sub-inner > .mw-substeps { position: relative; margin: 0; padding: 8px 4px 4px; animation: none; }
+.mw-sub-hl {
+  position: absolute; top: 0; left: 4px; right: 4px; border-radius: 8px; background: var(--blue-soft); pointer-events: none;
+  transition: transform .25s var(--ease), height .25s var(--ease);
+}
+.mw-sub-hl::before { content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px; border-radius: 2px; background: var(--text); }
+.wz-substeps.mw-substeps.has-hl .step-link.active { background: transparent; }
+.wz-substeps.mw-substeps .step-link { transition: color .2s var(--ease), background-color .15s var(--ease); }
+
+/* ---------- Segmenty postępu w nagłówku i nad pytaniem: wypełniają się płynnie ---------- */
+.wizard.wz .v2-seg-bar { transition: background-color .3s var(--ease); }
+.wizard.wz .v2-seg-bar.done {
+  background: linear-gradient(var(--text), var(--text)) left center / 100% 100% no-repeat, var(--border);
+  animation: mw-seg-fill .4s var(--ease) backwards;
+}
+.wizard.wz .v2-seg-now { animation: mw-pop-soft .25s var(--ease) backwards; }
+@keyframes mw-seg-fill { from { background-size: 0% 100%, auto; } }
+
+/* ---------- 03. Kłódka otwiera się przy „Podpisz i sporządź ocenę” ---------- */
+.final-hifi .final-gate:not(.locked) .final-lock.open .final-lock-shackle { animation: mw-unlock .42s var(--ease) .12s backwards; }
+.final-hifi .final-gate:not(.locked) { animation: mw-gate-ready .2s var(--ease) .2s backwards; }
+.final-hifi .final-signcard.ready .final-sign-note { animation: mw-fade .25s var(--ease) .3s backwards; }
+@keyframes mw-unlock { 0% { transform: none; } 55% { transform: translateY(-1.5px); } }
+@keyframes mw-gate-ready { from { background: var(--border); color: var(--muted); } }
+
+/* ---------- 04. Znacznik średniej na skali: przesuw 600 ms, „▲ sugestia” po 480 ms ---------- */
+.rh .rh-scale-mean, .rh .rh-scale-mean-label { transition: left .6s var(--ease); }
+.rh .rh-scale-mean-label { animation: mw-fade .2s linear backwards; }
+.rh .rh-tiles-marks .mw-sugg { animation: mw-sugg .2s var(--ease) .48s backwards; }
+@keyframes mw-sugg { from { opacity: 0; transform: translateY(-4px); } }
+
+/* ---------- 10. Karta zachowania A–E: obrys, ✓ 0,8 → 1, pozostałe lekko przygasają (kontrast AA zostaje) ---------- */
+.rh .rh-options.has-choice .rh-option:not(.selected):not(:hover):not(:focus-visible) { opacity: .8; }
+
+/* ---------- Wynik: liczba odlicza raz (CountUp); karty ostrzeżeń i blokad wchodzą rise-in ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .wizard.wz :is(.callout, .final-fix, .final-warnings, .wzl-locked, .rh-readonly, .step-footer > .error, p.error[role="alert"]) {
+    animation: mw-rise .25s var(--ease) backwards;
+  }
+}
+
+/* ---------- 17. Przeładowanie fragmentu: nowa treść kryterium przenikaniem 200 ms ---------- */
+.rh-main[data-dir="back"] { --mw-dir: -1; }
+.rh-main .rh-question, .rh-main .rh-summary { animation-name: mw-step-in; animation-duration: .2s; }
+
+@keyframes mw-rise { from { opacity: 0; transform: translateY(6px); } }
+@keyframes mw-fade { from { opacity: 0; } }
+@keyframes mw-pop { from { opacity: 0; transform: scale(.6); } }
+@keyframes mw-pop-soft { from { opacity: .4; transform: scale(.85); } }
+
+/* ---------- 12. Szkielet kreatora i wejście treści (crossfade 200 ms) ---------- */
+.mw-wizard-loading { padding: 24px 32px; }
+@media (prefers-reduced-motion: no-preference) {
+  .wizard.wz.mw-wizard-in { animation: mw-fade .2s var(--ease) backwards; }
+}
+
+/* ---------- 15. PDF etapami: panel pod przyciskiem (nie przesuwa paska narzędzi) ---------- */
+.mw-pdf { position: relative; }
+.mw-pdf-pop {
+  position: absolute; top: calc(100% + 8px); right: 0; z-index: 20; width: 300px; padding: 14px 16px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: 0 12px 32px rgba(31, 42, 90, .14);
+  animation: mw-rise .2s var(--ease) backwards;
+}
+.mw-pdf-pop .m-pdf-title { margin: 0 0 8px; font-size: 14px; font-weight: 650; }

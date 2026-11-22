@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api } from '../api'
 import { StepHeader, StepHeaderContext, type StepProgress } from '../v2'
 import { StageNav, TermCard, stageIndexOf } from '../v2/WizardNav'
 import { WizardPanel } from '../v2/WizardPanel'
 import { setAssistantStep } from '../assistant/AssistantWidget'
+import { ErrorState, Skeleton, useDelayedFlag } from '../v2/motion'
 import { PdfButton, type Step, type StepProps } from './common'
 import { canSignNow } from './data'
 import { AcknowledgementStep, ResultStep, ReviewStep, SectionStep } from './FinalSteps'
@@ -14,6 +15,7 @@ import { IndicatorsStep, InterviewStep } from './RatingSteps'
 import { CriteriaStep, KickoffStep, PartOneStep, StartStep } from './StartSteps'
 import { currentStageIndex, stageStartText } from './stage-lock'
 import './stage-lock.css'
+import './mw-wizard.css'
 import {
   daysUntil, indicatorFieldOf, isFirstTemplate, scoresFieldOf, sheetLetter, type Check, type Detail, type Section, type SectionCheck,
 } from './types'
@@ -216,9 +218,29 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
   useEffect(() => setAssistantStep(shownId && shownTitle ? { id: shownId, title: shownTitle } : null), [shownId, shownTitle])
   useEffect(() => () => setAssistantStep(null), [])
 
-  if (!detail) return error ? <p role="alert" className="error">{error}</p> : <p>Ładowanie…</p>
+  // Przejście kroku (karta 07): kierunek wjazdu treści (dalej = z prawej, wstecz = z lewej) i fokus na nagłówku kroku.
+  const [dir, setDir] = useState<1 | -1>(1)
+  const frameRef = useRef<HTMLDivElement>(null)
+  const focusPending = useRef(false)
+  useEffect(() => {
+    if (!focusPending.current) return
+    focusPending.current = false
+    const frame = frameRef.current
+    const heading = frame?.querySelector<HTMLElement>('h1, h2') ?? frame?.parentElement?.querySelector<HTMLElement>('.v2-stephead-title')
+    if (!heading) return
+    if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1')
+    heading.focus({ preventScroll: true })
+  }, [stepId])
+
+  if (!detail) return <WizardLoading error={error} onRetry={() => { setError(''); void load() }} />
 
   const go = (next: string) => {
+    const from = steps.findIndex((s) => s.id === (stepId ?? steps[0]?.id))
+    const to = steps.findIndex((s) => s.id === next)
+    if (next !== stepId) {
+      setDir(to >= 0 && from >= 0 && to < from ? -1 : 1)
+      focusPending.current = true
+    }
     setStepId(next)
     window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
   }
@@ -236,7 +258,7 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
   const hasNotes = steps.some((s) => s.id === 'notes')
 
   return (
-    <section className="wizard wz">
+    <section className="wizard wz mw-wizard-in">
       <aside className="wizard-nav wz-left">
         <StageNav sheet={sheet} steps={steps} currentId={step.id} onGo={go} lockedAfter={nowIndex} />
         <TermCard detail={detail} ratingStageKey={ratingStageKey} />
@@ -266,11 +288,24 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
           </p>
         )}
         <StepHeaderContext.Provider value={setHeader}>
-          <StepView key={step.id} step={step} props={props} />
+          <div key={step.id} ref={frameRef} className="mw-step-frame" data-dir={dir === 1 ? 'next' : 'back'}>
+            <StepView step={step} props={props} />
+          </div>
         </StepHeaderContext.Provider>
       </div>
       <WizardPanel detail={detail} step={step.id} onAddNote={hasNotes && !detail.isOwn ? () => go('notes') : undefined} />
     </section>
+  )
+}
+
+/** Karta 12: szkielet kreatora dopiero po 300 ms (szybkie wczytanie nie miga), błąd w miejscu treści z „Spróbuj ponownie”. */
+function WizardLoading({ error, onRetry }: { error: string; onRetry: () => void }) {
+  const show = useDelayedFlag(!error)
+  if (error) return <ErrorState title="Nie udało się wczytać oceny" detail={error} onRetry={onRetry} />
+  return (
+    <div className="mw-wizard-loading">
+      {show ? <Skeleton variant="wizard" /> : <div aria-busy="true" />}
+    </div>
   )
 }
 
