@@ -48,7 +48,14 @@ public sealed record EvaluationDetailDto(
     PreviousEvaluationDto? Previous,
     string? UnitHeadName,
     bool CanEditSelfAssessment,
-    IReadOnlyList<AnswerDto> Prefill);
+    IReadOnlyList<AnswerDto> Prefill,
+    IReadOnlyList<SignatureSlotDto> SignatureSlots);
+
+/// <summary>
+/// Pole podpisu: czy już podpisane i czy etap/termin pozwala je teraz podpisać (niezależnie od tego, kto podpisuje —
+/// rolę sprawdza front i backend przy podpisie). Reason: dlaczego nie, np. „Ten podpis można złożyć od 20.07.2027…”.
+/// </summary>
+public sealed record SignatureSlotDto(string FieldKey, string Role, bool Signed, bool CanSign, string? Reason);
 
 /// <summary>
 /// Podgląd liczenia: per kryterium sugestia ze wskaźników (średnia ocenionych wskaźników zaokrąglona do najbliższego
@@ -94,6 +101,8 @@ public sealed record SelfAssessmentCriterionDto(string Key, string Label, string
 /// <summary>
 /// Samoocena. Oceniany widzi swoją zawsze; pozostali dopiero po przekazaniu (Submitted), wcześniej bez treści.
 /// CanEdit: oceniany, etap samooceny w toku, jeszcze nie przekazana.
+/// DueTo: termin przekazania — przy sprawozdaniu (pierwsza ocena) termin etapu, przy okresowej 30 dni przed terminem
+/// sporządzenia oceny (organizacyjny, żeby przełożony miał samoocenę przed rozmową). Po terminie nadal można przekazać.
 /// </summary>
 public sealed record SelfAssessmentDto(
     string? StageKey,
@@ -104,7 +113,9 @@ public sealed record SelfAssessmentDto(
     DateTimeOffset? UpdatedAt,
     IReadOnlyList<ScaleOptionDto> Scale,
     IReadOnlyList<SelfAssessmentCriterionDto> Criteria,
-    string? DevelopmentNeeds);
+    string? DevelopmentNeeds,
+    DateOnly? DueTo,
+    bool Overdue);
 
 public sealed record ScaleOptionDto(int Value, string Key, string Label);
 

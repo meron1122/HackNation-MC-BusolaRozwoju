@@ -130,6 +130,63 @@ public static class EvaluationWorkflow
     public static IEnumerable<T> WithoutDraft<T>(TemplateSchema schema, IReadOnlySet<string> draftSections, IEnumerable<T> answers, Func<T, string> fieldKey) =>
         draftSections.Count == 0 ? answers : answers.Where(a => schema.SectionOf(fieldKey(a)) is not { } s || !draftSections.Contains(s.Key));
 
+    /// <summary>
+    /// Czy pole podpisu można teraz podpisać (dla każdej roli): etap pola w toku, wcześniejsze etapy obowiązkowe zamknięte,
+    /// nie przed początkiem terminu etapu (np. pierwsza ocena od 8. miesiąca), data podpisu nie z przyszłości i nie sprzed
+    /// tego początku. Po upływie terminu podpis zostaje możliwy — spóźnioną ocenę i tak trzeba dokończyć.
+    /// Zwraca powód blokady albo null.
+    /// </summary>
+    public static string? SignBlockReason(
+        TemplateSchema schema, IReadOnlyList<(string Key, StageStatus Status, DateOnly? DueFrom)> stages, string fieldKey,
+        DateOnly signedOn, DateOnly today)
+    {
+        var stageKey = schema.SectionOf(fieldKey)?.Stage;
+        var definition = schema.Stages.FirstOrDefault(s => s.Key == stageKey);
+        var stage = stages.FirstOrDefault(s => s.Key == stageKey);
+        if (definition is null || stage.Key is null)
+        {
+            return null;
+        }
+
+        if (stage.Status != StageStatus.Pending)
+        {
+            return "Etap tego podpisu jest już zamknięty.";
+        }
+
+        var earlier = schema.Stages.TakeWhile(s => s.Key != stageKey)
+            .FirstOrDefault(s => !s.Optional && stages.Any(x => x.Key == s.Key && x.Status == StageStatus.Pending));
+        if (earlier is not null)
+        {
+            return $"Ten podpis będzie możliwy po zamknięciu etapu „{earlier.Title}”.";
+        }
+
+        if (stage.DueFrom is { } from && today < from)
+        {
+            return $"Ten podpis można złożyć od {from:dd.MM.yyyy} — wtedy zaczyna się termin etapu „{definition.Title}”.";
+        }
+
+        if (signedOn > today)
+        {
+            return "Data podpisu nie może być z przyszłości.";
+        }
+
+        return stage.DueFrom is { } start && signedOn < start
+            ? $"Data podpisu nie może być wcześniejsza niż początek terminu etapu ({start:dd.MM.yyyy})."
+            : null;
+    }
+
+    /// <summary>Samoocena przy ocenie okresowej: tyle dni przed terminem sporządzenia oceny (termin organizacyjny).</summary>
+    public const int SelfAssessmentLeadDays = 30;
+
+    /// <summary>
+    /// Termin przekazania samooceny: sprawozdanie (etap zamykany przez ocenianego) — termin etapu ustalony na rozmowie
+    /// wstępnej; samoocena w trakcie etapu oceny — 30 dni przed terminem jego zamknięcia, żeby była przed rozmową oceniającą.
+    /// </summary>
+    public static DateOnly? SelfAssessmentDueTo(StageDefinition? stage, DateOnly? stageDueTo) =>
+        stage is null || stageDueTo is not { } due ? null
+        : stage.CompletedByEvaluated ? due
+        : due.AddDays(-SelfAssessmentLeadDays);
+
     public const string NotStartedPhase = "Oczekuje na start";
 
     /// <summary>

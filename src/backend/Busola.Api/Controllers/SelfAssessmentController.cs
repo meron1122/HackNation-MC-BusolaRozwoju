@@ -205,6 +205,7 @@ public sealed class SelfAssessmentController(BusolaDbContext db, AccessScopeServ
         var submitted = self?.SubmittedAt is not null;
         var visible = context.IsOwn || submitted;
         var byKey = visible ? self?.Criteria.ToDictionary(c => c.CriterionKey) ?? [] : [];
+        var dueTo = EvaluationWorkflow.SelfAssessmentDueTo(context.Stage, context.Evaluation.Stages.SingleOrDefault(s => s.StageKey == context.Stage?.Key)?.DueTo);
 
         return new SelfAssessmentDto(
             context.Stage?.Key,
@@ -217,6 +218,8 @@ public sealed class SelfAssessmentController(BusolaDbContext db, AccessScopeServ
             context.Criteria
                 .Select(c => new SelfAssessmentCriterionDto(c.Key, c.Label, byKey.GetValueOrDefault(c.Key)?.Level, byKey.GetValueOrDefault(c.Key)?.Comment))
                 .ToList(),
-            visible ? self?.DevelopmentNeeds : null);
+            visible ? self?.DevelopmentNeeds : null,
+            dueTo,
+            !submitted && context.StageOpen && dueTo < DateOnly.FromDateTime(DateTime.Today));
     }
 }

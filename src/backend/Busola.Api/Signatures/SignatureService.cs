@@ -209,7 +209,7 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
                 e.EmployeeId,
                 e.Status,
                 e.Template.Schema,
-                Stages = e.Stages.Select(s => new { s.StageKey, s.Status }).ToList(),
+                Stages = e.Stages.Select(s => new { s.StageKey, s.Status, s.DueFrom }).ToList(),
             })
             .SingleOrDefaultAsync(ct)
             ?? throw new SignatureTargetException(StatusCodes.Status400BadRequest, "Nie ma takiej oceny.");
@@ -227,10 +227,11 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
             throw new SignatureTargetException(StatusCodes.Status400BadRequest, "Szablon tej oceny nie ma takiego pola podpisu.");
         }
 
-        var sectionStage = schema.SectionOf(target.FieldKey)!.Stage;
-        if (evaluation.Stages.SingleOrDefault(s => s.StageKey == sectionStage)?.Status is not (null or StageStatus.Pending))
+        var today = DateOnly.FromDateTime(clock.GetLocalNow().Date);
+        if (EvaluationWorkflow.SignBlockReason(schema, evaluation.Stages.Select(s => (s.StageKey, s.Status, s.DueFrom)).ToList(),
+                target.FieldKey, today, today) is { } blocked)
         {
-            throw new SignatureTargetException(StatusCodes.Status409Conflict, "Etap tego podpisu jest już zamknięty.");
+            throw new SignatureTargetException(StatusCodes.Status409Conflict, blocked);
         }
 
         if (await db.EvaluationSignatures.AnyAsync(s => s.EvaluationId == target.EvaluationId && s.FieldKey == target.FieldKey, ct))

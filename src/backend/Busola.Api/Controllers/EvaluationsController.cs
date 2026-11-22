@@ -494,10 +494,11 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             return Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Szablon nie ma takiego pola podpisu.");
         }
 
-        var sectionStage = schema.SectionOf(field.Key)!.Stage;
-        if (evaluation.Stages.SingleOrDefault(s => s.StageKey == sectionStage)?.Status is not (null or StageStatus.Pending))
+        // Podpis tylko w etapie w toku i w jego terminie (nie przed początkiem okna, data nie z przyszłości).
+        if (EvaluationWorkflow.SignBlockReason(schema, evaluation.Stages.Select(s => (s.StageKey, s.Status, s.DueFrom)).ToList(),
+                field.Key, request.SignedOn, Today) is { } blocked)
         {
-            return Problem(statusCode: StatusCodes.Status409Conflict, detail: "Etap tego podpisu jest już zamknięty.");
+            return Problem(statusCode: StatusCodes.Status409Conflict, detail: blocked);
         }
 
         var me = await db.Users
@@ -846,7 +847,26 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             await LoadPreviousAsync(evaluation, ct),
             unitHead,
             canEditSelfAssessment,
-            prefill);
+            prefill,
+            SignatureSlots(schema, evaluation, signatures));
+    }
+
+    private static IReadOnlyList<SignatureSlotDto> SignatureSlots(TemplateSchema schema, Evaluation evaluation, IReadOnlyList<SignatureDto> signatures)
+    {
+        var stages = evaluation.Stages.Select(s => (s.StageKey, s.Status, s.DueFrom)).ToList();
+        var isFinal = EvaluationWorkflow.IsFinal(schema, evaluation.Status);
+        return schema.Sections
+            .SelectMany(s => s.Fields)
+            .Where(f => f.Type == "signature" && f.SignatureRole() is not null)
+            .Select(f =>
+            {
+                var signed = signatures.Any(s => s.FieldKey == f.Key);
+                var reason = signed ? null
+                    : isFinal ? "Ocena jest zamknięta."
+                    : EvaluationWorkflow.SignBlockReason(schema, stages, f.Key, Today, Today);
+                return new SignatureSlotDto(f.Key, f.SignatureRole()!.Value.ToString(), signed, !signed && reason is null, reason);
+            })
+            .ToList();
     }
 
     private static bool TryDecodeImage(string value, out byte[] bytes, out string contentType, out string problem)
