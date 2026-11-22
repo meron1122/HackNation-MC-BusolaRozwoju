@@ -32,7 +32,7 @@ export function FIcon({ name, size = 16 }: { name: FinalIconName; size?: number 
 /** Kłódka: zamknięta albo otwarta (pałąk unosi się i obraca w 200 ms; bez ruchu przy prefers-reduced-motion). */
 export function Lock({ open = false, size = 16 }: { open?: boolean; size?: number }) {
   return (
-    <svg className={`final-lock${open ? ' open' : ''}`} viewBox="0 0 16 16" width={size} height={size} aria-hidden="true" focusable="false"
+    <svg className={`final-lock${open ? ' open' : ''}`} viewBox="0 -2 16 18" width={size} height={size * 18 / 16} overflow="visible" aria-hidden="true" focusable="false"
       fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
       <rect x="3" y="7.2" width="10" height="6.8" rx="1.6" />
       <path className="final-lock-shackle" d="M5.4 7.2V5.2a2.6 2.6 0 0 1 5.2 0v2" />

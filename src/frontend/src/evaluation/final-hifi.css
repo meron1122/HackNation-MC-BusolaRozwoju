@@ -148,6 +148,7 @@
 .final-hifi .grow { flex: 1; }
 .final-hifi .card { margin: 0; }
 .final-hifi .final-icon, .final-hifi .final-lock { flex: none; vertical-align: -0.15em; }
+.final-lock { overflow: visible; }
 .final-hifi .final-lock-shackle { transform-box: fill-box; transform-origin: 100% 100%; transition: transform .2s var(--ease, ease-out); }
 .final-hifi .final-lock.open .final-lock-shackle { transform: translateY(-1.5px) rotate(18deg); }
 
