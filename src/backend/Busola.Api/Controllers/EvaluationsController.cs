@@ -162,6 +162,24 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             return Problem(statusCode: StatusCodes.Status400BadRequest, detail: $"Szablon nie ma pól: {string.Join(", ", unknown)}.");
         }
 
+        // Wskaźnik ocenia się zawsze stopniem skali — bez odpowiedzi „brak okazji / brak podstaw”.
+        var invalidIndicators = request.Answers
+            .Where(a => schema.Sections.SelectMany(s => s.Fields).Single(f => f.Key == a.FieldKey).Type == "indicatorScores")
+            .Where(a =>
+            {
+                var of = schema.Sections.SelectMany(s => s.Fields).Single(f => f.Key == a.FieldKey).ExtraString("of");
+                var scores = schema.Sections.SelectMany(s => s.Fields).FirstOrDefault(f => f.Key == of);
+                var scale = scores is null ? [] : EvaluationScoring.Scale(schema, scores).Select(o => (decimal)o.Value).ToHashSet();
+                return a.ValueText is not null || (a.ValueNumber is { } n && !scale.Contains(n));
+            })
+            .Select(a => a.ItemKey)
+            .ToList();
+        if (invalidIndicators.Count > 0)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest,
+                detail: $"Wskaźnik ocenia się stopniem skali arkusza: {string.Join(", ", invalidIndicators)}.");
+        }
+
         // Po zamknięciu etapu jego sekcje są zablokowane (np. część I po podpisach, uzasadnienie po sporządzeniu oceny).
         var locked = request.Answers
             .Select(a => schema.SectionOf(a.FieldKey)!)

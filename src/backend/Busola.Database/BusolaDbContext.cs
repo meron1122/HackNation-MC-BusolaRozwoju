@@ -223,8 +223,6 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
             b.HasKey(c => new { c.EvaluationId, c.IndicatorKey });
             b.Property(c => c.IndicatorKey).HasMaxLength(100);
             b.Property(c => c.Expectation).HasMaxLength(2000);
-            b.Property(c => c.Frequency).HasMaxLength(20);
-            b.Property(c => c.Complexity).HasMaxLength(20);
 
             b.HasOne(c => c.Evaluation)
                 .WithMany()

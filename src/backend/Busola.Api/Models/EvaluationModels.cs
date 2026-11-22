@@ -67,7 +67,6 @@ public sealed record CriterionScoringDto(
     string Key,
     string Label,
     int RatedIndicators,
-    int NoBasisIndicators,
     int TotalIndicators,
     decimal? IndicatorMean,
     int? Suggested,

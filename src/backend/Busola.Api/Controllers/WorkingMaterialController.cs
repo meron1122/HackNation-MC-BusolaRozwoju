@@ -14,7 +14,7 @@ namespace Busola.Api.Controllers;
 
 /// <summary>
 /// Materiał roboczy oceniającego (poza arkuszem): notatki z obserwacji (W06–W09) oraz kontekst per wskaźnik
-/// i kryterium (oczekiwania z rozmowy rozpoczynającej, jak często / złożoność, powód innej oceny niż sugestia).
+/// i kryterium (oczekiwania z rozmowy rozpoczynającej, powód innej oceny niż sugestia).
 /// Oceniany widzi z tego tylko oczekiwania.
 /// </summary>
 [ApiController]
@@ -22,8 +22,6 @@ namespace Busola.Api.Controllers;
 public sealed class WorkingMaterialController(BusolaDbContext db, AccessScopeService access) : ControllerBase
 {
     private const int MaxText = 2000;
-    private static readonly string[] Frequencies = ["once", "sometimes", "regularly"];
-    private static readonly string[] Complexities = ["typical", "high"];
 
     private string UserId => User.FindFirstValue(BusolaClaims.UserId)!;
 
@@ -168,7 +166,7 @@ public sealed class WorkingMaterialController(BusolaDbContext db, AccessScopeSer
         if (context!.IsOwn)
         {
             return new WorkingContextDto(
-                indicators.Where(c => c.Expectation is not null).Select(c => new IndicatorContextDto(c.IndicatorKey, c.Expectation, null, null)).ToList(),
+                indicators.Where(c => c.Expectation is not null).Select(c => new IndicatorContextDto(c.IndicatorKey, c.Expectation)).ToList(),
                 []);
         }
 
@@ -179,13 +177,12 @@ public sealed class WorkingMaterialController(BusolaDbContext db, AccessScopeSer
             .ToListAsync(ct);
 
         return new WorkingContextDto(
-            indicators.Select(c => new IndicatorContextDto(c.IndicatorKey, c.Expectation, c.Frequency, c.Complexity)).ToList(),
+            indicators.Select(c => new IndicatorContextDto(c.IndicatorKey, c.Expectation)).ToList(),
             criteria);
     }
 
     /// <summary>
-    /// Oczekiwanie można zmieniać, dopóki trwa pierwszy etap (ustalenie kryteriów / rozmowa wstępna);
-    /// jak często i złożoność — dopóki trwa etap ocen cząstkowych. Zmiana pola zamkniętego etapu = 409.
+    /// Oczekiwanie można zmieniać, dopóki trwa pierwszy etap (ustalenie kryteriów / rozmowa wstępna); później 409.
     /// </summary>
     [HttpPut("context/indicators/{indicatorKey}")]
     [Authorize(Policy = Permissions.EditEvaluation)]
@@ -206,28 +203,14 @@ public sealed class WorkingMaterialController(BusolaDbContext db, AccessScopeSer
 
         // Łatka: null = bez zmian, "" = wyczyść.
         var expectation = request.Expectation is null ? row?.Expectation : Clean(request.Expectation);
-        var frequency = request.Frequency is null ? row?.Frequency : Clean(request.Frequency);
-        var complexity = request.Complexity is null ? row?.Complexity : Clean(request.Complexity);
-
         if (expectation?.Length > MaxText)
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, detail: $"Oczekiwanie może mieć najwyżej {MaxText} znaków.");
         }
 
-        if (frequency is not null && !Frequencies.Contains(frequency) || complexity is not null && !Complexities.Contains(complexity))
-        {
-            return Problem(statusCode: StatusCodes.Status400BadRequest,
-                detail: $"Jak często: {string.Join(" / ", Frequencies)}; złożoność: {string.Join(" / ", Complexities)}.");
-        }
-
         if (row?.Expectation != expectation && !context.FirstStageOpen)
         {
             return Problem(statusCode: StatusCodes.Status409Conflict, detail: "Oczekiwania ustala się w pierwszym etapie, a ten jest zamknięty.");
-        }
-
-        if ((row?.Frequency != frequency || row?.Complexity != complexity) && !context.ScoringStageOpen)
-        {
-            return Problem(statusCode: StatusCodes.Status409Conflict, detail: "Etap ocen cząstkowych jest zamknięty.");
         }
 
         if (row is null)
@@ -237,12 +220,10 @@ public sealed class WorkingMaterialController(BusolaDbContext db, AccessScopeSer
         }
 
         row.Expectation = expectation;
-        row.Frequency = frequency;
-        row.Complexity = complexity;
         row.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
 
-        return new IndicatorContextDto(row.IndicatorKey, row.Expectation, row.Frequency, row.Complexity);
+        return new IndicatorContextDto(row.IndicatorKey, row.Expectation);
     }
 
     [HttpPut("context/criteria/{criterionKey}")]

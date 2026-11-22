@@ -136,10 +136,11 @@ public static class EvaluationCheck
                     foreach (var item in EvaluationScoring.Items(schema, of, answers))
                     {
                         var indicators = schema.CompetencyModel.Competencies.GetValueOrDefault(item.Key)?.Indicators ?? [];
-                        var open = indicators.Count(i => answers.Get(field.Key, i.Key) is not { } a || (a.ValueNumber is null && a.ValueText is null));
+                        // Każdy wskaźnik wybranego kryterium wymaga odpowiedzi ze skali (bez „brak okazji”).
+                        var open = indicators.Count(i => answers.Get(field.Key, i.Key)?.ValueNumber is null);
                         if (open > 0)
                         {
-                            yield return Issue(field, $"{item.Label}: {open} z {indicators.Count} wskaźników bez odpowiedzi", blocking: false);
+                            yield return Issue(field, $"{item.Label}: {open} z {indicators.Count} wskaźników bez odpowiedzi");
                         }
                     }
 

@@ -12,9 +12,6 @@ namespace Busola.Api.Evaluations;
 /// </summary>
 public static class EvaluationScoring
 {
-    /// <summary>Odpowiedź wskaźnika „brak podstaw do oceny / nie było okazji zaobserwować”.</summary>
-    public const string NoBasis = "n/a";
-
     public static ScoringRules? Rules(TemplateSchema schema) =>
         schema.Scoring is { ValueKind: JsonValueKind.Object } scoring
             ? scoring.Deserialize<ScoringRules>(JsonOptions)
@@ -80,15 +77,14 @@ public static class EvaluationScoring
             var competency = schema.CompetencyModel?.Competencies.GetValueOrDefault(item.Key);
             if (indicatorField is null || competency is null)
             {
-                return new CriterionScoringDto(item.Key, item.Label, 0, 0, 0, null, null, score);
+                return new CriterionScoringDto(item.Key, item.Label, 0, 0, null, null, score);
             }
 
             var indicatorAnswers = competency.Indicators.Select(i => answers.Get(indicatorField.Key, i.Key)).ToList();
             var rated = indicatorAnswers.Where(a => a?.ValueNumber is not null).Select(a => a!.ValueNumber!.Value).ToList();
-            var noBasis = indicatorAnswers.Count(a => a?.ValueText == NoBasis);
             decimal? mean = rated.Count > 0 ? Math.Round(rated.Average(), 2, MidpointRounding.AwayFromZero) : null;
 
-            return new CriterionScoringDto(item.Key, item.Label, rated.Count, noBasis, competency.Indicators.Count, mean,
+            return new CriterionScoringDto(item.Key, item.Label, rated.Count, competency.Indicators.Count, mean,
                 rated.Count > 0 ? Nearest(scale, rated.Average()) : null, score);
         }).ToList();
 

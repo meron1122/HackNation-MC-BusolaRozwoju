@@ -35,14 +35,14 @@ public sealed record EvidenceDto(DateOnly PeriodStart, IReadOnlyList<IndicatorEv
 
 public sealed record NotesDto(IReadOnlyList<NoteDto> Notes, EvidenceDto Evidence);
 
-/// <summary>Frequency: once / sometimes / regularly, Complexity: typical / high. W żądaniu PUT: null = bez zmian, "" = wyczyść.</summary>
-public sealed record IndicatorContextDto(string IndicatorKey, string? Expectation, string? Frequency, string? Complexity);
+/// <summary>Przykład oczekiwania do wskaźnika (z rozmowy rozpoczynającej). W żądaniu PUT: null = bez zmian, "" = wyczyść.</summary>
+public sealed record IndicatorContextDto(string IndicatorKey, string? Expectation);
 
 public sealed record CriterionContextDto(string CriterionKey, string? ScoreReason);
 
 /// <summary>Oceniany dostaje tylko oczekiwania (Expectation); reszta to materiał oceniającego.</summary>
 public sealed record WorkingContextDto(IReadOnlyList<IndicatorContextDto> Indicators, IReadOnlyList<CriterionContextDto> Criteria);
 
-public sealed record IndicatorContextRequest(string? Expectation = null, string? Frequency = null, string? Complexity = null);
+public sealed record IndicatorContextRequest(string? Expectation = null);
 
 public sealed record CriterionContextRequest(string? ScoreReason = null);
