@@ -34,6 +34,11 @@ function parseProposal(reply: string, allowed: string[]): Proposal {
   }
 }
 
+/** Źródło propozycji asystenta: najwyżej dwie linie z wielokropkiem, pełny tekst w dymku (title) i dla czytnika ekranu. */
+function SourceLine({ text }: { text: string }) {
+  return <span className="sv2-srcline" title={text}><span className="sv2-srcline-text"><span className="sr-only">Źródło: </span>{text}</span></span>
+}
+
 function CriteriaBoard({ detail, field, section, reload }: { detail: Detail; field: Field; section: Section; reload: () => Promise<void> }) {
   const competencies = detail.schema.competencyModel?.competencies ?? {}
   const mandatory: { key: string; label: string }[] = field.mandatory ?? []
@@ -163,7 +168,7 @@ function CriteriaBoard({ detail, field, section, reload }: { detail: Detail; fie
                   )}
                   <span className="sv2-slot-foot">
                     {sources[key]
-                      ? <span className="sv2-chip sv2-chip-src">{sources[key]}</span>
+                      ? <SourceLine text={sources[key]} />
                       : <Info align="start" label="Podstawa wyboru">Kryterium dodatkowe wybierasz, gdy uzasadnia je opis stanowiska (§ 2 ust. 2).</Info>}
                   </span>
                 </li>
@@ -217,7 +222,7 @@ function CriteriaBoard({ detail, field, section, reload }: { detail: Detail; fie
                   <span className="sv2-iconbox sv2-iconbox-ai"><CompetencyIcon id={pending.key} size={20} /></span>
                   <h4 className="sv2-proposal-name">{competencies[pending.key]?.name}</h4>
                   {pending.reason && <p>{pending.reason}</p>}
-                  {pending.source && <span className="sv2-chip sv2-chip-src">{pending.source}</span>}
+                  {pending.source && <SourceLine text={pending.source} />}
                 </>
               ) : proposal.state === 'loading' ? (
                 <p className="sv2-muted">Szukam w danych stanowiska…</p>

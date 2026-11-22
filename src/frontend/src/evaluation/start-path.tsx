@@ -1,6 +1,7 @@
-// H02 v2 · Rozpocznij ocenę: ścieżka w jednym wierszu, opis stanowiska → arkusz (fakt „0 podległych” połączony z wnioskiem),
-// potwierdzenie „Opis aktualny”, a gdy dane wskazują koordynację — pytanie Tak → B / Nie → C (przełącznik arkusza z API).
-import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
+// H02 v2 · Rozpocznij ocenę: ścieżka w jednym wierszu, opis stanowiska → arkusz w jednej karcie (fakt → wniosek w jednej linii),
+// potwierdzenie „Opis aktualny”, a gdy dane są sprzeczne (np. „Naczelnik” bez podległych) — pytanie Tak → B / Nie → C
+// (przełącznik arkusza z API, PUT /template). Reguła decyzji: start-sheet-rule.ts.
+import { useState } from 'react'
 import { api } from '../api'
 import { Info, Source } from '../v2'
 import { FirstOverview } from './first-overview'
@@ -9,34 +10,11 @@ import type { StepProps } from './common'
 import { useApi } from './data'
 import { UiIcon } from './start-icons'
 import { PERIODIC_REGULATION_URL, firstNameOf, nameCase, ospKey, reg, useLocalState, useOrg } from './start-model'
+import { sheetDecision } from './start-sheet-rule'
 import { answerOf, fmtDate, isFirstTemplate, sheetLetter, type Detail } from './types'
-
-/** Nazwa stanowiska sugeruje kierowanie lub koordynację pracy (zasada Busoli: wtedy pytamy, a nie zgadujemy). */
-const COORDINATION = /koordyn|kieru|kierown|zastępc/i
 
 function positionOf(detail: Detail): string | null {
   return detail.employeePosition ?? answerOf(detail, 'evaluated', 'position')?.valueText ?? null
-}
-
-/** Łącznik od kafla z faktem do ramki wniosku: mierzy oba elementy i rysuje linię (łamaną, gdy są na różnych wysokościach). */
-function useConnector(box: RefObject<HTMLElement | null>, from: RefObject<HTMLElement | null>, to: RefObject<HTMLElement | null>, deps: unknown[]) {
-  const [line, setLine] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
-  useLayoutEffect(() => {
-    const measure = () => {
-      const b = box.current?.getBoundingClientRect()
-      const f = from.current?.getBoundingClientRect()
-      const t = to.current?.getBoundingClientRect()
-      // Gdy kafel i ramka są jedna pod drugą (wąski ekran), linii nie rysujemy.
-      if (!b || !f || !t || t.left < f.right) return setLine(null)
-      setLine({ x1: f.right - b.left, y1: f.top + f.height / 2 - b.top, x2: t.left - b.left, y2: t.top + t.height / 2 - b.top })
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    if (box.current) ro.observe(box.current)
-    return () => ro.disconnect()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps)
-  return line
 }
 
 export function StartStep({ detail, steps, go, reload }: StepProps) {
@@ -52,15 +30,16 @@ export function StartStep({ detail, steps, go, reload }: StepProps) {
   const [error, setError] = useState('')
   const [pathOpen, setPathOpen] = useState(false)
   const [current, setCurrent] = useLocalState<boolean>(ospKey(detail.id), false)
-  const [answer, setAnswer] = useState<'B' | 'C' | null>(null)
+  // Odpowiedź na pytanie o kierowanie: sam arkusz zapisuje PUT /template, a tu pamiętamy, że przełożona już odpowiedziała.
+  const [answer, setAnswer] = useLocalState<'B' | 'C' | null>(`busola.sheet-answer.${detail.id}`, null)
   const [askOpen, setAskOpen] = useState(false)
   const name = firstNameOf(detail.employeeName)
   const position = positionOf(detail)
 
-  // Pytanie zamiast litery: stanowisko „koordynuje/kieruje”, ale bez podległych — albo dane kadrowe nie pasują do arkusza.
-  const mismatch = reports != null && ((reports > 0 && letter === 'C') || (reports === 0 && letter === 'B'))
-  const coordination = !!position && COORDINATION.test(position) && reports === 0
-  const question = !first && (letter === 'B' || letter === 'C') && canSwitch && (mismatch || coordination || askOpen)
+  // Pytanie zamiast litery: nazwa stanowiska wskazuje kierowanie, a podległych brak — albo dane kadrowe nie pasują do arkusza.
+  const decision = first ? { kind: 'none' as const } : sheetDecision({ position, reports, letter })
+  const leadership = decision.kind === 'ask' && decision.reason === 'leadership-no-reports'
+  const question = !first && (letter === 'B' || letter === 'C') && canSwitch && (decision.kind === 'ask' || askOpen)
   // Opis stanowiska (i jego potwierdzenie) dotyczy tylko oceny okresowej — przy pierwszej ocenie karty OSP nie ma.
   const confirmed = first || !notStarted || !detail.canEdit || current
   const blockedReason = !confirmed ? 'Potwierdź, że opis stanowiska jest aktualny.'
@@ -86,10 +65,6 @@ export function StartStep({ detail, steps, go, reload }: StepProps) {
     if (code !== detail.templateCode && periodic.some((t) => t.code === code)) await switchTo(code)
   }
 
-  const box = useRef<HTMLDivElement>(null)
-  const fact = useRef<HTMLDivElement>(null)
-  const reason = useRef<HTMLDivElement>(null)
-  const line = useConnector(box, fact, reason, [question, reports, letter])
   const next = steps[steps.findIndex((s) => s.id === 'start') + 1]
 
   return (
@@ -117,83 +92,80 @@ export function StartStep({ detail, steps, go, reload }: StepProps) {
       {!first && (
         <>
           <h3 className="sv2-h3">Opis stanowiska <span aria-hidden="true">→</span> arkusz</h3>
-          <div className="sv2-osp" ref={box}>
-            <section className="card sv2-osp-card" aria-label="Opis stanowiska">
-              <div className="sv2-osp-head">
-                <UiIcon name="doc" size={20} />
-                <strong>Opis stanowiska</strong>
-              </div>
-              <p className="sv2-muted">{[position, detail.employeeDepartment].filter(Boolean).join(' · ') || '—'}</p>
-              <div className="sv2-fact-row">
-                <div ref={fact} className="sv2-fact">
-                  <UiIcon name={reports ? 'people' : 'personx'} size={22} />
-                  <strong>{reports ?? '—'}</strong>
-                  <span>podległych</span>
-                </div>
-              </div>
-              <div className="sv2-osp-foot">
-                <button type="button" role="switch" aria-checked={confirmed} className="sv2-switch" disabled={!notStarted || !detail.canEdit}
-                  onClick={() => setCurrent(!current)}>
-                  <span className="sv2-switch-track" aria-hidden="true"><span className="sv2-switch-knob">{confirmed && <UiIcon name="check" size={12} />}</span></span>
-                  Opis aktualny
-                </button>
-                <Info label="Co potwierdzasz">Opis stanowiska odpowiada obecnym obowiązkom. Od niego zależą arkusz i kryteria dodatkowe.</Info>
-              </div>
-            </section>
+          <section className="card sv2-osp" aria-label="Opis stanowiska i arkusz">
+            <div className="sv2-osp-head">
+              <span className="sv2-iconbox"><UiIcon name="doc" size={20} /></span>
+              <strong>Opis stanowiska</strong>
+              <span className="sv2-muted sv2-osp-pos">{[position, detail.employeeDepartment].filter(Boolean).join(' · ') || '—'}</span>
+            </div>
 
-            {question ? (
-              <section className="card sv2-result sv2-question" aria-label="Arkusz oceny">
-                <div className="sv2-result-top">
-                  <UiIcon name="people" size={24} />
-                  <Info align="end" label="Dlaczego pytamy">
-                    {coordination ? `Stanowisko: „${position}”, a w danych kadrowych brak podległych.` : 'Dane kadrowe nie pasują do arkusza.'} Arkusz B dotyczy bezpośredniego kierowania pracownikami.
+            <div className="sv2-flow">
+              <div className="sv2-fact">
+                <UiIcon name={reports ? 'people' : 'personx'} size={22} />
+                <strong>{reports ?? '—'}</strong>
+                <span>podległych</span>
+              </div>
+              <span className="sv2-flow-arrow" aria-hidden="true">→</span>
+
+              {question ? (
+                <div className="sv2-conclusion sv2-question" role="group" aria-labelledby="sv2-q">
+                  <div className="sv2-row-head sv2-q-head">
+                    <h4 id="sv2-q">Czy {name} bezpośrednio kieruje pracownikami?</h4>
+                    <Info align="end" label="Dlaczego pytamy">
+                      {leadership ? 'W danych kadrowych brak podległych, a nazwa stanowiska wskazuje kierowanie.' : 'Dane kadrowe nie pasują do arkusza.'} Arkusz B dotyczy bezpośredniego kierowania pracownikami.
+                    </Info>
+                  </div>
+                  <div className="sv2-answers" role="radiogroup" aria-labelledby="sv2-q">
+                    {(['B', 'C'] as const).map((v) => (
+                      <button key={v} type="button" role="radio" aria-checked={answer === v} disabled={busy}
+                        className={`sv2-answer${answer === v ? ' selected' : ''}`} onClick={() => answerQuestion(v)}>
+                        <span className="sv2-radio" aria-hidden="true" />
+                        <span className="grow">{v === 'B' ? 'Tak' : 'Nie'}</span>
+                        <span aria-hidden="true">→</span>
+                        <span className="sv2-letter-sm">{v}</span>
+                        <span className="sr-only">, arkusz {v}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="sv2-conclusion" aria-label={`Wynik: arkusz ${letter}`}>
+                  <span className="sv2-letter" aria-hidden="true">{letter}</span>
+                  <div className="sv2-conclusion-text">
+                    <strong className="sv2-result-name">Arkusz {letter}</strong>
+                    <span>{decision.kind === 'ask' ? 'ustalony przy starcie oceny'
+                      : letter === 'B' ? 'kieruje pracownikami' : 'brak podległych pracowników'}</span>
+                  </div>
+                  <Info align="end" label="Skąd ten arkusz">
+                    {decision.kind === 'ask' ? 'Dane kadrowe nie rozstrzygają arkusza; wybrał go przełożony.' : `Wyliczone z danych kadrowych: liczba osób bezpośrednio podległych (${nameCase(name, 'gen')}: ${reports ?? '—'}).`}
                   </Info>
                 </div>
-                <h4 id="sv2-q">Czy {name} bezpośrednio kieruje pracownikami?</h4>
-                <div className="sv2-answers" role="radiogroup" aria-labelledby="sv2-q">
-                  {(['B', 'C'] as const).map((v) => (
-                    <button key={v} type="button" role="radio" aria-checked={answer === v} disabled={busy}
-                      className={`sv2-answer${answer === v ? ' selected' : ''}`} onClick={() => answerQuestion(v)}>
-                      <span className="sv2-radio" aria-hidden="true" />
-                      <span className="grow">{v === 'B' ? 'Tak' : 'Nie'}</span>
-                      <UiIcon name="arrow" size={18} />
-                      <span className="sv2-letter-sm">{v}</span>
-                    </button>
-                  ))}
-                </div>
-                <div className="sv2-sources">
+              )}
+            </div>
+
+            <div className="sv2-osp-foot">
+              <button type="button" role="switch" aria-checked={confirmed} className="sv2-switch" disabled={!notStarted || !detail.canEdit}
+                onClick={() => setCurrent(!current)}>
+                <span className="sv2-switch-track" aria-hidden="true"><span className="sv2-switch-knob">{confirmed && <UiIcon name="check" size={12} />}</span></span>
+                Opis aktualny
+              </button>
+              <Info label="Co potwierdzasz">Opis stanowiska odpowiada obecnym obowiązkom. Od niego zależą arkusz i kryteria dodatkowe.</Info>
+              <span className="grow" />
+              {question ? (
+                <>
                   <Source refText={reg('§ 3 ust. 3–4')} href={PERIODIC_REGULATION_URL}>§ 3</Source>
-                  <span className="sv2-chip"><UiIcon name="idcard" size={16} /> Zmiana arkusza → HR</span>
                   <Info align="end" label="Zmiana arkusza">Inna odpowiedź niż w danych kadrowych: popraw dane stanowiska w HR.</Info>
-                </div>
-              </section>
-            ) : (
-              <section className="card sv2-result" aria-label={`Wynik: arkusz ${letter}`}>
-                <div className="sv2-result-top">
-                  <span className="sv2-letter" aria-hidden="true">{letter}</span>
-                  <strong className="sv2-result-name">Arkusz {letter}</strong>
-                  <Info align="end" label="Skąd ten arkusz">Wyliczone z danych kadrowych: liczba osób bezpośrednio podległych ({nameCase(name, 'gen')}: {reports ?? '—'}).</Info>
-                </div>
-                <div ref={reason} className="sv2-reason">
-                  <UiIcon name={letter === 'B' ? 'people' : 'personx'} size={20} />
-                  <span>{letter === 'B' ? 'bo: kieruje pracownikami' : 'bo: brak podległych pracowników'}</span>
-                </div>
-                <div className="sv2-sources">
+                </>
+              ) : (
+                <>
                   <Source refText={reg(letter === 'B' ? '§ 3 ust. 3' : '§ 3 ust. 4')} href={PERIODIC_REGULATION_URL}>
                     {letter === 'B' ? '§ 3 ust. 3' : '§ 3 ust. 4'}
                   </Source>
                   {canSwitch && <button type="button" className="link sv2-small" onClick={() => setAskOpen(true)}>Inny arkusz?</button>}
-                </div>
-              </section>
-            )}
-            {line && (
-              <svg className="sv2-connector" aria-hidden="true">
-                <polyline points={line.y1 === line.y2 ? `${line.x1},${line.y1} ${line.x2},${line.y2}`
-                  : `${line.x1},${line.y1} ${(line.x1 + line.x2) / 2},${line.y1} ${(line.x1 + line.x2) / 2},${line.y2} ${line.x2},${line.y2}`} />
-                <circle cx={line.x2} cy={line.y2} r="4" />
-              </svg>
-            )}
-          </div>
+                </>
+              )}
+            </div>
+          </section>
         </>
       )}
 
