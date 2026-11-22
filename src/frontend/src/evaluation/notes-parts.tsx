@@ -1,5 +1,6 @@
 // H06 v2 · części ekranu notatek: oś okresu z kropkami notatek (szary obszar ostatnich 4 miesięcy, „dziś”, podgląd notatki)
-// i mapa pokrycia wskaźników (kratki z liczbą, „0” z granatowym obrysem, zaznaczona kratka ustawia wskaźnik w formularzu).
+// i mapa pokrycia wskaźników (jasne kratki bez cyfr, kratki z notatkami w odcieniu błękitu/granatu z małą liczbą;
+// zaznaczona kratka ustawia wskaźnik w formularzu; bez żadnej notatki — pusty stan z akcją).
 import { Fragment, useState } from 'react'
 import { Info } from '../v2'
 import { CompetencyIcon, UiIcon } from './start-icons'
@@ -112,48 +113,59 @@ export function NotesTimeline({ start, end, today, notes, options, recentShare }
   )
 }
 
-export function CoverageMap({ options, criteria, count, selected, onSelect }: {
+export function CoverageMap({ options, criteria, count, selected, onSelect, empty = false, onAddFirst }: {
   options: IndicatorOption[]
   criteria: { key: string; label: string }[]
   count: (indicatorKey: string) => number
   selected: string | null
   onSelect: (indicatorKey: string) => void
+  /** Brak jakiejkolwiek notatki: zamiast siatki spokojny pusty stan. */
+  empty?: boolean
+  onAddFirst?: () => void
 }) {
-  const uncovered = options.filter((o) => count(o.key) === 0).length
+  const covered = options.filter((o) => count(o.key) > 0).length
+  // Odcień według liczby notatek: 1 jasny błękit … 4+ granat. 0 = jasna kratka z cienką ramką, bez cyfry.
   const tone = (n: number) => (n === 0 ? 'c0' : n === 1 ? 'c1' : n === 2 ? 'c2' : n === 3 ? 'c3' : 'c4')
   return (
     <section className="card nv2-map" aria-labelledby="nv2-map-title">
       <div className="sv2-row-head">
         <h3 id="nv2-map-title" className="sv2-h3">Pokrycie wskaźników</h3>
         <span className="grow" />
-        {uncovered > 0 && <WarnChip>{`${uncovered} bez notatek`}</WarnChip>}
+        {!empty && <span className="nv2-sumchip">{`Notatki przy ${covered} z ${options.length} wskaźników`}</span>}
       </div>
-      <div className="nv2-grid">
-        {criteria.map((c) => {
-          const items = options.filter((o) => o.criterionKey === c.key)
-          if (items.length === 0) return null
-          return (
-            <Fragment key={c.key}>
-              <span className="nv2-crit"><CompetencyIcon id={c.key} size={20} /><span>{c.label}</span></span>
-              <ul className="nv2-cells" aria-label={c.label}>
-                {items.map((o) => {
-                  const n = count(o.key)
-                  return (
-                    <li key={o.key}>
-                      <button type="button" className={`nv2-cell ${tone(n)}${selected === o.key ? ' on' : ''}`} aria-pressed={selected === o.key}
-                        aria-label={`${c.label} · ${o.text} · ${n} ${notesWord(n)}`}
-                        onClick={() => onSelect(o.key)}>
-                        {n}
-                        <span className="nv2-cell-tip" aria-hidden="true"><strong>{o.text}</strong><span>{n} {notesWord(n)}</span></span>
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </Fragment>
-          )
-        })}
-      </div>
+      {empty ? (
+        <div className="nv2-empty">
+          <p>Notatki pojawią się tu przy wskaźnikach, których dotyczą.</p>
+          {onAddFirst && <button type="button" className="secondary" onClick={onAddFirst}>Dodaj pierwszą notatkę</button>}
+        </div>
+      ) : (
+        <div className="nv2-grid">
+          {criteria.map((c) => {
+            const items = options.filter((o) => o.criterionKey === c.key)
+            if (items.length === 0) return null
+            return (
+              <Fragment key={c.key}>
+                <span className="nv2-crit" title={c.label}><CompetencyIcon id={c.key} size={20} /><span className="nv2-crit-name">{c.label}</span></span>
+                <ul className="nv2-cells" aria-label={c.label}>
+                  {items.map((o) => {
+                    const n = count(o.key)
+                    return (
+                      <li key={o.key}>
+                        <button type="button" className={`nv2-cell ${tone(n)}${selected === o.key ? ' on' : ''}`} aria-pressed={selected === o.key}
+                          aria-label={`${c.label} · ${o.text} · ${n} ${notesWord(n)}`}
+                          onClick={() => onSelect(o.key)}>
+                          {n > 0 && <span className="nv2-cell-n" aria-hidden="true">{n}</span>}
+                          <span className="nv2-cell-tip" aria-hidden="true"><strong>{o.text}</strong><span>{n} {notesWord(n)}</span></span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </Fragment>
+            )
+          })}
+        </div>
+      )}
     </section>
   )
 }

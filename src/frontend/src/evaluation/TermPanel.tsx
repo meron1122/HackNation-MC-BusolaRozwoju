@@ -1,8 +1,10 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { api, apiDownload } from '../api'
 import { DateInput } from '../DateInput'
+import { Info } from '../v2'
 import { useApi } from './data'
 import { fmtDate, isFirstTemplate, type Detail, type EvaluationTerms, type TermChange } from './types'
+import './term-panel.css'
 
 const addDays = (iso: string, days: number) => {
   const d = new Date(`${iso}T00:00:00Z`)
@@ -37,8 +39,8 @@ function describe(c: TermChange): string {
 }
 
 /** Formularz decyzji: wysyła body, po sukcesie odświeża terminy i ocenę. */
-function DecisionForm({ title, action, submitLabel, onDone, children }: {
-  title: string; action: (form: FormData) => Promise<unknown>; submitLabel: string; onDone: () => Promise<void>; children: ReactNode
+function DecisionForm({ title, info, action, submitLabel, onDone, children }: {
+  title: string; info?: ReactNode; action: (form: FormData) => Promise<unknown>; submitLabel: string; onDone: () => Promise<void>; children: ReactNode
 }) {
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
@@ -59,8 +61,11 @@ function DecisionForm({ title, action, submitLabel, onDone, children }: {
   }
   if (!open) return <button type="button" className="secondary" onClick={() => setOpen(true)}>{title}</button>
   return (
-    <form onSubmit={submit} className="card form">
-      <h4>{title}</h4>
+    <form onSubmit={submit} className="card form tpv2-form">
+      <div className="tpv2-head">
+        <h4>{title}</h4>
+        {info && <Info label="Zasady zmiany terminu" align="end">{info}</Info>}
+      </div>
       {children}
       {error && <p role="alert" className="error">{error}</p>}
       <div className="buttons">
@@ -127,7 +132,7 @@ export function TermPanel({ detail, reload }: { detail: Detail; reload: () => Pr
         </p>
       )}
 
-      <div className="buttons">
+      <div className="buttons tpv2-actions">
         {data.canChangeReportTerm && report && (
           <DecisionForm title="Wyznacz nowy termin sprawozdania" submitLabel="Wyznacz termin" onDone={done}
             action={(f) => post('report', {
@@ -174,20 +179,25 @@ export function TermPanel({ detail, reload }: { detail: Detail; reload: () => Pr
 
         {data.canChangeEvaluationTerm && (
           <DecisionForm title="Zmień termin oceny (art. 81 ust. 8)" submitLabel="Zmień termin" onDone={done}
+            info={<>Gdy od początku okresu oceny minęło ponad 6 miesięcy. Pracownika zawiadamiasz pisemnie, kopia do arkusza (§ 8 rozporządzenia).
+              Po zmianie termin nie przedłuża się już sam o nieobecności.</>}
             action={(f) => post('evaluation', { dueTo: String(f.get('dueTo') ?? ''), ground: Number(f.get('ground')), reason: String(f.get('reason') ?? '') })}>
-            <p className="muted small">
-              Termin możesz zmienić, gdy od początku okresu oceny minęło ponad 6 miesięcy (najwcześniej {fmtDate(data.evaluationTermEarliest)}).
-              Pracownika zawiadamiasz pisemnie, kopia do arkusza (§ 8 rozporządzenia). Po zmianie termin nie przedłuża się już sam o nieobecności.
-            </p>
-            <div className="field-grid">
-              <label>Nowy termin oceny<DateInput name="dueTo" required min={data.evaluationTermEarliest ?? undefined} /></label>
-              <label>Podstawa
-                <select name="ground" required defaultValue="2">
-                  {GROUNDS.map((g, i) => <option key={g} value={i + 1}>pkt {i + 1} — {g}</option>)}
-                </select>
-              </label>
+            <p className="tpv2-lead">Nowy termin najwcześniej {fmtDate(data.evaluationTermEarliest)}.</p>
+            <fieldset className="tpv2-grounds">
+              <legend>Podstawa</legend>
+              <div className="tpv2-tiles">
+                {GROUNDS.map((g, i) => (
+                  <label key={g} className="tpv2-tile">
+                    <input type="radio" name="ground" value={i + 1} required defaultChecked={i === 1} />
+                    <span><small>pkt {i + 1}</small>{g}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <div className="tpv2-fields">
+              <label className="tpv2-field">Nowy termin<DateInput name="dueTo" required min={data.evaluationTermEarliest ?? undefined} /></label>
+              <label className="tpv2-field">Uzasadnienie<textarea name="reason" rows={2} maxLength={1000} required /></label>
             </div>
-            <label className="block-label">Uzasadnienie<textarea name="reason" rows={2} maxLength={1000} required /></label>
           </DecisionForm>
         )}
       </div>

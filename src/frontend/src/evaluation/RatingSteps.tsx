@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { DateInput } from '../DateInput'
 import { SheetForm } from '../Evaluations'
 import { Info, Radar, Segments, Source, useStepHeader } from '../v2'
-import { NextButton, PdfButton, type StepProps } from './common'
+import { PdfButton, type StepProps } from './common'
 import { saveAnswers, useApi, useWorkContext } from './data'
 import { byDate, PeriodAxis, ScaleTiles, shortCriterion } from './rating-parts'
 import { shuffled, suggestionValues } from './rating-logic'
+import { interviewDefaults } from './interview-defaults'
 import {
   answerOf, criteriaOf, emptyAnswer, fmtDate, indicatorFieldOf, isFirstTemplate, plural, scoresFieldOf,
   type Detail, type Indicator, type Notes, type ScaleOption, type SelfAssessment, type Topic,
@@ -41,7 +42,11 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
   const [choices, setChoices] = useState<Record<string, Choice>>(() => Object.fromEntries(
     detail.answers.filter((a) => a.fieldKey === indicatorField.key && a.itemKey).map((a) => [a.itemKey!, { valueNumber: a.valueNumber, valueText: a.valueText }])))
   const answered = (key: string) => choices[key]?.valueNumber != null
-  const scored = (key: string) => answerOf(detail, scores.field.key, key)?.valueNumber != null
+  // Ocena kryterium wybrana w tym kroku (zanim `detail` wróci z backendu po zapisie) i zapis w toku.
+  // Bez tego „Dalej” sprawdzało stare `detail.answers` i przy pierwszym kliknięciu pokazywało „Wybierz ocenę kryterium”.
+  const [picked, setPicked] = useState<Record<string, number | null>>({})
+  const saving = useRef<Promise<unknown> | null>(null)
+  const scored = (key: string) => (key in picked ? picked[key] != null : answerOf(detail, scores.field.key, key)?.valueNumber != null)
   const [pos, setPos] = useState<{ c: number; i: number | 'summary' }>(() => {
     for (let c = 0; c < criteria.length; c++) {
       const i = competencies[criteria[c].key].indicators.findIndex((x) => !answered(x.key))
@@ -104,12 +109,24 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
   if (criteria.length === 0) return <p className="muted">Najpierw wybierz kryteria (krok „Kryteria i wskaźniki”).</p>
 
   const top = () => window.scrollTo({ top: 0 })
-  const next = () => {
+  const next = async () => {
     if (typeof pos.i === 'number' && pos.i < indicators.length - 1) move({ c: pos.c, i: pos.i + 1 })
     else if (typeof pos.i === 'number') move({ c: pos.c, i: 'summary' })
     else if (!scored(criterion.key) && editable) { setNeedScore(true); return }
+    else if (saving.current) {
+      // Najpierw zapis oceny kryterium; przy błędzie zostajemy na podsumowaniu (komunikat pokazuje CriterionSummary).
+      const ok = await saving.current.then(() => true, () => false)
+      if (!ok) return
+      if (pos.c < criteria.length - 1) move({ c: pos.c + 1, i: 0 })
+    }
     else if (pos.c < criteria.length - 1) move({ c: pos.c + 1, i: 0 })
     top()
+  }
+  // Ostatnie kryterium: przejście do rozmowy dopiero po zapisie oceny (rozmowa pokazuje oceny robocze z backendu).
+  const finish = async () => {
+    if (saving.current && !(await saving.current.then(() => true, () => false))) return
+    const after = steps[steps.findIndex((s) => s.id === 'indicators') + 1]
+    if (after) go(after.id)
   }
   const prev = () => {
     if (pos.i === 'summary') move({ c: pos.c, i: indicators.length - 1 })
@@ -137,7 +154,17 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
             <CriterionSummary key={criterion.key} detail={detail} criterionKey={criterion.key} label={criterion.label} indicators={indicators}
               choices={choices} scale={scale} scoresKey={scores.field.key} editable={editable} work={work} reload={reload}
               noteCount={(key) => criterionNotes.filter((n) => n.inPeriod && n.indicatorKey === key).length}
-              needScore={needScore} onScored={() => setNeedScore(false)} onChange={(i) => move({ c: pos.c, i })} />
+              score={criterion.key in picked ? picked[criterion.key] : undefined}
+              needScore={needScore}
+              onScored={(value, save) => {
+                setNeedScore(false)
+                setPicked((p) => ({ ...p, [criterion.key]: value }))
+                const run = save.finally(() => { if (saving.current === run) saving.current = null })
+                saving.current = run
+                run.catch(() => undefined)
+              }}
+              onRevert={(value) => setPicked((p) => ({ ...p, [criterion.key]: value }))}
+              onChange={(i) => move({ c: pos.c, i })} />
           )}
 
           <div className="rh-actions">
@@ -146,7 +173,7 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
               : <button type="button" className="secondary" onClick={prev}>← Wskaźniki</button>}
             <span className="grow" />
             {last && (scored(criterion.key) || !editable)
-              ? <NextButton steps={steps} current="indicators" go={go} label="Dalej: rozmowa oceniająca" />
+              ? <button type="button" onClick={finish}>Dalej: rozmowa oceniająca →</button>
               : (
                 <button type="button" onClick={next}>
                   {indicator
@@ -207,7 +234,7 @@ function IndicatorQuestion({ indicator, index, total, answered, scale, choice, e
   )
 }
 
-function CriterionSummary({ detail, criterionKey, label, indicators, choices, scale, scoresKey, editable, work, reload, noteCount, needScore, onScored, onChange }: {
+function CriterionSummary({ detail, criterionKey, label, indicators, choices, scale, scoresKey, editable, work, reload, noteCount, score: localScore, needScore, onScored, onRevert, onChange }: {
   detail: Detail
   criterionKey: string
   label: string
@@ -219,8 +246,12 @@ function CriterionSummary({ detail, criterionKey, label, indicators, choices, sc
   work: WorkApi
   reload: () => Promise<void>
   noteCount: (indicatorKey: string) => number
+  /** Ocena wybrana wcześniej w tym kroku (undefined = brak lokalnego wyboru, bierzemy z `detail`). */
+  score: number | null | undefined
   needScore: boolean
-  onScored: () => void
+  /** Wybór oceny: wartość od razu, `save` — zapis w toku (na niego czeka „Dalej”). */
+  onScored: (value: number, save: Promise<unknown>) => void
+  onRevert: (value: number | null) => void
   onChange: (indicatorIndex: number) => void
 }) {
   const fromApi = detail.scoring?.criteria.find((c) => c.key === criterionKey)
@@ -230,7 +261,7 @@ function CriterionSummary({ detail, criterionKey, label, indicators, choices, sc
   const mean = localMean ?? fromApi?.indicatorMean ?? null
   const complete = picked.length === indicators.length
   const suggestions = complete ? suggestionValues(scale, mean, fromApi?.suggested ?? null) : []
-  const [score, setScore] = useState<number | null>(answerOf(detail, scoresKey, criterionKey)?.valueNumber ?? null)
+  const [score, setScore] = useState<number | null>(localScore !== undefined ? localScore : answerOf(detail, scoresKey, criterionKey)?.valueNumber ?? null)
   const [error, setError] = useState('')
   const option = (v: number | null) => scale.find((o) => o.value === v)
   const meets = scale.find((o) => o.key === 'meets')
@@ -240,13 +271,15 @@ function CriterionSummary({ detail, criterionKey, label, indicators, choices, sc
     if (!editable) return
     const before = score
     setScore(value)
-    onScored()
+    const save = saveAnswers(detail.id, [{ ...emptyAnswer(scoresKey, criterionKey), valueNumber: value }])
+    onScored(value, save)
     try {
-      await saveAnswers(detail.id, [{ ...emptyAnswer(scoresKey, criterionKey), valueNumber: value }])
+      await save
       setError('')
       reload()
     } catch (e) {
       setScore(before)
+      onRevert(before)
       setError((e as Error).message)
     }
   }
@@ -404,6 +437,24 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
   const dateField = section?.fields.find((f) => f.type === 'date')
   const sectionLocked = !!section && detail.lockedSections.includes(section.key)
   const [dateStatus, setDateStatus] = useState('')
+  // Wartości domyślne (data rozmowy = dziś, okres od podpisu cz. I do dziś): widoczne w polach, zapisywane przy „Dalej”.
+  const canFill = detail.canEdit && !sectionLocked
+  const defaults = canFill ? interviewDefaults(detail, section) : []
+  const defaultDate = dateField ? defaults.find((a) => a.fieldKey === dateField.key)?.valueDate ?? '' : ''
+  const formDetail = defaults.length ? { ...detail, prefill: [...(detail.prefill ?? []), ...defaults.filter((a) => a.fieldKey !== dateField?.key)] } : detail
+  async function leave() {
+    if (defaults.length) {
+      try {
+        await saveAnswers(detail.id, defaults)
+        await reload()
+      } catch (e) {
+        setDateStatus((e as Error).message)
+        return
+      }
+    }
+    const after = steps[steps.findIndex((s) => s.id === 'interview') + 1]
+    if (after) go(after.id)
+  }
   async function saveDate(iso: string) {
     if (!dateField || !/^\d{4}-\d{2}-\d{2}$/.test(iso) && iso !== '') return
     try {
@@ -449,7 +500,7 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
           <span className="grow" />
           <label className="rh-date">
             <span>Data rozmowy</span>
-            <DateInput value={answerOf(detail, dateField.key)?.valueDate ?? ''} onChange={saveDate}
+            <DateInput value={answerOf(detail, dateField.key)?.valueDate ?? defaultDate} onChange={saveDate}
               disabled={!detail.canEdit || sectionLocked} required={dateField.required} />
           </label>
         </div>
@@ -542,7 +593,7 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
       </div>
 
       {section && section.fields.some((f) => f !== dateField) && (
-        <SheetForm key={JSON.stringify(detail.answers)} detail={detail} onSaved={reload} sectionKeys={sections} showStage={false}
+        <SheetForm key={JSON.stringify(detail.answers)} detail={formDetail} onSaved={reload} sectionKeys={sections} showStage={false}
           fieldFilter={(f) => f !== dateField} />
       )}
 
@@ -551,7 +602,9 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
         <span className="grow" />
         {nextLabel
           ? <button type="button" onClick={goNext}>Dalej: {nextLabel} →</button>
-          : <NextButton steps={steps} current="interview" go={go} />}
+          : steps[steps.findIndex((s) => s.id === 'interview') + 1] && (
+            <button type="button" onClick={leave}>{steps[steps.findIndex((s) => s.id === 'interview') + 1].title} →</button>
+          )}
       </div>
     </div>
   )

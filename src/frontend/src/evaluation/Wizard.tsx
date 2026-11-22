@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../api'
 import { StepHeader, StepHeaderContext, type StepProgress } from '../v2'
-import { StageNav, TermCard } from '../v2/WizardNav'
+import { StageNav, TermCard, stageIndexOf } from '../v2/WizardNav'
 import { WizardPanel } from '../v2/WizardPanel'
 import { setAssistantStep } from '../assistant/AssistantWidget'
 import { PdfButton, type Step, type StepProps } from './common'
@@ -12,6 +12,8 @@ import { ObjectionStep } from './objection-step'
 import { OwnCriteriaStep, OwnSignaturesStep, SelfAssessmentStep } from './OwnSteps'
 import { IndicatorsStep, InterviewStep } from './RatingSteps'
 import { CriteriaStep, KickoffStep, PartOneStep, StartStep } from './StartSteps'
+import { currentStageIndex, stageStartText } from './stage-lock'
+import './stage-lock.css'
 import {
   daysUntil, indicatorFieldOf, isFirstTemplate, scoresFieldOf, sheetLetter, type Check, type Detail, type Section, type SectionCheck,
 } from './types'
@@ -221,7 +223,12 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
     window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
   }
   const step = steps.find((s) => s.id === stepId) ?? steps[0]
-  const props: StepProps = { detail, check, steps, reload: load, go, onOpenEvaluation }
+  // Etapy późniejsze niż bieżący: kłódka w stepperze, treść tylko do odczytu (canEdit: false) i linia „Ten etap zacznie się …”.
+  const nowIndex = currentStageIndex(detail, steps)
+  const stepIndex = stageIndexOf(step)
+  const locked = nowIndex != null && stepIndex > nowIndex && !step.done
+  const props: StepProps = { detail: locked ? { ...detail, canEdit: false } : detail, check, steps, reload: load, go, onOpenEvaluation }
+  const backTo = locked ? defaultStep(detail, steps) : null
 
   const ratingStageKey = steps.find((s) => s.id === 'indicators' || s.id === 'review')?.stageKey ?? null
   const letter = sheetLetter(detail.templateCode)
@@ -231,7 +238,7 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
   return (
     <section className="wizard wz">
       <aside className="wizard-nav wz-left">
-        <StageNav sheet={sheet} steps={steps} currentId={step.id} onGo={go} />
+        <StageNav sheet={sheet} steps={steps} currentId={step.id} onGo={go} lockedAfter={nowIndex} />
         <TermCard detail={detail} ratingStageKey={ratingStageKey} />
       </aside>
       <div className="wizard-main">
@@ -244,6 +251,20 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
         </div>
         <StepHeader personId={detail.employeeId} name={detail.employeeName} topic={header?.topic ?? step.title} progress={header?.progress ?? null} />
         {error && <p role="alert" className="error">{error}</p>}
+        {locked && (
+          <p className="wzl-locked" role="status">
+            <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true">
+              <rect x="3.2" y="7" width="9.6" height="6.6" rx="1.4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+            <span className="grow">{stageStartText(detail, steps, stepIndex)} Teraz tylko podgląd.</span>
+            {backTo && backTo !== step.id && (
+              <button type="button" className="secondary" onClick={() => go(backTo)}>
+                ← Wróć do: {steps.find((s) => s.id === backTo)?.title}
+              </button>
+            )}
+          </p>
+        )}
         <StepHeaderContext.Provider value={setHeader}>
           <StepView key={step.id} step={step} props={props} />
         </StepHeaderContext.Provider>

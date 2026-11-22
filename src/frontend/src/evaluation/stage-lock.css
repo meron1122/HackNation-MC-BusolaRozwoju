@@ -1,0 +1,11 @@
+/* Blokada przyszłych etapów kreatora: kłódka w stepperze i linia „Ten etap zacznie się …” nad treścią kroku. */
+.wz-lock { flex: none; color: var(--muted); }
+.wz-stage.locked .wz-stage-head { color: var(--muted); }
+.wz-substeps .step-link .wz-lock { margin-left: auto; }
+.wzl-locked {
+  display: flex; align-items: center; gap: 12px; margin: 0 0 16px; padding: 10px 12px 10px 16px; border-radius: 12px;
+  border: 1.5px solid var(--state, #2b6cb0); background: var(--surface); color: var(--text); font-size: 16px;
+}
+.wzl-locked > svg { flex: none; color: var(--state, #2b6cb0); }
+.wzl-locked .grow { flex: 1; min-width: 0; }
+.wzl-locked button { flex: none; white-space: nowrap; }

@@ -88,7 +88,9 @@ export function NotesStep({ detail, steps, go, reload: reloadDetail }: StepProps
             <p className="sv2-muted">Sprzed okresu oceny: {data.evidence.outsidePeriod} — nie liczą się jako dowody.</p>
           )}
           <div className={canWrite ? 'nv2-cols' : undefined}>
-            <CoverageMap options={options} criteria={criteria} count={count} selected={canWrite ? selected : indicator} onSelect={setIndicator} />
+            <CoverageMap options={options} criteria={criteria} count={count} selected={canWrite ? selected : indicator} onSelect={setIndicator}
+              empty={notesCount === 0}
+              onAddFirst={canWrite ? () => document.getElementById('notes-new')?.querySelector<HTMLElement>('textarea')?.focus() : undefined} />
             {canWrite && (
               <NoteForm id="notes-new" title="Nowa notatka" employee={name} options={options} onSubmit={create} alert={alert}
                 indicator={selected} onIndicator={setIndicator} />

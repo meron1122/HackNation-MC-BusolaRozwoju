@@ -22,12 +22,23 @@ const Check = () => (
   </svg>
 )
 
-/** Lewa kolumna kreatora: „ARKUSZ C”, 5 etapów, pod-kroki tylko pod bieżącym etapem. */
-export function StageNav({ sheet, steps, currentId, onGo }: {
+const Lock = () => (
+  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" className="wz-lock">
+    <rect x="3.2" y="7" width="9.6" height="6.6" rx="1.4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+    <path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7" fill="none" stroke="currentColor" strokeWidth="1.5" />
+  </svg>
+)
+
+/**
+ * Lewa kolumna kreatora: „ARKUSZ C”, 5 etapów, pod-kroki tylko pod bieżącym etapem.
+ * `lockedAfter`: indeks bieżącego etapu v5 — etapy późniejsze mają kłódkę (treść tylko do odczytu).
+ */
+export function StageNav({ sheet, steps, currentId, onGo, lockedAfter = null }: {
   sheet: string
   steps: Step[]
   currentId: string
   onGo: (id: string) => void
+  lockedAfter?: number | null
 }) {
   const current = steps.find((s) => s.id === currentId) ?? steps[0]
   const open = current ? stageIndexOf(current) : 0
@@ -39,20 +50,21 @@ export function StageNav({ sheet, steps, currentId, onGo }: {
           const own = steps.filter((s) => stageIndexOf(s) === i)
           const done = own.length > 0 && own.every((s) => s.done)
           const isOpen = i === open
+          const locked = lockedAfter != null && i > lockedAfter && !done
           const marker = (
-            <span className={`wz-mark${done ? ' done' : isOpen ? ' now' : ''}`} aria-hidden="true">
-              {done ? <Check /> : isOpen ? <span className="wz-mark-dot" /> : i + 1}
+            <span className={`wz-mark${done ? ' done' : isOpen && !locked ? ' now' : ''}`} aria-hidden="true">
+              {done ? <Check /> : isOpen && !locked ? <span className="wz-mark-dot" /> : i + 1}
             </span>
           )
-          const state = done ? ' (gotowe)' : isOpen ? ' (bieżący etap)' : ''
+          const state = done ? ' (gotowe)' : locked ? ' (jeszcze nie rozpoczęty, tylko podgląd)' : isOpen ? ' (bieżący etap)' : ''
           return (
-            <li key={label} className={`wz-stage${isOpen ? ' open' : ''}${done ? ' done' : ''}`}>
+            <li key={label} className={`wz-stage${isOpen ? ' open' : ''}${done ? ' done' : ''}${locked ? ' locked' : ''}`}>
               {own.length === 0 ? (
-                <span className="wz-stage-head static">{marker}<span>{label}</span></span>
+                <span className="wz-stage-head static">{marker}<span>{label}</span>{locked && <Lock />}</span>
               ) : (
                 <button type="button" className="wz-stage-head" aria-expanded={isOpen}
                   onClick={() => !isOpen && onGo((own.find((s) => !s.done) ?? own[0]).id)}>
-                  {marker}<span>{label}</span><span className="sr-only">{state}</span>
+                  {marker}<span>{label}</span>{locked && <Lock />}<span className="sr-only">{state}</span>
                 </button>
               )}
               {own.length > 0 && (
@@ -63,6 +75,8 @@ export function StageNav({ sheet, steps, currentId, onGo }: {
                       <button type="button" className={s.id === current?.id ? 'step-link active' : 'step-link'}
                         aria-current={s.id === current?.id ? 'step' : undefined} onClick={() => onGo(s.id)}>
                         <span>{s.title}</span>
+                        {locked && <Lock />}
+                        {locked && <span className="sr-only">(tylko podgląd)</span>}
                         {s.done && <span className="wz-sub-done" aria-hidden="true"><Check /></span>}
                         {s.done && <span className="sr-only">(gotowe)</span>}
                       </button>
