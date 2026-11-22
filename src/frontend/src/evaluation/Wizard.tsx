@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../api'
-import { Avatar } from '../Avatar'
+import { Person } from '../Person'
 import { AssistantPanel } from '../assistant/AssistantPanel'
 import { PdfButton, type Step, type StepProps } from './common'
 import { canSignNow } from './data'
@@ -209,12 +209,9 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
   return (
     <section className={detail.isOwn ? 'wizard no-assistant' : 'wizard'}>
       <aside className="wizard-nav card">
-        <div className="avatar-row">
-          <Avatar path={`employees/${detail.employeeId}/avatar`} name={detail.employeeName} size={36} />
-          <div>
-            <strong>{detail.employeeName}</strong>
-            <p className="muted small">{kindLabel(detail.templateCode)}</p>
-          </div>
+        <div className="wizard-person">
+          <Person id={detail.employeeId} name={detail.employeeName} size="xl" stacked
+            detail={<>{[detail.employeePosition, detail.employeeDepartment].filter(Boolean).join(' · ')}<br />{kindLabel(detail.templateCode)}</>} />
         </div>
         <nav aria-label="Kroki oceny">
           {groups.map((group) => (

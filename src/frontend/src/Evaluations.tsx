@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api, apiBlobUrl } from './api'
-import { Avatar } from './Avatar'
 import { DateInput } from './DateInput'
 import { EmptyState } from './EmptyState'
 import { Icon } from './Icon'
@@ -12,10 +11,11 @@ import {
   type Answer, type Competency, type Cond, type Detail, type Field, type Level, type ScaleOption, type Section, type Stage,
 } from './evaluation/types'
 import { SignaturePad } from './SignaturePad'
+import { Person } from './Person'
 import { SignatureLinkPanel } from './Signatures'
 
 type ListItem = {
-  id: number; employeeName: string; templateTitle: string; statusLabel: string; isFinal: boolean
+  id: number; employeeId: number; employeeName: string; templateTitle: string; statusLabel: string; isFinal: boolean
   startDate: string; nextStageTitle: string | null; nextDueTo: string | null; templateCode?: string; phase?: string
 }
 type Template = { id: number; code: string; title: string }
@@ -57,7 +57,7 @@ function EvaluationList({ canAdd, onOpen }: { canAdd: boolean; onOpen: (id: numb
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.employeeName}</td>
+                  <td><Person id={r.employeeId} name={r.employeeName} onOpen={() => onOpen(r.id)} /></td>
                   <td title={r.templateTitle}>{r.templateCode ? pathLabel(r.templateCode) : r.templateTitle}</td>
                   <td>{r.phase ?? r.statusLabel}</td>
                   <td>{r.nextStageTitle ?? '—'}</td>
@@ -149,9 +149,10 @@ function EvaluationCard({ id, onBack, backLabel = 'Wróć do listy' }: { id: num
       </div>
       <div className="card panel">
         <div className="avatar-row">
-          <Avatar path={`employees/${detail.employeeId}/avatar`} name={detail.employeeName} size={48} />
+          <Person id={detail.employeeId} name={detail.employeeName} size="lg"
+            detail={[detail.employeePosition, detail.employeeDepartment].filter(Boolean).join(' · ')} />
           <p>
-            <strong>{detail.employeeName}</strong> · status: <strong>{detail.statusLabel}</strong><br />
+            Status: <strong>{detail.statusLabel}</strong><br />
             <span className="muted">Przełożony: {detail.evaluatorName ?? '—'} · początek: {fmtDate(detail.startDate)}</span>
           </p>
         </div>

@@ -49,7 +49,9 @@ public sealed record EvaluationDetailDto(
     string? UnitHeadName,
     bool CanEditSelfAssessment,
     IReadOnlyList<AnswerDto> Prefill,
-    IReadOnlyList<SignatureSlotDto> SignatureSlots);
+    IReadOnlyList<SignatureSlotDto> SignatureSlots,
+    string? EmployeePosition = null,
+    string? EmployeeDepartment = null);
 
 /// <summary>
 /// Pole podpisu: czy już podpisane i czy etap/termin pozwala je teraz podpisać (niezależnie od tego, kto podpisuje —

@@ -60,7 +60,7 @@ input, select, textarea { border: 1.5px solid var(--field-border); border-radius
   margin: 0; padding: 28px 20px 20px; border-radius: 0; box-shadow: none;
   border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px;
 }
-.wizard-nav .avatar-row strong { font-size: 17px; }
+.wizard-person { display: flex; justify-content: center; padding: 4px 0 12px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
 .step-group-title { font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; margin: 18px 0 6px; }
 .step-link { padding: 8px 10px; font-size: 15px; border-radius: 10px; gap: 12px; transition: background .2s var(--ease); }
 .step-link.active { font-weight: 650; }

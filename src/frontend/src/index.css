@@ -494,3 +494,24 @@ ul.my-tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5re
 ul.my-tasks li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.6rem 0.75rem; border-radius: 8px; background: var(--bg); }
 ul.my-tasks li.action { background: var(--info-bg); font-weight: 600; }
 ul.my-tasks li.waiting { color: var(--muted); }
+
+/* ---------- Osoba: twarz zawsze obok nazwiska (Person.tsx) ---------- */
+.person { display: inline-flex; align-items: center; gap: 0.75rem; min-width: 0; text-align: left; vertical-align: middle; }
+.person .avatar { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--blue-soft); }
+.person.person-sm .avatar { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--blue-soft); }
+.person-text { display: grid; gap: 0.1rem; min-width: 0; }
+.person-name { font-weight: 600; font-size: 1rem; color: var(--text); white-space: nowrap; }
+button.link.person-name { padding: 0; color: var(--text); text-align: left; }
+button.link.person-name:hover { color: var(--link); text-decoration: underline; }
+.person-detail { color: var(--muted); font-size: 0.875rem; line-height: 1.35; }
+.person-md { gap: 0.9rem; }
+.person-md .person-name { font-size: 1.0625rem; }
+.person-lg { gap: 1rem; }
+.person-lg .person-name { font-size: 1.25rem; }
+.person-lg .person-detail { font-size: 0.95rem; }
+.person-xl { gap: 1.25rem; }
+.person-xl .person-name { font-size: 1.5rem; }
+.person-xl .person-detail { font-size: 1rem; }
+.person-stacked { flex-direction: column; text-align: center; gap: 0.6rem; }
+.person-stacked .person-text { justify-items: center; }
+.person-stacked .person-name { white-space: normal; }
