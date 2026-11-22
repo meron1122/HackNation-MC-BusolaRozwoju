@@ -1,5 +1,6 @@
 # Składa Markdown z docs/ do PDF (docs/build.py) i publikuje je jako artefakt busola-docs.
 # GitHub pakuje artefakt w ZIP przy pobieraniu, więc do pobrania jest busola-docs.zip z PDF-ami.
+# Na main dodatkowo kopiuje docs/ do wiki repozytorium (job wiki).
 name: Dokumentacja PDF
 
 on:
@@ -40,3 +41,34 @@ jobs:
           name: busola-docs
           path: docs/pdf/*.pdf
           if-no-files-found: error
+
+  # Wiki repozytorium = kopia docs/ z main: README to strona główna, nazwy stron z tytułów „# …”.
+  # Wiki zawsze odzwierciedla main, więc ręczne edycje w wiki zostaną nadpisane.
+  wiki:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Publikacja w wiki
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          git clone -q "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki
+          git -C wiki rm -rq --ignore-unmatch .
+          cp -r docs/img wiki/img
+          echo "- [Strona główna](Home)" > wiki/_Sidebar.md
+          for f in docs/*.md; do
+            title=$(grep -m1 '^# ' "$f" | sed 's/^# //')
+            if [ "$(basename "$f")" = README.md ]; then page=Home; else page=$(echo "$title" | tr ' /' '--'); fi
+            cp "$f" "wiki/$page.md"
+            [ "$page" = Home ] || echo "- [$title]($page)" >> wiki/_Sidebar.md
+          done
+          cd wiki
+          git add -A
+          if git diff --cached --quiet; then echo "Wiki bez zmian"; exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -qm "Dokumentacja z ${GITHUB_SHA::7}"
+          git push -q
