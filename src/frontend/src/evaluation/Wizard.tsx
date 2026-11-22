@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../api'
 import { Avatar } from '../Avatar'
+import { AssistantPanel } from '../assistant/AssistantPanel'
 import { PdfButton, type Step, type StepProps } from './common'
 import { canSignNow } from './data'
 import { AcknowledgementStep, ResultStep, ReviewStep, SectionStep } from './FinalSteps'
@@ -206,7 +207,7 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
   const current = detail.stages.find((s) => s.key === detail.currentStageKey)
 
   return (
-    <section className="wizard">
+    <section className={detail.isOwn ? 'wizard no-assistant' : 'wizard'}>
       <aside className="wizard-nav card">
         <div className="avatar-row">
           <Avatar path={`employees/${detail.employeeId}/avatar`} name={detail.employeeName} size={36} />
@@ -254,6 +255,7 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
         {error && <p role="alert" className="error">{error}</p>}
         <StepView key={step.id} step={step} props={props} />
       </div>
+      {!detail.isOwn && <AssistantPanel key={step.id} stepId={step.id} />}
     </section>
   )
 }

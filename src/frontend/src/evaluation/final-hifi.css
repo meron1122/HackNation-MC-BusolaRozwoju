@@ -1,0 +1,140 @@
+/* Notatki (H06), przyznanie oceny, sprawdź i podpisz, zapoznanie (H10–H12) i widok ocenianego.
+   Selektory ograniczone do .notes-hifi, .final-hifi i .own-hifi. */
+
+/* ================= Notatki ================= */
+.notes-hifi .notes-banner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 14px 16px 14px 18px;
+  border-radius: 14px; background: var(--blue-soft);
+}
+.notes-hifi .notes-banner > .icon { width: 20px; height: 20px; color: var(--link); flex: none; }
+.notes-hifi .notes-timeline { display: grid; gap: 8px; }
+.notes-hifi .notes-timeline-bar { position: relative; height: 8px; border-radius: 999px; background: var(--border); }
+.notes-hifi .notes-timeline-bar > div { height: 100%; border-radius: 999px; background: var(--accent); }
+.notes-hifi .notes-today {
+  position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%; transform: translate(-50%, -50%);
+  background: var(--surface); border: 3px solid var(--accent);
+}
+.notes-hifi .notes-timeline-labels { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); }
+.notes-hifi .notes-today-label { font-weight: 700; color: var(--text); }
+.notes-hifi .callout strong { font-weight: 700; }
+
+.notes-hifi .notes-form { display: grid; gap: 14px; }
+.notes-hifi .notes-form h3 { margin: 0; }
+.notes-hifi .notes-form-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.notes-hifi .notes-form-row label,
+.notes-hifi .notes-sar-inputs label { display: grid; gap: 6px; font-weight: 600; font-size: 15px; min-width: 0; }
+.notes-hifi .notes-form-row select { width: 100%; min-width: 0; }
+.notes-hifi .notes-sar-inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.notes-hifi .notes-sar-inputs textarea { font-weight: 400; resize: vertical; }
+.notes-hifi .notes-hint { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; padding: 12px 16px; }
+.notes-hifi .notes-form-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
+.notes-hifi .notes-form-foot label.check { margin: 0; }
+
+.notes-hifi .notes-coverage ul { list-style: none; margin: 0; padding: 0; display: grid; }
+.notes-hifi .notes-coverage li {
+  display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--border); font-size: 15px;
+}
+.notes-hifi .notes-coverage li:first-child { border-top: 0; }
+.notes-hifi .notes-crit { flex: 0 0 170px; font-weight: 600; }
+.notes-hifi .notes-coverage .grow { min-width: 0; }
+.notes-hifi .notes-coverage button.link { flex: none; }
+
+.notes-hifi .notes-sar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 8px 0 0; }
+.notes-hifi .notes-sar dt { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.notes-hifi .notes-sar dd { margin: 2px 0 0; font-size: 15px; }
+.notes-hifi .note-list > li { padding: 14px 0; border-top: 1px solid var(--border); }
+.notes-hifi .note-list > li:first-child { border-top: 0; }
+
+@media (max-width: 1180px) {
+  .notes-hifi .notes-sar-inputs, .notes-hifi .notes-sar { grid-template-columns: 1fr; }
+  .notes-hifi .notes-form-row { grid-template-columns: 1fr; }
+  .notes-hifi .notes-crit { flex-basis: 120px; }
+}
+
+/* ================= Przyznanie, sprawdzenie, zapoznanie ================= */
+.final-hifi .final-table-card { padding: 0; overflow: hidden; }
+.final-hifi .final-table { width: 100%; border-collapse: collapse; }
+.final-hifi .final-table th[scope="col"] {
+  text-align: left; font-size: 13.5px; font-weight: 600; color: var(--muted); padding: 12px 20px; background: var(--bg);
+}
+.final-hifi .final-table td, .final-hifi .final-table th[scope="row"] { padding: 14px 20px; border-top: 1px solid var(--border); text-align: left; vertical-align: middle; }
+.final-hifi .final-table tbody tr:first-child td, .final-hifi .final-table tbody tr:first-child th { border-top-color: var(--border); }
+.final-hifi .final-table:not(:has(thead)) tbody tr:first-child > * { border-top: 0; }
+.final-hifi .final-table th[scope="row"] { width: 250px; font-weight: 600; }
+.final-hifi .final-table td:nth-child(2) { width: 260px; }
+.final-hifi .final-review td:nth-child(2) { width: auto; }
+.final-hifi .final-action, .final-hifi .final-review td:last-child { width: 90px; text-align: right; }
+.final-hifi .final-table button.link { font-weight: 600; }
+
+.final-hifi .final-pills { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.final-hifi .final-result {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; font-size: 14px; font-weight: 700;
+}
+.final-hifi .final-result.positive { background: var(--accent); color: var(--accent-text); }
+.final-hifi .final-result.negative { background: var(--lavender-soft); color: var(--text); }
+.final-hifi .final-reasons { margin: 0; padding: 12px 16px; border-radius: 12px; background: var(--lavender-soft); }
+.final-hifi .final-missing { color: var(--lavender-text); font-weight: 650; }
+
+.final-hifi .final-conclusions { display: grid; gap: 18px; }
+.final-hifi .final-field { display: grid; gap: 8px; }
+.final-hifi .final-field label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-weight: 650; }
+.final-hifi .final-hint { font-size: 13.5px; font-weight: 500; color: var(--muted); }
+.final-hifi .final-hint.required { color: var(--lavender-text); font-weight: 600; }
+.final-hifi .final-field textarea { width: 100%; resize: vertical; }
+.final-hifi .final-proposal p { margin: 0; }
+.final-hifi .final-proposal .pre-line { white-space: pre-line; line-height: 1.5; }
+.final-hifi .final-conclusions .buttons, .final-hifi .final-proposal .buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+
+.final-hifi .final-blockers { display: grid; gap: 8px; padding: 16px 18px; border-radius: 14px; background: var(--lavender-soft); }
+.final-hifi .final-blockers ul, .final-hifi .final-warnings ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.final-hifi .final-blockers li, .final-hifi .final-warnings li {
+  display: flex; align-items: baseline; gap: 12px; padding: 6px 0; border-top: 1px solid color-mix(in srgb, var(--lavender) 22%, transparent);
+}
+.final-hifi .final-blockers li:first-child, .final-hifi .final-warnings li:first-child { border-top: 0; }
+.final-hifi .final-blockers button.link, .final-hifi .final-warnings button.link { flex: none; font-weight: 650; }
+.final-hifi .final-warnings { display: grid; gap: 6px; padding: 14px 18px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface); }
+.final-hifi .final-warnings li { border-top-color: var(--border); }
+.final-hifi .final-ready { padding: 14px 18px; border-radius: 14px; background: var(--blue-soft); }
+.final-hifi .final-ready.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.final-hifi .final-sign { display: grid; gap: 10px; }
+.final-hifi .final-sign h3, .final-hifi .final-sign > p { margin: 0; }
+
+.final-hifi .final-done { display: grid; gap: 12px; justify-items: start; }
+.final-hifi .final-done h3 { margin: 0; font-size: 24px; }
+.final-hifi .final-done > p { margin: 0; }
+.final-hifi .final-done-mark {
+  width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-size: 26px; font-weight: 700;
+  background: var(--accent); color: var(--accent-text); animation: final-pop .35s var(--ease, ease-out);
+}
+.final-hifi .final-done-info { display: grid; gap: 6px; width: 100%; padding: 14px 16px; border-radius: 12px; background: var(--blue-soft); }
+.final-hifi .final-done-info:empty { display: none; }
+@keyframes final-pop { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ================= Widok ocenianego ================= */
+.own-hifi details.card > summary { cursor: pointer; font-size: 17px; list-style-position: inside; }
+.own-hifi ul.expectations { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 0; }
+.own-hifi ul.expectations > li { display: grid; gap: 6px; padding: 14px 0; border-top: 1px solid var(--border); }
+.own-hifi ul.expectations > li:first-child { border-top: 0; }
+.own-hifi ul.expectations p { margin: 0; }
+.own-hifi ul.expectations > li > p:first-child { font-weight: 600; }
+.own-hifi .own-expect { padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--blue-soft) 60%, var(--surface)); border: 1.5px solid var(--accent); }
+.own-hifi .own-example { padding: 10px 14px; border-radius: 12px; border: 1px dashed var(--field-border); }
+.own-hifi .self-criterion { display: grid; gap: 10px; }
+.own-hifi .self-criterion legend { padding: 0; font-size: 17px; }
+.own-hifi .self-criterion .chips { gap: 8px; }
+.own-hifi .self-criterion .chip-button { font-size: 14.5px; padding: 7px 14px; }
+.own-hifi .block-label.card { display: grid; gap: 8px; font-weight: 650; }
+.own-hifi .callout.attention strong { font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) { .final-hifi .final-done-mark { animation: none; } }
+
+/* Długie opcje listy wskaźników nie mogą rozpychać kolumny kreatora. */
+.notes-hifi, .notes-hifi > *, .final-hifi, .final-hifi > *, .own-hifi, .own-hifi > * { min-width: 0; }
+.notes-hifi select { max-width: 100%; text-overflow: ellipsis; }
+.notes-hifi .note-list > li, .notes-hifi .note, .notes-hifi .note-head { min-width: 0; }
+.notes-hifi .note-head > .pill { flex: 0 1 auto; min-width: 0; }
+.own-hifi fieldset.self-criterion > legend { float: left; width: 100%; margin-bottom: 10px; }
+.own-hifi fieldset.self-criterion > legend + * { clear: both; }
+/* Po przekazaniu: wybrany poziom czytelny (pełny granat), pozostałe przygaszone, ale z kontrastem tekstu. */
+.own-hifi fieldset.self-criterion:disabled .chip-button { opacity: 1; color: var(--muted); }
+.own-hifi fieldset.self-criterion:disabled .chip-button.active { color: var(--accent-text); }

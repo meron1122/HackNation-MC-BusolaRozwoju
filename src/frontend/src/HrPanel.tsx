@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { api } from './api'
 import { EmptyState } from './EmptyState'
-import { DuePill, Pill } from './evaluation/common'
-import { fmtDate, pathLabel, plural, type Progress } from './evaluation/types'
+import { daysLabel, fmtDate, pathLabel, plural, type Progress } from './evaluation/types'
+import { progressReason, waitsFor } from './hifi-helpers'
+import './hifi-pages.css'
+import { Icon } from './Icon'
 
 type HrRow = {
   employeeId: number; employeeName: string; evaluatorName: string | null; departmentId: number; departmentName: string
@@ -42,6 +44,11 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
     && (!department || String(r.departmentId) === department)
     && (!riskOnly || r.atRisk)), [data, path, phase, department, riskOnly])
   const atRisk = rows.filter((r) => r.atRisk)
+  useEffect(() => {
+    if (!status) return
+    const t = setTimeout(() => setStatus(''), 5000)
+    return () => clearTimeout(t)
+  }, [status])
 
   async function remind(ids: number[], scope: number | 'all') {
     setBusy(scope)
@@ -65,71 +72,75 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
   if (!data) return <p>Ładowanie…</p>
   const c = data.counters
   const all = data.rows
+  const paths = distinct(all.map((r) => r.evaluation.templateCode)).sort()
+  const phases = distinct(all.map((r) => r.evaluation.phase)).sort((a, b) => a.localeCompare(b, 'pl'))
+  const departments = distinct(all.map((r) => `${r.departmentId}|${r.departmentName}`)).map((d) => d.split('|') as [string, string])
 
   return (
-    <section className="hr-panel">
-      <div className="toolbar">
-        <h2>Oceny w departamencie</h2>
+    <section className="hifi-page hifi-hr">
+      <div className="hifi-head">
+        <div>
+          <h1>Oceny w departamencie</h1>
+          <p className="hifi-sub">Statusy, terminy i przypomnienia dla przełożonych. Etap i termin dotyczą bieżącego cyklu.</p>
+        </div>
         {canRemind && (
           <button type="button" disabled={atRisk.length === 0 || busy !== null} onClick={() => remind(atRisk.map((r) => r.evaluation.evaluationId), 'all')}>
             {busy === 'all' ? 'Wysyłanie…' : `Wyślij przypomnienia (${atRisk.length})`}
           </button>
         )}
       </div>
-      <div className="counters">
-        <div className="card counter"><strong>{c.overdue}</strong><Pill tone="attention" icon="clock">Po terminie</Pill></div>
-        <div className="card counter"><strong>{c.dueIn7Days}</strong><Pill tone="info" icon="clock">Termin w 7 dni</Pill></div>
-        <div className="card counter"><strong>{c.inProgress}</strong><Pill tone="info" icon="progress">W toku</Pill></div>
-        <div className="card counter">
+      <div className="hifi-counters">
+        <div className="card hifi-counter" style={{ '--i': 0 } as CSSProperties}><strong>{c.overdue}</strong><span><Icon name="clock" /> Po terminie</span></div>
+        <div className="card hifi-counter" style={{ '--i': 1 } as CSSProperties}><strong>{c.dueIn7Days}</strong><span><Icon name="clock" /> Termin w 7 dni</span></div>
+        <div className="card hifi-counter" style={{ '--i': 2 } as CSSProperties}><strong>{c.inProgress}</strong><span><Icon name="progress" /> W toku</span></div>
+        <div className="card hifi-counter" style={{ '--i': 3 } as CSSProperties}>
           <strong>{c.closedInYear}</strong>
-          <label className="check"><Pill tone="done" icon="done">Zamknięte w</Pill>
-            <select value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Rok">
+          <span><Icon name="done" /> Zamknięte w
+            <select value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Rok zamknięcia">
               {[thisYear, thisYear - 1, thisYear - 2].map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
-          </label>
+          </span>
         </div>
       </div>
-      <div className="filters">
-        <select value={path} onChange={(e) => setPath(e.target.value)} aria-label="Ścieżka">
-          <option value="">Wszystkie ścieżki</option>
-          {distinct(all.map((r) => r.evaluation.templateCode)).sort().map((code) => <option key={code} value={code}>{pathLabel(code)}</option>)}
-        </select>
-        <select value={phase} onChange={(e) => setPhase(e.target.value)} aria-label="Etap">
-          <option value="">Każdy etap</option>
-          {distinct(all.map((r) => r.evaluation.phase)).sort((a, b) => a.localeCompare(b, 'pl')).map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <select value={department} onChange={(e) => setDepartment(e.target.value)} aria-label="Wydział">
-          <option value="">Każdy wydział</option>
-          {distinct(all.map((r) => `${r.departmentId}|${r.departmentName}`)).map((d) => {
-            const [id, name] = d.split('|')
-            return <option key={id} value={id}>{name}</option>
-          })}
-        </select>
-        <button type="button" className={riskOnly ? 'chip-button active' : 'chip-button'} aria-pressed={riskOnly} onClick={() => setRiskOnly((v) => !v)}>Tylko zagrożone</button>
+      <div className="hifi-filters">
+        <FilterGroup label="Ścieżka" value={path} onChange={setPath} all="Wszystkie"
+          options={paths.map((code) => [code, pathLabel(code)])} />
+        {phases.length > 1 && <FilterGroup label="Etap" value={phase} onChange={setPhase} all="Każdy" options={phases.map((p) => [p, p])} />}
+        {departments.length > 1 && <FilterGroup label="Wydział" value={department} onChange={setDepartment} all="Każdy" options={departments} />}
+        <button type="button" className={riskOnly ? 'hifi-chip active' : 'hifi-chip'} aria-pressed={riskOnly} onClick={() => setRiskOnly((v) => !v)}>
+          <Icon name="clock" /> Tylko zagrożone
+        </button>
       </div>
-      {status && <p className="muted" role="status">{status}</p>}
       {rows.length === 0 ? <EmptyState title="Żadna ocena nie pasuje do filtrów">Zmień albo wyczyść filtry powyżej.</EmptyState> : (
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Osoba</th><th>Przełożony</th><th>Ścieżka</th><th>Etap</th><th>Termin</th><th>Status</th><th>Akcja</th></tr></thead>
+        <div className="card hifi-table-card">
+          <table className="hifi-table">
+            <thead><tr><th>Osoba</th><th>Przełożony</th><th>Ścieżka</th><th>Etap (bieżący cykl)</th><th>Termin</th><th>Czeka na</th><th><span className="sr-only">Akcja</span></th></tr></thead>
             <tbody>
               {rows.map((r) => {
                 const p = r.evaluation
+                const reason = progressReason(p)
+                const waits = waitsFor(p)
                 return (
                   <tr key={p.evaluationId}>
-                    <td><button type="button" className="link person-link" onClick={() => onOpenEvaluation(p.evaluationId)}><strong>{r.employeeName}</strong></button></td>
-                    <td>{shortName(r.evaluatorName)}</td>
-                    <td>{pathLabel(p.templateCode)}</td>
-                    <td>{p.phase}<br /><span className="muted small">{r.departmentName}</span></td>
-                    <td className="nowrap">{p.dueTo ? fmtDate(p.dueTo) : '—'}</td>
-                    <td><DuePill daysLeft={p.daysLeft} overdue={p.overdue} /></td>
                     <td>
-                      {canRemind && (
+                      <button type="button" className="link person-link hifi-person" onClick={() => onOpenEvaluation(p.evaluationId)}>{r.employeeName}</button>
+                      {departments.length > 1 && <div className="muted small">{r.departmentName}</div>}
+                    </td>
+                    <td className="hifi-nowrap">{shortName(r.evaluatorName)}</td>
+                    <td className="hifi-nowrap">{pathLabel(p.templateCode)}</td>
+                    <td>{p.phase}</td>
+                    <td>
+                      <div className="hifi-due"><Icon name="clock" /> {p.dueTo ? fmtDate(p.dueTo) : 'niezwłocznie'} · {daysLabel(p.daysLeft, p.overdue)}</div>
+                      {reason && <div className="muted small">{reason}</div>}
+                    </td>
+                    <td>{waits}</td>
+                    <td className="hifi-action">
+                      {canRemind && waits !== '—' && (
                         <button type="button" className="link" disabled={busy !== null} onClick={() => remind([p.evaluationId], p.evaluationId)}>
                           {busy === p.evaluationId ? 'Wysyłanie…' : 'Przypomnij'}
                         </button>
                       )}
-                      {p.lastReminder && <p className="muted small">ostatnio {fmtDate(p.lastReminder.sentAt)}</p>}
+                      {p.lastReminder && <div className="muted small"><Icon name="done" /> wysłano {fmtDate(p.lastReminder.sentAt)}</div>}
                     </td>
                   </tr>
                 )
@@ -138,6 +149,25 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
           </table>
         </div>
       )}
+      <div role="status" aria-live="polite" className={status ? 'hifi-toast show' : 'hifi-toast'}>
+        {status && <><Icon name="done" /> {status}</>}
+      </div>
     </section>
+  )
+}
+
+/** Filtr jako grupa pigułek (jedna wybrana, „Wszystkie” = brak filtra). */
+function FilterGroup({ label, value, onChange, all, options }: {
+  label: string; value: string; onChange: (v: string) => void; all: string; options: [string, string][]
+}) {
+  return (
+    <div className="hifi-filter" role="group" aria-label={label}>
+      <span className="hifi-filter-label">{label}</span>
+      {[['', all] as [string, string], ...options].map(([v, text]) => (
+        <button key={v || 'all'} type="button" className={value === v ? 'hifi-chip active' : 'hifi-chip'} aria-pressed={value === v} onClick={() => onChange(v)}>
+          {text}
+        </button>
+      ))}
+    </div>
   )
 }

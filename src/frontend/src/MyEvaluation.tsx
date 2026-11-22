@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { api } from './api'
 import { DuePill, Pill } from './evaluation/common'
 import { Icon } from './Icon'
+import { goToAssistant } from './hifi-helpers'
+import './hifi-pages.css'
 import { signatureState, slotBlock } from './evaluation/data'
 import { daysUntil, fmtDate, kindLabel, type Detail, type SelfAssessment } from './evaluation/types'
 
@@ -83,37 +85,47 @@ export function MyEvaluationPage({ onOpen }: { onOpen: (id: number) => void }) {
   if (error) return <p role="alert" className="error">{error}</p>
   if (!details) return <p>Ładowanie…</p>
   return (
-    <section className="my-evaluation">
-      <div className="toolbar"><h2>Moja ocena</h2></div>
-      {details.length === 0 && <p className="muted">Nie masz jeszcze oceny w systemie.</p>}
-      {details.map(({ detail: d, self }) => {
+    <section className="hifi-page hifi-my">
+      <div className="hifi-head">
+        <div>
+          <h1>Moja ocena</h1>
+          <p className="hifi-sub">Tu widzisz, co masz teraz zrobić w swojej ocenie i do kiedy.</p>
+        </div>
+        <button type="button" className="secondary hifi-ask" onClick={goToAssistant}><span aria-hidden="true" className="hifi-spark">✦</span> Zapytaj asystenta</button>
+      </div>
+      {details.length === 0 && <div className="card hifi-card"><p className="muted">Nie masz jeszcze oceny w systemie.</p></div>}
+      {details.map(({ detail: d, self }, i) => {
         const tasks = tasksOf(d, self)
         const current = d.stages.find((s) => s.key === d.currentStageKey)
         return (
-          <div key={d.id} className="card my-card">
-            <div className="card-head">
+          <article key={d.id} className="card hifi-card hifi-my-card" style={{ '--i': i } as CSSProperties} aria-labelledby={`my-${d.id}`}>
+            <div className="hifi-card-head">
               <div>
-                <h3>{kindLabel(d.templateCode)}</h3>
-                <p className="muted small">Przełożony: {d.evaluatorName ?? '—'} · od {fmtDate(d.startDate)}</p>
+                <h2 id={`my-${d.id}`}>{kindLabel(d.templateCode)}</h2>
+                <p className="muted small">Przełożony: {d.evaluatorName ?? '—'} · cykl od {fmtDate(d.startDate)}</p>
               </div>
-              <Pill tone={d.isFinal ? 'done' : 'info'}>{d.phase}</Pill>
+              <Pill tone={d.isFinal ? 'done' : 'info'} icon={d.isFinal ? 'done' : 'progress'}>{d.phase}</Pill>
             </div>
             {tasks.length > 0 ? (
-              <ul className="my-tasks">
+              <ul className="hifi-my-tasks">
                 {tasks.map((t) => (
                   <li key={t.text} className={t.tone}>
-                    <span className="grow">{t.tone === 'action' ? '→ ' : t.tone === 'waiting' ? <><Icon name="clock" /> </> : ''}{t.text}</span>
+                    <span className="hifi-my-kind">
+                      <Icon name={t.tone === 'action' ? 'sign' : t.tone === 'waiting' ? 'clock' : 'planned'} />
+                      {t.tone === 'action' ? 'Do zrobienia' : t.tone === 'waiting' ? 'Czeka' : 'Informacja'}
+                    </span>
+                    <span className="hifi-my-text">{t.text}</span>
                     {t.dueTo && <DuePill dueTo={t.dueTo} daysLeft={daysUntil(t.dueTo)} overdue={(daysUntil(t.dueTo) ?? 0) < 0} />}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="muted">
+              <p className="hifi-my-idle">
                 {d.isFinal ? 'Ocena zakończona.' : `Teraz nic nie musisz robić. Etap: ${current?.title ?? d.phase}${current?.dueTo ? ` (do ${fmtDate(current.dueTo)})` : ''} — prowadzi go przełożony.`}
               </p>
             )}
-            <div className="buttons"><button type="button" onClick={() => onOpen(d.id)}>Otwórz moją ocenę</button></div>
-          </div>
+            <div className="hifi-actions"><button type="button" onClick={() => onOpen(d.id)}>Otwórz moją ocenę</button></div>
+          </article>
         )
       })}
     </section>

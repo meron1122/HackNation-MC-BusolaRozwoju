@@ -7,6 +7,7 @@ import { useApi, useWorkContext } from './data'
 import {
   RESULT_LABELS, answerOf, criteriaOf, fmtDate, isFirstTemplate, scoresFieldOf, type Detail, type SelfAssessment,
 } from './types'
+import './final-hifi.css'
 
 /** Widok ocenianego: kryteria, opisy oczekiwanych zachowań i przykłady ustalone na rozmowie (bez notatek przełożonego). */
 export function OwnCriteriaStep({ detail }: StepProps) {
@@ -15,7 +16,7 @@ export function OwnCriteriaStep({ detail }: StepProps) {
   const work = useWorkContext(detail.id)
   const current = detail.stages.find((s) => s.key === detail.currentStageKey)
   return (
-    <div className="step">
+    <div className="step own-hifi">
       <div className="step-head"><h2>Moja ocena · {isFirstTemplate(detail.templateCode) ? 'elementy oceny' : 'kryteria'} i oczekiwania</h2></div>
       <div className="card">
         <dl className="summary">
@@ -34,8 +35,8 @@ export function OwnCriteriaStep({ detail }: StepProps) {
               return (
                 <li key={i.key}>
                   <p>{i.text}</p>
-                  {i.levels.meets && <p className="small"><Pill tone="info">Tego oczekuję</Pill> {i.levels.meets}</p>}
-                  {example && <p className="small"><Pill>Przykład</Pill> {example}</p>}
+                  {i.levels.meets && <p className="own-expect"><Pill tone="info">Tego oczekuję</Pill> {i.levels.meets}</p>}
+                  {example && <p className="own-example"><Pill>Przykład od przełożonego</Pill> {example}</p>}
                 </li>
               )
             })}
@@ -109,7 +110,7 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
   }
 
   return (
-    <div className="step">
+    <div className="step own-hifi">
       <div className="step-head">
         <h2>{form ? 'Sprawozdanie' : detail.schema.stages?.find((s) => s.key === data.stageKey)?.phase === 'Sprawozdanie' ? 'Sprawozdanie i samoocena' : 'Samoocena'}</h2>
         {/* Termin samooceny z API (przy okresowej 30 dni przed terminem oceny); po terminie przekazać nadal można. */}
@@ -246,7 +247,7 @@ function OwnResult({ detail }: { detail: Detail }) {
 export function OwnSignaturesStep({ detail, reload, sections }: StepProps & { sections: string[] }) {
   const objection = detail.stages.find((s) => s.optional)
   return (
-    <div className="step">
+    <div className="step own-hifi">
       <div className="step-head"><h2>Moje podpisy</h2></div>
       <p className="muted small">Podpisz tutaj albo wybierz „Podpisz na telefonie lub tablecie”, żeby złożyć podpis odręczny przez kod QR.</p>
       <OwnResult detail={detail} />
@@ -265,7 +266,7 @@ export function OwnSignaturesStep({ detail, reload, sections }: StepProps & { se
         )
       })}
       {objection?.status === 'Pending' && objection.dueTo && (
-        <p className="callout attention">Sprzeciw do dyrektora generalnego urzędu możesz złożyć do {fmtDate(objection.dueTo)}.</p>
+        <p className="callout attention"><strong>7 dni na sprzeciw.</strong> Sprzeciw do dyrektora generalnego urzędu możesz złożyć do {fmtDate(objection.dueTo)}.</p>
       )}
     </div>
   )
