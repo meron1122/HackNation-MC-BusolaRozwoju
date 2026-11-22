@@ -42,7 +42,8 @@ jobs:
           path: docs/pdf/*.pdf
           if-no-files-found: error
 
-  # Wiki repozytorium = kopia docs/ z main: README to strona główna, nazwy stron z tytułów „# …”.
+  # Wiki repozytorium = kopia docs/ z main (bez README, które jest dla programistów). Strona główna to
+  # docs/wiki/Home.md z listą stron w miejscu {{STRONY}}: tytuł „# …” i akapit wstępny każdego dokumentu.
   # Wiki zawsze odzwierciedla main, więc ręczne edycje w wiki zostaną nadpisane.
   wiki:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -59,13 +60,19 @@ jobs:
           git clone -q "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git" wiki
           git -C wiki rm -rq --ignore-unmatch .
           cp -r docs/img wiki/img
+          pages="${RUNNER_TEMP:-/tmp}/strony.md"
+          : > "$pages"
           echo "- [Strona główna](Home)" > wiki/_Sidebar.md
           for f in docs/*.md; do
+            [ "$(basename "$f")" = README.md ] && continue
             title=$(grep -m1 '^# ' "$f" | sed 's/^# //')
-            if [ "$(basename "$f")" = README.md ]; then page=Home; else page=$(echo "$title" | tr ' /' '--'); fi
+            page=$(echo "$title" | tr ' /' '--')
+            lead=$(awk '/^# /{f=1; next} f && NF {print; exit}' "$f")
             cp "$f" "wiki/$page.md"
-            [ "$page" = Home ] || echo "- [$title]($page)" >> wiki/_Sidebar.md
+            echo "- [$title]($page)" >> wiki/_Sidebar.md
+            printf '### [%s](%s)\n\n%s\n\n' "$title" "$page" "$lead" >> "$pages"
           done
+          sed -e "/{{STRONY}}/{r $pages" -e 'd}' docs/wiki/Home.md > wiki/Home.md
           cd wiki
           git add -A
           if git diff --cached --quiet; then echo "Wiki bez zmian"; exit 0; fi
