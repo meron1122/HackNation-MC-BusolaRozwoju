@@ -245,34 +245,43 @@ const PAGES: Page[] = [
   },
 ]
 
+type View = { pageKey: string; openEvaluation: number | null; profileId: number | null; evaluationReturn: string | null; myProfileTab: ProfileTab }
+const START_VIEW: View = { pageKey: PAGES[0].key, openEvaluation: null, profileId: null, evaluationReturn: null, myProfileTab: 'personal' }
+
 export default function App() {
   const [token, setTokenState] = useState(getToken)
-  const [pageKey, setPageKey] = useState(PAGES[0].key)
   const [avatarVersion, setAvatarVersion] = useState(0)
-  const [openEvaluation, setOpenEvaluation] = useState<number | null>(null)
-  const [profileId, setProfileId] = useState<number | null>(null)
-  // Skąd otwarto ocenę (pulpit, panel HR, profil) — „Wróć” z oceny prowadzi tam.
-  const [evaluationReturn, setEvaluationReturn] = useState<string | null>(null)
-  const [myProfileTab, setMyProfileTab] = useState<ProfileTab>('personal')
+  // Stan nawigacji trzymany w historii przeglądarki, żeby „Wstecz”/„Dalej” działały w obrębie aplikacji.
+  const [view, setView] = useState<View>(() => (history.state?.pageKey ? history.state : START_VIEW))
+  const { pageKey, openEvaluation, profileId, evaluationReturn, myProfileTab } = view
+  const go = (next: Partial<View>) => {
+    const v = { ...view, ...next }
+    history.pushState(v, '')
+    setView(v)
+  }
   const session = token ? readSession(token) : null
   const nav: Nav = {
     openEvaluation,
     showEvaluation: (id) => {
       if (id === null && evaluationReturn) {
-        setOpenEvaluation(null)
-        setPageKey(evaluationReturn)
-        setEvaluationReturn(null)
+        go({ openEvaluation: null, pageKey: evaluationReturn, evaluationReturn: null })
         return
       }
-      if (id !== null && pageKey !== 'evaluations') setEvaluationReturn(pageKey)
-      setOpenEvaluation(id)
-      setPageKey('evaluations')
+      go({
+        openEvaluation: id,
+        pageKey: 'evaluations',
+        evaluationReturn: id !== null && pageKey !== 'evaluations' ? pageKey : evaluationReturn,
+      })
     },
-    showProfile: (id) => {
-      setProfileId(id)
-      setPageKey(PROFILE_PAGE)
-    },
+    showProfile: (id) => go({ profileId: id, pageKey: PROFILE_PAGE }),
   }
+
+  useEffect(() => {
+    if (!history.state?.pageKey) history.replaceState(START_VIEW, '')
+    const pop = (e: PopStateEvent) => setView(e.state?.pageKey ? e.state : START_VIEW)
+    window.addEventListener('popstate', pop)
+    return () => window.removeEventListener('popstate', pop)
+  }, [])
 
   useEffect(() => {
     const logout = () => setTokenState(null)
@@ -286,13 +295,14 @@ export default function App() {
   }
 
   function openMyProfile(tab: ProfileTab) {
-    setMyProfileTab(tab)
-    setPageKey(MY_PROFILE_PAGE)
+    go({ myProfileTab: tab, pageKey: MY_PROFILE_PAGE })
   }
 
   function logout() {
     setToken(null)
     setTokenState(null)
+    history.replaceState(START_VIEW, '')
+    setView(START_VIEW)
   }
 
   if (!session) return <Login onLogin={login} />
@@ -309,7 +319,7 @@ export default function App() {
         <nav>
           {pages.map((p) => (
             <button key={p.key} className={p === page ? 'tab active' : 'tab'} aria-current={p === page ? 'page' : undefined}
-              onClick={() => { setPageKey(p.key); setOpenEvaluation(null); setEvaluationReturn(null) }}>
+              onClick={() => go({ pageKey: p.key, openEvaluation: null, evaluationReturn: null })}>
               {p.label}
             </button>
           ))}
