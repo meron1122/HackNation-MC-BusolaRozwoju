@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<title>Busola Rozwoju</title>
+<polygon fill="#33437F" points="405.9,405.9 908.0,116.0 512.0,512.0"/>
+<polygon fill="#1F2A5A" points="512.0,512.0 908.0,116.0 618.1,618.1"/>
+<polygon fill="#8CC4EE" points="405.9,405.9 512.0,512.0 116.0,908.0"/>
+<polygon fill="#5AA9E6" points="512.0,512.0 618.1,618.1 116.0,908.0"/>
+<circle fill="#FFFFFF" cx="512.0" cy="512.0" r="52.0"/>
+</svg>

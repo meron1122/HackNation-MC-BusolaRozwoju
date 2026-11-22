@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AccountPage } from './Account'
 import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
 import { AssistantPage } from './AssistantPage'
@@ -14,6 +14,7 @@ import { HrPanel } from './HrPanel'
 import { MyEvaluationPage } from './MyEvaluation'
 import { EmptyState } from './EmptyState'
 import { Login } from './Login'
+import { LoginHandoff, type LoginPhase } from './LoginHandoff'
 import { Logo } from './Logo'
 import { ProfilePage, type ProfileTab } from './Profile'
 import { UserMenu } from './UserMenu'
@@ -267,6 +268,9 @@ const START_VIEW: View = { pageKey: PAGES[0].key, openEvaluation: null, profileI
 
 export default function App() {
   const [token, setTokenState] = useState(getToken)
+  const [loginPhase, setLoginPhase] = useState<LoginPhase>('idle')
+  const [wordmark, setWordmark] = useState<DOMRect | null>(null)
+  const serviceMain = useRef<HTMLElement>(null)
   const [avatarVersion, setAvatarVersion] = useState(0)
   // Stan nawigacji trzymany w historii przeglądarki, żeby „Wstecz”/„Dalej” działały w obrębie aplikacji.
   const [view, setView] = useState<View>(() => (history.state?.pageKey ? history.state : START_VIEW))
@@ -317,6 +321,16 @@ export default function App() {
     return () => window.removeEventListener(LOGOUT_EVENT, logout)
   }, [])
 
+  useEffect(() => {
+    if (loginPhase !== 'revealing') return
+    const timer = window.setTimeout(() => {
+      setLoginPhase('idle')
+      setWordmark(null)
+      serviceMain.current?.focus({ preventScroll: true })
+    }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 520)
+    return () => window.clearTimeout(timer)
+  }, [loginPhase])
+
   function login(newToken: string) {
     setToken(newToken)
     setTokenState(newToken)
@@ -333,7 +347,25 @@ export default function App() {
     setView(START_VIEW)
   }
 
-  if (!session) return <Login onLogin={login} />
+  const handoff = <LoginHandoff phase={loginPhase} wordmark={wordmark} />
+
+  if (!session) {
+    return (
+      <>
+        {handoff}
+        <Login
+          onChecking={(checking, origin) => {
+            setWordmark(origin ?? null)
+            setLoginPhase(checking ? 'checking' : 'idle')
+          }}
+          onLogin={(newToken) => {
+            setLoginPhase('revealing')
+            login(newToken)
+          }}
+        />
+      </>
+    )
+  }
 
   const pages = PAGES.filter((p) => p.visible(session))
   const onProfile = pageKey === PROFILE_PAGE && profileId !== null
@@ -342,6 +374,7 @@ export default function App() {
 
   return (
     <>
+      {handoff}
       <header className="topbar">
         <Logo width={128} />
         <nav>
@@ -355,7 +388,7 @@ export default function App() {
         <UserMenu name={session.name} avatarVersion={avatarVersion} active={onMyProfile}
           onProfile={() => openMyProfile('personal')} onStructure={() => openMyProfile('structure')} onLogout={logout} />
       </header>
-      <main className="content">
+      <main className="content" ref={serviceMain} tabIndex={-1}>
         {onMyProfile ? (
           <ProfilePage key={`me-${myProfileTab}`} employeeId="me" initialTab={myProfileTab} avatarVersion={avatarVersion}
             onOpenProfile={nav.showProfile} onOpenEvaluation={nav.showEvaluation}
