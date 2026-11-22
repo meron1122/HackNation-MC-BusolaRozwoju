@@ -13,7 +13,6 @@ namespace Busola.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/agent")]
-[EnableRateLimiting(AgentServiceCollectionExtensions.RateLimitPolicy)]
 public sealed class AgentController(AgentRunner agent, ScreenContextService screens, AgentGuard guard) : ControllerBase
 {
     /// <summary>Pytanie użytkownika: krótko, bo długie wklejki to typowy nośnik prób obejścia zasad.</summary>
@@ -34,7 +33,9 @@ public sealed class AgentController(AgentRunner agent, ScreenContextService scre
     public async Task<ContextResponse> Context(ScreenContext context, CancellationToken ct) =>
         new((await screens.DescribeAsync(context, ct)).Label);
 
+    /// <summary>Limit tylko na czacie (koszt modelu, próby obejścia zasad); etykieta kontekstu go nie zjada.</summary>
     [HttpPost("chat")]
+    [EnableRateLimiting(AgentServiceCollectionExtensions.RateLimitPolicy)]
     public async Task<ActionResult<ChatResponse>> Chat(ChatRequest request, CancellationToken ct)
     {
         if (request.Messages.Any(m => m.Role is not ("user" or "assistant")) || request.Messages[^1].Role != "user")

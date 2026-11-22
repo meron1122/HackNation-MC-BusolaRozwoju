@@ -59,9 +59,8 @@ function NotesList({ detail, onAdd }: { detail: Detail; onAdd?: () => void }) {
  */
 export function WizardPanel({ detail, step, onAddNote }: { detail: Detail; step: string; onAddNote?: () => void }) {
   const showNotes = !detail.isOwn
-  // Domyślnie Notatki: czat montuje się dopiero na żądanie, bo każde jego zamontowanie i zmiana kroku pyta agent/context,
-  // a ten endpoint dzieli z czatem limit 20 zapytań na minutę.
-  const [tab, setTab] = useState<Tab>(showNotes ? 'notes' : 'asst')
+  // W ocenie asystent jest pierwszy: to tu najczęściej pojawiają się wątpliwości. agent/context nie ma limitu (nie woła modelu).
+  const [tab, setTab] = useState<Tab>('asst')
   const [open, setOpen] = useState(false)
   const wide = useWide()
   const visible = wide || open

@@ -152,7 +152,7 @@ Model jak w PIM: ASP.NET Identity + JWT, tabele `permissions` i `role_permission
 | `Employee` | `Own`: własny rekord | automatycznie, gdy konto ma pracownika | podgląd pracowników |
 | `Supervisor` | `Subordinates`: podwładni bezpośredni i pośredni | automatycznie, gdy pracownik ma podwładnych | podgląd pracowników |
 | `Hr` | `Service`: służba użytkownika | przypisana | CRUD pracowników, podgląd lokalizacji i wydziałów |
-| `ServiceAdmin` | `Service`: służba użytkownika | przypisana | wszystko w swojej służbie, w tym konta i role |
+| `ServiceAdmin` | `Service`: służba użytkownika | przypisana | wszystko w swojej służbie, w tym konta i role (bez dziennika audytu) |
 | `SuperAdmin` | `All` | przypisana | omija sprawdzenia (jak `Admin` w PIM) |
 
 - Uprawnienia użytkownika to suma ról, a zakres liczy się per rola. Np. przełożony, który jest też w HR, widzi całą służbę.
@@ -207,7 +207,7 @@ Endpointy (wszystkie poza logowaniem wymagają `Authorization: Bearer <token>`):
 | `PUT /api/evaluations/{id}/answers` | `{ answers: [{ fieldKey, itemKey?, valueText?, valueNumber?, valueDate?, valueDateTo? }] }`; wpis bez wartości jest usuwany |
 | `POST /api/evaluations/{id}/stages/{stageKey}/complete`, `…/skip` | zamknięcie etapu (`{ completedOn }`): status oceny zmienia się na `completesTo`, a etapy zależne dostają terminy. `skip` tylko dla opcjonalnych |
 | `POST /api/evaluations/{id}/signatures`, `GET …/signatures/{signatureId}/image` | podpis pola (`{ fieldKey, signedOn, place?, image? }`, obraz jako PNG/WebP w base64 albo data URL) / obraz podpisu |
-| `GET /api/dashboard/deadlines?days=60` | otwarte etapy z terminem w ciągu `days` dni albo po terminie |
+| `GET /api/dashboard/deadlines?days=60` | otwarte etapy z terminem w ciągu `days` dni albo po terminie (bez własnych ocen zalogowanego) |
 | `GET /api/dashboard/without-evaluation` | pracownicy w zakresie bez żadnej otwartej oceny (ich terminów nic nie pilnuje) |
 
 Ciągłość cykli: zamknięcie etapu „Rozmowa oceniająca i sporządzenie oceny” w ocenie okresowej zakłada kolejny cykl od dnia sporządzenia oceny (arkusz B albo C jak wyżej), bez dubli. Po pierwszej ocenie następny cykl zakłada się ręcznie.
@@ -244,7 +244,7 @@ Pływający asystent w prawym dolnym rogu każdego ekranu (front: `src/frontend/
 - **Prowadzenie po ekranie** (front: `src/frontend/src/assistant/tours.ts`, driver.js): przy każdym pytaniu front zbiera elementy widoczne na ekranie (zakładki menu, kroki oceny, zakładki profilu, sekcje pulpitu) jako `landmarks` (id + opis). Backend przycina listę (bezpieczne ID, krótkie etykiety, najwyżej 60) i dokłada do kontekstu. Model układa prowadzenie pod pytanie w bloku `[[prowadzenie]] id | tytuł | co zrobić [[/prowadzenie]]`; front pokazuje „Pokaż mi na ekranie”, a przy „pokaż / poprowadź / gdzie jest” startuje od razu. Nieznane ID są pomijane.
 - **Prompt systemowy**: `AgentPrompt.cs`. **Inny dostawca**: implementacje `ILlmClient` / `IEmbeddingClient`.
 - **Przeciw halucynacjom**: przed każdą odpowiedzią backend sam dobiera 6 fragmentów przepisów do pytania i dokłada je modelowi jako `<przepisy>` (nie czeka, aż model zechce szukać); temperatura 0; prompt każe odpowiadać tylko z materiału, cytować § / art. i mówić „nie znajduję tego”. Po odpowiedzi `AgentGuard.FlagUnverifiedCitations` sprawdza każdy cytowany § / art. z tym, co model dostał, i dopisuje ostrzeżenie przy numerach spoza materiału.
-- **Przeciw obchodzeniu zasad (jailbreak)**: dane i uprawnienia egzekwuje serwer, nie model (kontekst ekranu i narzędzia filtrują zakresem użytkownika). Odpowiedzi asystenta są podpisane HMAC-em (sekret JWT + id użytkownika), a historia z niepodpisaną albo zmienioną odpowiedzią jest odrzucana — nie da się podrzucić modelowi „już się zgodziłem”. Klient nie wysyła roli `system`; pytanie ≤ 2000 znaków, rozmowa ≤ 20 wiadomości; limit 20 zapytań/min na użytkownika (429). Treść przepisów, ekranu i narzędzi jest oznaczona jako dane, nie polecenia. Odpowiedź z fragmentem promptu systemowego (znacznik `AgentGuard.Canary`) jest zamieniana na odmowę. Front renderuje odpowiedź jako tekst (bez HTML-a, linków i obrazków), więc model nie wyniesie danych przez URL.
+- **Przeciw obchodzeniu zasad (jailbreak)**: dane i uprawnienia egzekwuje serwer, nie model (kontekst ekranu i narzędzia filtrują zakresem użytkownika). Odpowiedzi asystenta są podpisane HMAC-em (sekret JWT + id użytkownika), a historia z niepodpisaną albo zmienioną odpowiedzią jest odrzucana — nie da się podrzucić modelowi „już się zgodziłem”. Klient nie wysyła roli `system`; pytanie ≤ 2000 znaków, rozmowa ≤ 20 wiadomości; limit 20 pytań/min na użytkownika na czacie (429; `agent/context` bez limitu, bo nie woła modelu). Treść przepisów, ekranu i narzędzi jest oznaczona jako dane, nie polecenia. Odpowiedź z fragmentem promptu systemowego (znacznik `AgentGuard.Canary`) jest zamieniana na odmowę. Front renderuje odpowiedź jako tekst (bez HTML-a, linków i obrazków), więc model nie wyniesie danych przez URL.
 
 ## Podpisy odręczne (demo)
 
@@ -263,6 +263,15 @@ Układ jak w OrangeHRM: zdjęcie i zakładki po lewej, sekcja po prawej. Zakład
 - Dane w `employee_profiles` (1:1 z `employees`), listy w jsonb. Imię, nazwisko, daty, wydział i przełożony zostają w `employees`.
 - `GET /api/employees/{id}/profile`, `GET /api/employees/me/profile`, `PUT /api/employees/{id}/profile/{personal|contact|job|emergency-contacts|dependents|qualifications}`.
 - Odczyt: `read_employees` w zakresie albo własny rekord. Edycja: `edit_employee` w zakresie — wszystko; pracownik u siebie — wszystko poza zatrudnieniem, imieniem, nazwiskiem, datą urodzenia i nr. ewidencyjnym.
+
+## Dziennik audytu
+
+Do analizy incydentów. Tabela `audit_entries`, tylko dopisywana: `AuditInterceptor` odrzuca edycję i usuwanie wpisów, a trigger w bazie blokuje `UPDATE`, `DELETE` i `TRUNCATE`.
+
+- **Zmiany** (`create`/`update`/`delete`): `AuditInterceptor` (EF Core `SaveChanges`) zapisuje każdą encję poza samym dziennikiem i `knowledge_embeddings`: typ (nazwa tabeli), id, zmienione pola ze starą i nową wartością. Hasła, `SecurityStamp`, tokeny (też hash tokenu linku podpisu) i klucze 2FA (`user_tokens.value`) są jako `***`, bajty jako rozmiar, długie teksty skrócone. `ExecuteUpdate`/`ExecuteDelete` omijają interceptor, więc usuwanie głównych encji idzie przez `Remove`.
+- **Dostęp**: `AuditMiddleware` zapisuje każde żądanie do `/api`: kto, IP, User-Agent, metoda, ścieżka (token linku podpisu tylko jako początek SHA-256), status, kontroler i id z trasy. Bez treści żądań, więc pytania do asystenta nie trafiają do dziennika. Nazwane akcje: `login_success`, `login_failed`, `login_2fa_required`, `logout` (`POST /api/auth/logout`), `password_change`, `role_change`, `sign_link_open`, `agent_query` i inne; reszta to `read` albo `write`.
+- **Przeglądanie**: `GET /api/audit` (filtry `from`, `to`, `user`, `entityType`, `entityId`, `action`, `ip`, stronicowanie) i `GET /api/audit/csv`. Wymaga uprawnienia `read_audit_log` i zakresu `All`, czyli w praktyce roli `SuperAdmin`. W UI: zakładka „Dziennik audytu”.
+- Ograniczenia: wpis o zmianie zapisuje się zaraz po zmianie, ale w osobnej transakcji (chyba że kod otworzył własną). Gdy zapis wpisu o dostępie się nie uda, żądanie i tak przechodzi (błąd idzie do logów). Pełna ochrona przed kimś z dostępem do bazy wymaga osobnej roli bazy z prawem tylko do `INSERT` i `SELECT` na tej tabeli.
 
 ## Drzewko przełożonych
 

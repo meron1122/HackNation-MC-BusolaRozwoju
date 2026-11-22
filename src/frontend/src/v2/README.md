@@ -23,7 +23,7 @@
 ## Kreator (Wizard.tsx) — układ v2
 - Lewa kolumna 272 px: „ARKUSZ C”, 5 etapów (Start cyklu · Obserwacja · Przygotowanie oceny · Czeka na zapoznanie · Okno sprzeciwu), pod-kroki tylko pod bieżącym etapem, karta terminu na dole.
 - Treść: `StepHeader` + krok. Max szerokość treści 820 px.
-- Prawy panel 384 px: zakładki „Notatki · N” i „✦ Asystent”. Poniżej 1366 px panel zwija się do wąskiej szyny i otwiera jako szuflada.
+- Prawy panel 384 px: zakładki „Notatki · N” i „✦ Asystent” (domyślnie otwarty asystent). Poniżej 1366 px panel zwija się do wąskiej szyny i otwiera jako szuflada.
 
 ## Role kolorów (busola-hifi.css)
 - `--ai` / `--ai-text` / `--ai-soft` — lawenda, wyłącznie AI.
