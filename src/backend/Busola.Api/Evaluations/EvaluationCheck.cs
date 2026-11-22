@@ -21,7 +21,8 @@ public static class EvaluationCheck
         IEnumerable<AnswerDto> storedAnswers,
         IReadOnlySet<string> signedFields,
         bool isFinal,
-        bool selfAssessmentSubmitted)
+        bool selfAssessmentSubmitted,
+        DateOnly? startDate = null)
     {
         // Pola liczone (średnia, poziom, wynik) sprawdzamy po wyliczeniu, nie po tym, co zapisał formularz.
         var answers = new AnswerSet(storedAnswers);
@@ -34,7 +35,7 @@ public static class EvaluationCheck
         var sections = schema.Sections.Select(section =>
         {
             var visible = answers.Matches(section.VisibleWhen);
-            var issues = visible ? SectionIssues(schema, section, answers, signedFields).ToList() : [];
+            var issues = visible ? SectionIssues(schema, section, answers, signedFields).Concat(RangeIssues(schema, section, answers, startDate)).ToList() : [];
             var locked = stageByKey.GetValueOrDefault(section.Stage)?.Status is not (null or StageStatus.Pending) || isFinal;
             return new SectionCheckDto(section.Key, section.Title, section.Part, section.Stage, visible, locked,
                 visible && issues.All(i => !i.Blocking), issues);
@@ -79,6 +80,56 @@ public static class EvaluationCheck
         }
 
         return new EvaluationCheckDto(result, sections);
+    }
+
+    /// <summary>
+    /// Terminy wyznaczane w arkuszu (dateRange z prefill "stage:x", np. termin sprawozdania i okres pierwszej oceny na
+    /// rozmowie wstępnej): początek nie po końcu; nie wcześniej niż najwcześniejszy termin etapu x z szablonu (sprawozdanie:
+    /// po 7 miesiącach pracy, § 6 ust. 1; ocena: po 8 miesiącach, § 4 ust. 1); koniec nie po końcu okresu następnego etapu
+    /// wpisanego w arkuszu (po złożeniu sprawozdania trzeba jeszcze dokonać oceny — poradnik, pkt 4.1).
+    /// </summary>
+    private static IEnumerable<CheckIssue> RangeIssues(TemplateSchema schema, SectionDefinition section, AnswerSet answers, DateOnly? start)
+    {
+        foreach (var field in section.Fields.Where(f => f.Type == "dateRange"))
+        {
+            if (answers.Get(field.Key) is not { ValueDate: { } from, ValueDateTo: { } to })
+            {
+                continue;
+            }
+
+            var label = field.Label ?? section.Title;
+            CheckIssue Issue(string message) => new(section.Stage, section.Key, field.Key, message, field.LegalRef, Blocking: true);
+            if (from > to)
+            {
+                yield return Issue($"{label}: początek jest późniejszy niż koniec");
+                continue;
+            }
+
+            var prefill = field.ExtraString("prefill");
+            var target = prefill is not null && prefill.StartsWith(DeadlineRule.StageAnchorPrefix)
+                ? schema.Stages.FirstOrDefault(s => s.Key == prefill[DeadlineRule.StageAnchorPrefix.Length..])
+                : null;
+            if (target is null)
+            {
+                continue;
+            }
+
+            if (start is { } anchor && target.Deadline is { Anchor: DeadlineRule.StartAnchor, Earliest: { } earliest } deadline
+                && from < earliest.AddTo(anchor))
+            {
+                yield return Issue($"{label}: najwcześniej od {earliest.AddTo(anchor):dd.MM.yyyy}{(deadline.Note is { } note ? $". {note}" : "")}");
+            }
+
+            var next = schema.Stages.SkipWhile(s => s.Key != target.Key).Skip(1).FirstOrDefault(s => !s.Optional);
+            var nextField = next is null
+                ? null
+                : schema.Sections.SelectMany(s => s.Fields)
+                    .FirstOrDefault(f => f.Type == "dateRange" && f.ExtraString("prefill") == DeadlineRule.StageAnchorPrefix + next.Key);
+            if (nextField is not null && answers.Get(nextField.Key)?.ValueDateTo is { } nextTo && to > nextTo)
+            {
+                yield return Issue($"{label}: najpóźniej do {nextTo:dd.MM.yyyy}, czyli do końca okresu z pola „{nextField.Label}”");
+            }
+        }
     }
 
     private static IEnumerable<CheckIssue> SectionIssues(

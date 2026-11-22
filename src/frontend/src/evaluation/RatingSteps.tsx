@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { SheetForm } from '../Evaluations'
-import { NextButton, Pill, TopicList, type StepProps } from './common'
+import { NextButton, PdfButton, Pill, TopicList, type StepProps } from './common'
 import { saveAnswers, useApi, useWorkContext } from './data'
 import {
   answerOf, criteriaOf, emptyAnswer, fmtDate, indicatorFieldOf, isFirstTemplate, plural, scoresFieldOf,
@@ -443,6 +443,13 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
             Ocenę cząstkową możesz zmieniać do sporządzenia oceny — tutaj albo w kroku „Ocena wskaźników” (tam też odpowiedzi przy wskaźnikach).
           </p>
         </>
+      )}
+      {self.data?.submitted && self.data.reportForm?.report && (
+        <details className="card">
+          <summary><strong>Sprawozdanie pracownika</strong> <span className="muted small">· do omówienia na rozmowie (§ 2 pkt 3)</span></summary>
+          <p className="pre-line small">{self.data.reportForm.report}</p>
+          <PdfButton detail={detail} report label="Pobierz sprawozdanie (PDF)" />
+        </details>
       )}
       {self.data?.submitted && (
         <div className="card">

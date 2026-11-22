@@ -47,7 +47,8 @@ function FirstEvaluationNote() {
     <>
       <p>
         Zaznacz, jeśli pracownik podlega pierwszej ocenie — system założy jej cykl od daty zatrudnienia
-        (rozmowa wstępna do 21 dni, sprawozdanie do 7 mies., ocena w 8.–11. mies.). Bez zaznaczenia od razu
+        (rozmowa wstępna do 21 dni, sprawozdanie w terminie wyznaczonym przez przełożonego — domyślnie 7.–10. mies.,
+        ocena w 8.–11. mies.). Bez zaznaczenia od razu
         rusza cykl oceny okresowej (24 mies.).
       </p>
       <p>Pierwszej ocenie podlega:</p>

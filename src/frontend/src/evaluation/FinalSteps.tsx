@@ -4,7 +4,7 @@ import { SheetForm, SignatureField } from '../Evaluations'
 import { Auto, CompleteStage, DuePill, IssueList, NextButton, PdfButton, Pill, type StepProps } from './common'
 import { completeStage, withoutAutoFilled } from './data'
 import {
-  RESULT_LABELS, answerOf, criteriaFieldOf, criteriaOf, daysUntil, fmtDate, isFirstTemplate, plural, scoresFieldOf, sheetLetter, today,
+  RESULT_LABELS, answerOf, valueOf, criteriaFieldOf, criteriaOf, daysUntil, fmtDate, isFirstTemplate, plural, scoresFieldOf, sheetLetter, today,
   type Detail, type Field, type Section,
 } from './types'
 
@@ -21,6 +21,29 @@ function ComputedChips({ detail }: { detail: Detail }) {
       {/* Wynik bez zieleni/czerwieni i bez ✓/✗: brandbook zabrania kolorów „dobrej” i „złej” oceny. */}
       {s.result && <Pill icon="lock">Ocena {RESULT_LABELS[s.result]?.toLowerCase() ?? s.result} · auto</Pill>}
     </p>
+  )
+}
+
+/** Etykieta opcji pola wyboru liczonego przez backend (np. „sprawozdanie w terminie” z etapu sprawozdania). */
+function autoChoice(detail: Detail, field: Field): string | null {
+  const value = valueOf(detail, field.key)?.valueText
+  return value ? field.options?.find((o: { value: string }) => o.value === value)?.label ?? value : null
+}
+
+/** Pola wyboru liczone poza wynikiem (np. sprawozdanie w terminie) — z kłódką, bez edycji. */
+function AutoChoices({ detail, sections }: { detail: Detail; sections: string[] }) {
+  const fields = detail.schema.sections.filter((s) => sections.includes(s.key)).flatMap((s) => s.fields)
+    .filter((f) => f.computed && f.type === 'choice' && f.key !== detail.schema.scoring?.result)
+  if (fields.length === 0) return null
+  return (
+    <div className="card">
+      {fields.map((f) => (
+        <p key={f.key} className="small">
+          {f.label}: <Pill icon="lock">{autoChoice(detail, f)?.toLowerCase() ?? 'jeszcze nie wiadomo'} · auto</Pill>
+          {f.hint && <><br /><span className="muted">{f.hint}</span></>}
+        </p>
+      ))}
+    </div>
   )
 }
 
@@ -56,6 +79,7 @@ export function ResultStep({ detail, steps, go, reload, sections, title }: StepP
         </div>
       )}
       <ComputedChips detail={detail} />
+      <AutoChoices detail={detail} sections={sections} />
       <SheetForm key={JSON.stringify(detail.answers)} detail={detail} onSaved={reload} sectionKeys={sections} showStage={false}
         fieldFilter={(f: Field) => !f.computed} />
       <div className="step-actions"><span className="grow" /><NextButton steps={steps} current="result" go={go} /></div>
@@ -74,6 +98,7 @@ function fieldSummary(detail: Detail, field: Field): ReactNode {
   if (field.computed) {
     if (field.type === 'average') return scoring?.average?.toFixed(2) ?? '—'
     if (field.type === 'level') return scoring?.levelLabel ?? '—'
+    if (field.key !== detail.schema.scoring?.result) return autoChoice(detail, field) ?? '—'
     return scoring?.result ? RESULT_LABELS[scoring.result] ?? scoring.result : '—'
   }
   if (field.prefill?.startsWith('previous.')) return 'z poprzedniej oceny (auto)'

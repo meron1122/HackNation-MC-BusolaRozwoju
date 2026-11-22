@@ -12,6 +12,12 @@ public class EvaluationSelfAssessment
 
     public List<SelfAssessmentItem> Criteria { get; set; } = [];
 
+    /// <summary>
+    /// Treść sprawozdania (pierwsza ocena, formularz z załącznika nr 3): zadania, problemy i sposób ich rozwiązania,
+    /// zdobyta wiedza i umiejętności, wnioski. Na formularzu doklejana jest do niej samoocena elementów jako tekst.
+    /// </summary>
+    public string? Report { get; set; }
+
     /// <summary>Potrzeby rozwojowe zgłoszone przez ocenianego — materiał do wniosków IPRZ.</summary>
     public string? DevelopmentNeeds { get; set; }
 

@@ -375,7 +375,8 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             EvaluationPrefill.Merge(stored, prefill),
             signed,
             EvaluationWorkflow.IsFinal(schema, evaluation.Status),
-            submitted);
+            submitted,
+            evaluation.StartDate);
     }
 
     /// <summary>
@@ -806,7 +807,6 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
         // Oceniany nie widzi roboczej oceny (punkty, wynik, uzasadnienie), dopóki nie jest sporządzona.
         var draft = isOwn ? EvaluationWorkflow.DraftSections(schema, evaluation.Stages.Select(s => (s.StageKey, s.Status))) : new HashSet<string>();
         var visibleAnswers = EvaluationWorkflow.WithoutDraft(schema, draft, evaluation.Answers.Select(ToDto), a => a.FieldKey).ToList();
-        var answers = new AnswerSet(visibleAnswers);
         var current = isFinal ? null : EvaluationWorkflow.CurrentStage(schema, evaluation.Stages.Select(s => (s.StageKey, s.Status)));
         var lockedSections = schema.Sections
             .Where(s => isFinal || evaluation.Stages.SingleOrDefault(st => st.StageKey == s.Stage)?.Status is not (null or StageStatus.Pending))
@@ -843,7 +843,8 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             EvaluationWorkflow.Phase(schema, evaluation.Status, current, evaluation.Answers.Count > 0 || signatures.Count > 0),
             current?.Key,
             lockedSections,
-            draft.Count > 0 ? null : EvaluationScoring.Compute(schema, answers),
+            // Wynik z podpowiedziami (np. „sprawozdanie w terminie” z etapu) — zapisują się dopiero przy zamknięciu etapu.
+            draft.Count > 0 ? null : EvaluationScoring.Compute(schema, new AnswerSet(EvaluationPrefill.Merge(visibleAnswers, prefill))),
             await LoadPreviousAsync(evaluation, ct),
             unitHead,
             canEditSelfAssessment,

@@ -107,6 +107,9 @@ Przebieg oceny (`EvaluationsController`, `EvaluationCheck`, `EvaluationScoring`)
 - **Robocza ocena:** oceniany nie widzi sekcji etapu z ocenami cząstkowymi (punkty, wynik, uzasadnienie, wnioski), dopóki ocena nie jest sporządzona — ani w szczegółach, ani w sprawdzeniu, ani w PDF.
 - **Podpisy w terminie:** pole podpisu można podpisać tylko w etapie w toku (wcześniejsze etapy obowiązkowe zamknięte), nie przed początkiem okna etapu (np. pierwsza ocena od 8. miesiąca), z datą nie z przyszłości i nie sprzed tego początku — w aplikacji i przy linku/QR. Po upływie terminu podpis zostaje możliwy (spóźnioną ocenę trzeba dokończyć). Szczegóły oceny mają `signatureSlots` (czy można podpisać i dlaczego nie).
 - **Termin samooceny:** sprawozdanie (pierwsza ocena) — termin etapu ustalony na rozmowie wstępnej; samoocena przy okresowej — 30 dni przed terminem sporządzenia oceny (`EvaluationWorkflow.SelfAssessmentLeadDays`, organizacyjny). Po terminie nadal można przekazać, do zamknięcia etapu.
+- **Sprawozdanie** (pierwsza ocena, `first` v4, `SelfAssessmentController`): formularz z zał. nr 3 do rozporządzenia z 2015 r. — nagłówek z arkusza (urząd, dane ocenianego, termin z rozmowy wstępnej), treść wpisana przez ocenianego (`report`), pod nią samoocena elementów i potrzeby rozwojowe jako tekst, podpis ocenianego (`reportEvaluatedSignature`); podpis i przekazanie = złożenie. Złożyć można dopiero po rozmowie wstępnej i od początku terminu wyznaczonego przez przełożonego; po końcu terminu nadal, ale wtedy „sprawozdanie złożone w wyznaczonym terminie” = nie. PDF formularza: `GET /api/evaluations/{id}/self-assessment/pdf` (oceniany zawsze, inni po złożeniu).
+- **Sprawozdanie w terminie** (`prefill: "report.onTime"`, pole liczone): tak — etap sprawozdania zamknięty złożeniem w terminie od–do; nie — po terminie albo oznaczone jako niezłożone; zapisuje się przy sporządzeniu oceny i wchodzi do wyniku (§ 10 ust. 1 pkt 2).
+- **Termin sprawozdania w arkuszu:** zakres z `prefill: "stage:x"` nie może zaczynać się przed najwcześniejszym terminem etapu `x` z szablonu (sprawozdanie: 7 mies. pracy, § 6 ust. 1; ocena: 8 mies., § 4 ust. 1) ani kończyć po końcu okresu następnego etapu wpisanego w arkuszu (sprawozdanie przed końcem okresu pierwszej oceny — poradnik, pkt 4.1).
 - **PDF** (`GET /api/evaluations/{id}/pdf`, `Pdf/EvaluationSheetPdf.cs`): układ urzędowych wzorów — arkusz B/C (zał. nr 3 i 4 do rozporządzenia z 2016 r.) i arkusz pierwszej oceny (zał. nr 2 do rozporządzenia z 2015 r.): te same części i tabele, „X” w polach wyboru, bloki podpisów (miejscowość, data, podpis albo „podpisano w systemie”), pouczenie i przypisy. Część III tylko przy wniosku o kolejny stopień. Wskaźniki, notatki, samoocena i kontekst nie trafiają do PDF.
 
 Terminy:
@@ -114,7 +117,7 @@ Terminy:
 | Szablon | Etap | Termin |
 |---|---|---|
 | `first` | rozmowa wstępna | do 21 dni od `start` (data zatrudnienia) |
-| | sprawozdanie | do 7 miesięcy od `start` |
+| | sprawozdanie | od 7 do 10 miesięcy od `start` (v4; v1–v3: do 7 miesięcy) — domyślnie, ostatecznie termin wyznacza przełożony na rozmowie wstępnej |
 | | pierwsza ocena | od 8 do 11 miesięcy od `start` |
 | `periodic-b`/`-c` | kryteria i zapoznanie z nimi | do 30 dni od `start` (sporządzenie poprzedniej oceny na piśmie albo zatrudnienie na czas nieokreślony) |
 | | ocena | do 24 miesięcy od `start`; data sporządzenia oceny na piśmie jest `start` kolejnego cyklu |

@@ -91,6 +91,19 @@ export type SelfAssessment = {
    */
   dueTo?: string | null
   overdue?: boolean
+  /** Sprawozdanie pierwszej oceny (formularz z załącznika nr 3); null = zwykła samoocena (okresowa). */
+  reportForm?: ReportForm | null
+}
+
+/**
+ * Formularz sprawozdania: nagłówek z arkusza, treść ocenianego (`report`) i `text` — treść z doklejoną samooceną
+ * elementów i potrzebami, tak jak w PDF. `submitBlockedReason`: przed rozmową wstępną albo przed początkiem terminu
+ * wyznaczonego przez przełożonego złożyć się nie da.
+ */
+export type ReportForm = {
+  office: string | null; firstName: string | null; lastName: string | null; department: string | null; position: string | null
+  periodFrom: string | null; periodTo: string | null; report: string | null; text: string
+  signatureFieldKey: string | null; signed: boolean; submitBlockedReason: string | null
 }
 
 export type Progress = {
@@ -177,6 +190,10 @@ export function criteriaOf(detail: Detail): { key: string; label: string }[] {
 
 export const answerOf = (detail: Detail, fieldKey: string, itemKey: string | null = null) =>
   detail.answers.find((a) => a.fieldKey === fieldKey && (a.itemKey ?? null) === itemKey)
+
+/** Zapisana wartość, a gdy jej brak — podpowiedź backendu (np. „sprawozdanie w terminie” wyliczone z etapu). */
+export const valueOf = (detail: Detail, fieldKey: string) =>
+  answerOf(detail, fieldKey) ?? detail.prefill?.find((a) => a.fieldKey === fieldKey && !a.itemKey)
 
 export const stageOf = (detail: Detail, key: string | null | undefined) => detail.stages.find((s) => s.key === key)
 

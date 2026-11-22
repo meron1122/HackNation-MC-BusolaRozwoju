@@ -51,10 +51,12 @@ function buildSteps(detail: Detail, check: Check | null): Step[] {
     if (selfStage) {
       steps.push({ id: 'self', group: GROUP_OWN, title: selfStage.phase === 'Sprawozdanie' ? 'Sprawozdanie (samoocena)' : 'Samoocena', done: !detail.canEditSelfAssessment && closed(selfStage.key), stageKey: selfStage.key, sections: [] })
     }
-    const signatureSections = schema.sections.filter((s) => s.fields.some((f) => f.type === 'signature' && f.role === 'evaluated')).map((s) => s.key)
+    // Podpis pod sprawozdaniem składa się w kroku sprawozdania (podpis = złożenie), nie w „Moich podpisach”.
+    const reportStage = selfStage?.completedBy === 'evaluated' ? selfStage.key : null
+    const ownSignatureSections = schema.sections.filter((s) => s.stage !== reportStage && s.fields.some((f) => f.type === 'signature' && f.role === 'evaluated'))
     steps.push({
-      id: 'own-sign', group: GROUP_OWN, title: 'Moje podpisy', stageKey: ackStage, sections: signatureSections,
-      done: schema.sections.flatMap((s) => s.fields).filter((f) => f.type === 'signature' && f.role === 'evaluated').every((f) => detail.signatures.some((s) => s.fieldKey === f.key)),
+      id: 'own-sign', group: GROUP_OWN, title: 'Moje podpisy', stageKey: ackStage, sections: ownSignatureSections.map((s) => s.key),
+      done: ownSignatureSections.flatMap((s) => s.fields).filter((f) => f.type === 'signature' && f.role === 'evaluated').every((f) => detail.signatures.some((s) => s.fieldKey === f.key)),
     })
     return steps
   }
@@ -135,7 +137,8 @@ function buildSteps(detail: Detail, check: Check | null): Step[] {
 function defaultStep(detail: Detail, steps: Step[]): string {
   if (detail.isOwn) {
     // Najpierw podpis, który można złożyć teraz (kolejność i termin), potem samoocena, gdy można ją edytować.
-    const unsignedNow = detail.schema.sections.flatMap((s) => s.fields)
+    const ownSign = steps.find((s) => s.id === 'own-sign')
+    const unsignedNow = detail.schema.sections.filter((s) => ownSign?.sections.includes(s.key)).flatMap((s) => s.fields)
       .some((f) => f.type === 'signature' && f.role === 'evaluated' && canSignNow(detail, f))
     if (unsignedNow) return 'own-sign'
     const self = steps.find((s) => s.id === 'self')

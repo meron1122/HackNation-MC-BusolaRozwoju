@@ -24,9 +24,14 @@ internal static class EvaluationTemplateSeed
 
         // v3: fazy etapów, etap samooceny, odwołania do przepisów (§), pola liczone przez backend,
         // uzasadnienie wymagane przy ocenie negatywnej, wnioski rozwojowe pierwszej oceny tylko przy pozytywnej.
-        Load(7, "first", 3, EvaluationKind.First, active: true),
+        Load(7, "first", 3, EvaluationKind.First, active: false),
         Load(8, "periodic-b", 3, EvaluationKind.Periodic, active: true),
         Load(9, "periodic-c", 3, EvaluationKind.Periodic, active: true),
+
+        // first v4: podpis ocenianego pod sprawozdaniem (formularz z załącznika nr 3), „sprawozdanie złożone
+        // w wyznaczonym terminie” wyliczane z etapu sprawozdania (prefill report.onTime), domyślny termin sprawozdania
+        // od 7. do 10. miesiąca (§ 6 ust. 1: co najmniej 7 miesięcy pracy) — przełożony wyznacza go na rozmowie wstępnej.
+        Load(10, "first", 4, EvaluationKind.First, active: true),
     ];
 
     private static EvaluationTemplate Load(int id, string code, int version, EvaluationKind kind, bool active)

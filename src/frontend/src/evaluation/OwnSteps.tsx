@@ -2,7 +2,7 @@ import { Fragment, useState } from 'react'
 import { api } from '../api'
 import { ConfirmButton } from '../ConfirmButton'
 import { SignatureField } from '../Evaluations'
-import { Pill, type StepProps } from './common'
+import { PdfButton, Pill, type StepProps } from './common'
 import { useApi, useWorkContext } from './data'
 import {
   RESULT_LABELS, answerOf, criteriaOf, fmtDate, isFirstTemplate, scoresFieldOf, type Detail, type SelfAssessment,
@@ -64,10 +64,20 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
   // Sprawozdanie (pierwsza ocena) zamyka przekazanie — oceniany składa je, a nie tylko pokazuje przełożonemu.
   const closesStage = detail.schema.stages?.find((s) => s.key === data.stageKey)?.completedBy === 'evaluated'
   const editable = data.canEdit
+  // Sprawozdanie pierwszej oceny: formularz z załącznika nr 3 — treść, pod nią samoocena jako tekst, podpis = złożenie.
+  const form = data.reportForm ?? null
+  const [report, setReport] = useState(form?.report ?? '')
+  const signatureField = form?.signatureFieldKey
+    ? detail.schema.sections.flatMap((s) => s.fields).find((f) => f.key === form.signatureFieldKey)
+    : undefined
+  const signed = !!signatureField && detail.signatures.some((s) => s.fieldKey === signatureField.key)
+  // Złożyć można dopiero w terminie wyznaczonym przez przełożonego (backend) i z opisem zadań.
+  const blocked = form ? form.submitBlockedReason ?? (report.trim() ? null : 'Najpierw opisz w sprawozdaniu zadania z przepracowanego okresu.') : null
 
   const body = () => ({
     criteria: data.criteria.map((c) => ({ criterionKey: c.key, level: levels[c.key]?.level ?? null, comment: levels[c.key]?.comment || null })),
     developmentNeeds: needs || null,
+    report: form ? report || null : null,
   })
   async function save() {
     setBusy(true)
@@ -80,13 +90,16 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
       setBusy(false)
     }
   }
+  async function send() {
+    await api(`evaluations/${detail.id}/self-assessment`, 'PUT', body())
+    await api(`evaluations/${detail.id}/self-assessment/submit`, 'POST')
+    setStatus('')
+    await reloadSelf()
+  }
   async function submit() {
     setBusy(true)
     try {
-      await api(`evaluations/${detail.id}/self-assessment`, 'PUT', body())
-      await api(`evaluations/${detail.id}/self-assessment/submit`, 'POST')
-      setStatus('')
-      await reloadSelf()
+      await send()
       await reload()
     } catch (e) {
       setStatus((e as Error).message)
@@ -98,14 +111,42 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
   return (
     <div className="step">
       <div className="step-head">
-        <h2>{detail.schema.stages?.find((s) => s.key === data.stageKey)?.phase === 'Sprawozdanie' ? 'Sprawozdanie i samoocena' : 'Samoocena'}</h2>
+        <h2>{form ? 'Sprawozdanie' : detail.schema.stages?.find((s) => s.key === data.stageKey)?.phase === 'Sprawozdanie' ? 'Sprawozdanie i samoocena' : 'Samoocena'}</h2>
         {/* Termin samooceny z API (przy okresowej 30 dni przed terminem oceny); po terminie przekazać nadal można. */}
         {data.submitted
           ? <Pill tone="done" icon="done">{closesStage ? 'złożone' : 'przekazana'} {fmtDate(data.submittedAt)}</Pill>
           : (data.dueTo ?? stage?.dueTo) && <Pill tone={data.overdue ? 'attention' : 'neutral'} icon="clock">do {fmtDate(data.dueTo ?? stage?.dueTo)}{data.overdue && ' · po terminie'}</Pill>}
       </div>
       {!data.stageOpen && !data.submitted && <p className="callout info">Samoocena będzie dostępna w etapie „{stage?.title ?? data.stageKey}”.</p>}
-      <p className="muted small">Oceń, jak w tym okresie wyglądała Twoja praca w każdym kryterium. Przełożony zobaczy samoocenę dopiero po jej przekazaniu i omówi ją na rozmowie oceniającej.</p>
+      {form ? (
+        <>
+          <p className="muted small">
+            Formularz sprawozdania z załącznika nr 3 do rozporządzenia. Przełożony zobaczy je dopiero po złożeniu i omówi na rozmowie oceniającej.
+          </p>
+          <div className="card">
+            <dl className="summary">
+              <dt>Nazwa urzędu</dt><dd>{form.office || '—'}</dd>
+              <dt>Imię i nazwisko</dt><dd>{[form.firstName, form.lastName].filter(Boolean).join(' ') || '—'}</dd>
+              <dt>Komórka organizacyjna</dt><dd>{form.department || '—'}</dd>
+              <dt>Stanowisko pracy</dt><dd>{form.position || '—'}</dd>
+              <dt>Termin złożenia</dt>
+              <dd>{form.periodFrom || form.periodTo ? `od ${fmtDate(form.periodFrom)} do ${fmtDate(form.periodTo)} · wyznaczył przełożony` : 'wyznaczy przełożony na rozmowie wstępnej'}</dd>
+            </dl>
+          </div>
+          <label className="block-label card">Sprawozdanie dotyczące zadań realizowanych w trakcie przepracowanego okresu
+            <span className="muted small">
+              Opisz po kolei: zadania z opisu stanowiska i inne istotne zadania, problemy przy ich wykonywaniu i sposób ich
+              rozwiązania, zdobyte umiejętności i wiedzę oraz wnioski, jak usprawnić wykonywanie zadań. Pisz chronologicznie
+              i konkretnie — najważniejsze zadania na Twoim stanowisku.
+            </span>
+            <textarea rows={12} maxLength={20000} value={report} disabled={!editable} onChange={(e) => setReport(e.target.value)} />
+          </label>
+          <h3>Samoocena w elementach oceny</h3>
+          <p className="muted small">Na formularzu sprawozdania samoocena i potrzeby rozwojowe są dopisane pod Twoim tekstem.</p>
+        </>
+      ) : (
+        <p className="muted small">Oceń, jak w tym okresie wyglądała Twoja praca w każdym kryterium. Przełożony zobaczy samoocenę dopiero po jej przekazaniu i omówi ją na rozmowie oceniającej.</p>
+      )}
       {data.criteria.map((c) => (
         <fieldset key={c.key} className="card self-criterion" disabled={!editable}>
           <legend><strong>{c.label}</strong></legend>
@@ -128,7 +169,34 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
         <textarea rows={3} value={needs} disabled={!editable} onChange={(e) => setNeeds(e.target.value)} />
       </label>
       {status && <p className="muted small" role="status">{status}</p>}
-      {editable && (
+      {form && (editable || data.submitted) && (
+        <div className="step-actions">
+          {editable && <button type="button" className="secondary" onClick={save} disabled={busy}>Zapisz roboczo</button>}
+          <span className="grow" />
+          <PdfButton detail={detail} report label={data.submitted ? 'Pobierz sprawozdanie (PDF)' : 'Podgląd PDF (zapisana wersja)'} />
+        </div>
+      )}
+      {form && editable && (
+        <div className="card">
+          <h3>Miejscowość, data i podpis</h3>
+          <p className="muted small">Podpis składa sprawozdanie — zamyka etap i potem nie zmienisz treści.</p>
+          {signatureField && (
+            <SignatureField field={signatureField} detail={detail} onSigned={reload} blockedReason={blocked ?? undefined}
+              submitLabel="Podpisz i złóż sprawozdanie" afterSign={send} />
+          )}
+          {(!signatureField || signed) && (
+            <div className="step-actions">
+              {blocked && <p className="muted small grow">{blocked}</p>}
+              <span className="grow" />
+              <ConfirmButton primary disabled={busy || !!blocked} onConfirm={submit}
+                question="Złożenie zamyka etap sprawozdania, potem nie zmienisz treści." confirmLabel="Złóż sprawozdanie">
+                Złóż sprawozdanie
+              </ConfirmButton>
+            </div>
+          )}
+        </div>
+      )}
+      {editable && !form && (
         <div className="step-actions">
           <button type="button" className="secondary" onClick={save} disabled={busy}>Zapisz roboczo</button>
           <span className="grow" />

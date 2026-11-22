@@ -62,13 +62,15 @@ export function StatusPill({ status, detail }: { status: EvaluationStatus; detai
   return <Pill tone={s.tone} icon={s.icon}>{label}</Pill>
 }
 
-export function PdfButton({ detail, label = 'Pobierz PDF' }: { detail: Detail; label?: string }) {
+/** Domyślnie arkusz oceny; `report` = formularz sprawozdania (załącznik nr 3). */
+export function PdfButton({ detail, label = 'Pobierz PDF', report = false }: { detail: Detail; label?: string; report?: boolean }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   async function download() {
     setBusy(true)
     try {
-      await apiDownload(`evaluations/${detail.id}/pdf`, `ocena-${detail.id}.pdf`)
+      await apiDownload(report ? `evaluations/${detail.id}/self-assessment/pdf` : `evaluations/${detail.id}/pdf`,
+        `${report ? 'sprawozdanie' : 'ocena'}-${detail.id}.pdf`)
       setError('')
     } catch (e) {
       setError((e as Error).message)

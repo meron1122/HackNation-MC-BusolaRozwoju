@@ -115,11 +115,33 @@ public sealed record SelfAssessmentDto(
     IReadOnlyList<SelfAssessmentCriterionDto> Criteria,
     string? DevelopmentNeeds,
     DateOnly? DueTo,
-    bool Overdue);
+    bool Overdue,
+    ReportFormDto? ReportForm = null);
+
+/// <summary>
+/// Sprawozdanie pierwszej oceny według formularza z załącznika nr 3: nagłówek z arkusza (urząd, dane ocenianego, termin
+/// z rozmowy wstępnej), treść wpisana przez ocenianego (Report) i Text — treść z doklejoną samooceną elementów i potrzebami
+/// rozwojowymi, tak jak na formularzu. SignatureFieldKey: pole podpisu ocenianego pod sprawozdaniem (szablon v4+).
+/// SubmitBlockedReason: dlaczego jeszcze nie można złożyć — przed rozmową wstępną albo przed początkiem terminu
+/// wyznaczonego przez przełożonego.
+/// </summary>
+public sealed record ReportFormDto(
+    string? Office,
+    string? FirstName,
+    string? LastName,
+    string? Department,
+    string? Position,
+    DateOnly? PeriodFrom,
+    DateOnly? PeriodTo,
+    string? Report,
+    string Text,
+    string? SignatureFieldKey,
+    bool Signed,
+    string? SubmitBlockedReason);
 
 public sealed record ScaleOptionDto(int Value, string Key, string Label);
 
-public sealed record SaveSelfAssessmentRequest(IReadOnlyList<SelfAssessmentItemDto> Criteria, string? DevelopmentNeeds = null);
+public sealed record SaveSelfAssessmentRequest(IReadOnlyList<SelfAssessmentItemDto> Criteria, string? DevelopmentNeeds = null, string? Report = null);
 
 public sealed record ReminderDto(int Id, int EvaluationId, string StageKey, string StageTitle, string? RecipientName, string? Message, string SentByName, DateTimeOffset SentAt);
 

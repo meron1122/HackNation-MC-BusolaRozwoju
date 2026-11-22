@@ -10,13 +10,15 @@ namespace Busola.Api.Evaluations;
 /// Dane arkusza brane z kartoteki, żeby nikt ich nie przepisywał ręcznie:
 /// pola „person” według roli (oceniany; oceniający / bezpośredni przełożony = oceniający oceny albo przełożony z kartoteki;
 /// kierujący komórką = kierujący wydziałem ocenianego) — imię, nazwisko, komórka organizacyjna = wydział tej osoby,
-/// stanowisko = stanowisko ze słownika (Employee.Position); nazwa urzędu = służba; prefill "employee.hireDate" = data zatrudnienia.
+/// stanowisko = stanowisko ze słownika (Employee.Position); nazwa urzędu = służba; prefill "employee.hireDate" = data zatrudnienia;
+/// prefill "report.onTime" = czy sprawozdanie złożono w wyznaczonym terminie (z etapu zamykanego przez ocenianego).
 /// Zwraca tylko wartości dla pól bez zapisanych wpisów. Zapisuje się je (kopia z chwili podpisu) przy zamknięciu etapu sekcji.
 /// </summary>
 public static class EvaluationPrefill
 {
     public const string OfficePrefill = "employee.office";
     public const string HireDatePrefill = "employee.hireDate";
+    public const string ReportOnTimePrefill = "report.onTime";
 
     private sealed record PersonData(int Id, string FirstName, string LastName, string DepartmentName, string? Position);
 
@@ -32,6 +34,7 @@ public static class EvaluationPrefill
                 OfficeName = e.Employee.Department.Location.Service.Name,
                 EvaluatorId = e.EvaluatorId ?? e.Employee.SupervisorId,
                 e.Employee.Department.HeadId,
+                Stages = e.Stages.Select(s => new { s.StageKey, s.Status, s.DueFrom, s.DueTo, s.CompletedOn }).ToList(),
             })
             .SingleAsync(ct);
 
@@ -79,10 +82,27 @@ public static class EvaluationPrefill
             {
                 Add(new AnswerDto(field.Key, ValueText: source.OfficeName));
             }
+            else if (prefill == ReportOnTimePrefill
+                && schema.Stages.FirstOrDefault(s => s.CompletedByEvaluated) is { } reportStage
+                && source.Stages.FirstOrDefault(s => s.StageKey == reportStage.Key) is { } report)
+            {
+                Add(new AnswerDto(field.Key, ValueText: ReportOnTime(report.Status, report.DueFrom, report.DueTo, report.CompletedOn)));
+            }
         }
 
         return result;
     }
+
+    /// <summary>
+    /// „Sprawozdanie zostało złożone w wyznaczonym terminie” (§ 10 ust. 1 pkt 2): tak — złożone (przekazanie zamyka etap)
+    /// w terminie od–do z rozmowy wstępnej; nie — po terminie albo oznaczone jako niezłożone; null — etap jeszcze trwa.
+    /// </summary>
+    public static string? ReportOnTime(StageStatus status, DateOnly? dueFrom, DateOnly? dueTo, DateOnly? completedOn) => status switch
+    {
+        StageStatus.Skipped => "no",
+        StageStatus.Completed when completedOn is { } on => (dueFrom is null || on >= dueFrom) && (dueTo is null || on <= dueTo) ? "yes" : "no",
+        _ => null,
+    };
 
     /// <summary>Zapisane wpisy + podpowiedzi z kartoteki dla pól pustych (zapisane mają pierwszeństwo).</summary>
     public static List<AnswerDto> Merge(IEnumerable<AnswerDto> stored, IEnumerable<AnswerDto> prefill) => [.. stored, .. prefill];

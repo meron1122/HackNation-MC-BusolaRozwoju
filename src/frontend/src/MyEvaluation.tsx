@@ -14,7 +14,11 @@ type Task = { tone: 'action' | 'waiting' | 'info'; text: string; dueTo?: string 
  */
 function tasksOf(detail: Detail, self: SelfAssessment | null): Task[] {
   const tasks: Task[] = []
-  const signatures = detail.schema.sections.flatMap((s) => s.fields.filter((f) => f.type === 'signature' && f.role === 'evaluated').map((f) => ({ f, s })))
+  const selfStage = detail.schema.stages?.find((s) => s.selfAssessment)
+  // Podpis pod sprawozdaniem to część zadania „Złóż sprawozdanie” (podpis = złożenie), nie osobny punkt.
+  const reportStage = selfStage?.completedBy === 'evaluated' ? selfStage.key : null
+  const signatures = detail.schema.sections.filter((s) => s.stage !== reportStage)
+    .flatMap((s) => s.fields.filter((f) => f.type === 'signature' && f.role === 'evaluated').map((f) => ({ f, s })))
   for (const { f, s } of signatures) {
     const state = signatureState(detail, f)
     const stage = detail.stages.find((x) => x.key === s.stage)
@@ -29,12 +33,15 @@ function tasksOf(detail: Detail, self: SelfAssessment | null): Task[] {
     }
   }
   // Samoocena / sprawozdanie: zawsze, gdy można ją edytować; termin z API samooceny (nie termin etapu).
-  const selfStage = detail.schema.stages?.find((s) => s.selfAssessment)
+  // Sprawozdanie przed początkiem terminu wyznaczonego przez przełożonego: przygotować można, złożyć jeszcze nie.
   if (selfStage && detail.canEditSelfAssessment) {
     const stage = detail.stages.find((s) => s.key === selfStage.key)
+    const notYet = self?.reportForm?.submitBlockedReason
     tasks.push({
-      tone: 'action',
-      text: selfStage.phase === 'Sprawozdanie' ? 'Złóż sprawozdanie (samoocenę) i przekaż je przełożonemu' : 'Wypełnij samoocenę i przekaż ją przełożonemu',
+      tone: notYet ? 'waiting' : 'action',
+      text: self?.reportForm
+        ? notYet ? `Przygotuj sprawozdanie. ${notYet}` : 'Napisz, podpisz i złóż sprawozdanie'
+        : selfStage.phase === 'Sprawozdanie' ? 'Złóż sprawozdanie (samoocenę) i przekaż je przełożonemu' : 'Wypełnij samoocenę i przekaż ją przełożonemu',
       dueTo: self?.dueTo ?? stage?.dueTo,
     })
   }

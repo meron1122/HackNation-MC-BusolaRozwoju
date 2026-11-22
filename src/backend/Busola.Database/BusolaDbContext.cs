@@ -186,6 +186,7 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
         {
             b.HasKey(s => s.EvaluationId);
             b.Property(s => s.DevelopmentNeeds).HasMaxLength(4000);
+            b.Property(s => s.Report).HasMaxLength(20000);
 
             b.HasOne(s => s.Evaluation)
                 .WithOne(e => e.SelfAssessment)

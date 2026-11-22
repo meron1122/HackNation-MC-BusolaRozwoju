@@ -1,7 +1,7 @@
 import { Fragment, useState, type FormEvent } from 'react'
 import { api } from '../api'
 import { ConfirmButton } from '../ConfirmButton'
-import { CompleteStage, DuePill, IssueList, Pill, type StepProps } from './common'
+import { CompleteStage, DuePill, IssueList, PdfButton, Pill, type StepProps } from './common'
 import { useApi } from './data'
 import {
   daysUntil, criteriaOf, fmtDate, plural, today, type Detail, type Note, type NoteRequest, type Notes, type SelfAssessment,
@@ -316,7 +316,16 @@ function EvaluatedStageStep({ detail, check, reload, stageKey }: StepProps & { s
       {stage.status === 'Skipped' && <p className="callout attention">{name[0].toUpperCase() + name.slice(1)} oznaczone jako niezłożone w terminie.</p>}
       {stage.status === 'Completed' && <p className="callout"><strong>Złożone {fmtDate(stage.completedOn)}.</strong></p>}
       {error && <p role="alert" className="error">{error}</p>}
-      {self?.submitted && (
+      {self?.submitted && self.reportForm && (
+        <div className="card">
+          <div className="card-head">
+            <h3>Sprawozdanie pracownika (tylko do odczytu)</h3>
+            <PdfButton detail={detail} report label="Pobierz PDF" />
+          </div>
+          <p className="pre-line small">{self.reportForm.text}</p>
+        </div>
+      )}
+      {self?.submitted && !self.reportForm && (
         <div className="card">
           <h3>{name[0].toUpperCase() + name.slice(1)} pracownika (tylko do odczytu)</h3>
           <dl className="summary">

@@ -16,13 +16,68 @@ public sealed record SheetSignature(string FieldKey, string SignerName, DateOnly
 /// i arkusz pierwszej oceny (załącznik nr 2 do rozporządzenia z 23.07.2015 r.) — te same części, tabele, pola „X”,
 /// bloki podpisów, pouczenie i przypisy. Na arkuszu jest tylko to, co jest we wzorze; wskaźniki, notatki, samoocena
 /// i reszta materiału roboczego zostają w systemie. Część III tylko przy wniosku o kolejny stopień (przypis 18).
+/// Osobno formularz sprawozdania (załącznik nr 3 do rozporządzenia z 23.07.2015 r.) — <see cref="RenderReport"/>.
 /// </summary>
 public static class EvaluationSheetPdf
 {
     public static byte[] Render(TemplateSchema schema, string templateCode, IEnumerable<AnswerDto> answers, IReadOnlyList<SheetSignature> signatures)
     {
         var sheet = new SheetData(schema, answers, signatures);
-        return Document.Create(document => document.Page(page =>
+        return Form(SheetTitle(templateCode), column =>
+        {
+            if (templateCode == "first")
+            {
+                FirstSheet(column, sheet);
+            }
+            else
+            {
+                PeriodicSheet(column, sheet, isB: templateCode == "periodic-b");
+            }
+        });
+    }
+
+    /// <summary>
+    /// Formularz sprawozdania dotyczącego zadań realizowanych przez ocenianego w trakcie przepracowanego okresu
+    /// (załącznik nr 3 do rozporządzenia z 23.07.2015 r.): nazwa urzędu, dane ocenianego, termin, treść, podpis.
+    /// </summary>
+    public static byte[] RenderReport(ReportFormDto form, SheetSignature? signature) =>
+        Form("Formularz sprawozdania dotyczącego zadań realizowanych przez ocenianego w trakcie przepracowanego okresu", column =>
+        {
+            Title(column, [("FORMULARZ SPRAWOZDANIA DOTYCZĄCEGO ZADAŃ REALIZOWANYCH", null), ("PRZEZ OCENIANEGO W TRAKCIE PRZEPRACOWANEGO OKRESU", null)]);
+            LabelValueTable(column, [(("NAZWA URZĘDU", null), form.Office ?? "")]);
+            Block(column, "DANE OCENIANEGO", null, c =>
+                LabelValueTable(c,
+                [
+                    (("Imię", null), form.FirstName ?? ""),
+                    (("Nazwisko", null), form.LastName ?? ""),
+                    (("Komórka organizacyjna", null), form.Department ?? ""),
+                    (("Stanowisko pracy", null), form.Position ?? ""),
+                ]));
+            LabelValueTable(column,
+            [
+                (("Termin wyznaczony na złożenie sprawozdania dotyczącego zadań realizowanych przez ocenianego w trakcie przepracowanego okresu", null),
+                    form.PeriodFrom is null && form.PeriodTo is null ? "" : $"od {DateText(form.PeriodFrom)} – do {DateText(form.PeriodTo)}"),
+            ]);
+
+            // Bez ShowEntire: długa treść przechodzi na kolejne strony.
+            column.Item().SemanticHeading3().PaddingTop(6)
+                .Text(t => Bold(t, "SPRAWOZDANIE DOTYCZĄCE ZADAŃ REALIZOWANYCH PRZEZ OCENIANEGO W TRAKCIE PRZEPRACOWANEGO OKRESU", 1));
+            column.Item().Element(Cell).MinHeight(120).Text(form.Text);
+
+            column.Item().ShowEntire().PaddingTop(10).Table(table =>
+            {
+                SignatureColumns(table, 3);
+                SignatureRows(table, signature, withName: false, "podpis ocenianego");
+            });
+
+            Footnotes(column, ReportNotes);
+        });
+
+    private static string DateText(DateOnly? date) => date?.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture) ?? "";
+
+    /// <summary>A4 jak wzory z rozporządzeń, numeracja stron, metadane dostępności.</summary>
+    private static byte[] Form(string title, Action<ColumnDescriptor> content) =>
+        Document.Create(document => document.Page(page =>
         {
             page.Size(PageSizes.A4);
             page.Margin(1.5f, Unit.Centimetre);
@@ -30,14 +85,7 @@ public static class EvaluationSheetPdf
             page.Content().Column(column =>
             {
                 column.Spacing(6);
-                if (templateCode == "first")
-                {
-                    FirstSheet(column, sheet);
-                }
-                else
-                {
-                    PeriodicSheet(column, sheet, isB: templateCode == "periodic-b");
-                }
+                content(column);
             });
             page.Footer().SemanticIgnore().AlignCenter().Text(text =>
             {
@@ -45,8 +93,7 @@ public static class EvaluationSheetPdf
                 text.Span(" / ");
                 text.TotalPages();
             });
-        })).Accessible(SheetTitle(templateCode)).GeneratePdf();
-    }
+        })).Accessible(title).GeneratePdf();
 
     /// <summary>Tytuł w metadanych PDF (czytniki ekranu, karta przeglądarki) — nazwa arkusza z wzoru.</summary>
     private static string SheetTitle(string templateCode) => templateCode switch
@@ -693,6 +740,11 @@ public static class EvaluationSheetPdf
         "Pozytywną pierwszą ocenę należy przyznać ocenianemu, który łącznie spełnił następujące warunki: zaliczył egzamin ze służby przygotowawczej, chyba że nie dotyczył go obowiązek przystąpienia do tego egzaminu, złożył sprawozdanie w wyznaczonym terminie, uzyskał nie więcej niż jedną ocenę cząstkową w wysokości 3 punktów za postawę ocenianego, jego zaangażowanie i postępy w pracy, relacje ze współpracownikami oraz terminowość wykonywania zadań, uzyskał ocenę łączną nie niższą niż 5 punktów za postawę ocenianego, jego zaangażowanie i postępy w pracy, relacje ze współpracownikami oraz terminowość wykonywania zadań.",
         "W przypadku przyznania negatywnej pierwszej oceny uzasadnienie przyznanej oceny jest obowiązkowe, a w przypadku przyznania pozytywnej pierwszej oceny – fakultatywne. Uzasadnienie przyznanej oceny może polegać na ogólnym omówieniu oceny lub na szczegółowym odniesieniu się do wszystkich ocen cząstkowych albo tylko do niektórych z nich.",
         "Wnioski dotyczące rozwoju zawodowego ocenianego sporządza się fakultatywnie – tylko w przypadku przyznania pozytywnej pierwszej oceny. Określa się m.in. zakres wiedzy, która powinna być poszerzona, zakres umiejętności, które wymagają doskonalenia, oraz proponowane formy rozwoju zawodowego ocenianego.",
+    ];
+
+    private static readonly string[] ReportNotes =
+    [
+        "Należy opisać zadania z opisu stanowiska pracy i ewentualnie inne istotne zadania, które oceniany wykonywał w trakcie przepracowanego okresu, problemy, z którymi oceniany spotkał się przy wykonywaniu zadań, i sposób ich rozwiązania, a także zdobyte nowe umiejętności i wiedzę oraz wnioski dotyczące usprawnienia sposobu wykonywania zadań.",
     ];
 
     // ------------------------------------------------------------------ Dane arkusza
