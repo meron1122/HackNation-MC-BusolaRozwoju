@@ -170,6 +170,12 @@ function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
   if (msg.error) return <Warn title="Asystent jest chwilowo niedostępny"><p>{msg.content}</p></Warn>
   const p = parseReply(msg.content)
   const pick = (n: number) => onPick(active === n ? null : n)
+  // Odwołania spoza materiału (sprawdza backend) — osobno od źródeł, żeby nie wyglądały na potwierdzone.
+  const unverified = msg.unverified?.length ? (
+    <Warn title="Tych odwołań nie potwierdziłem w bazie wiedzy">
+      <p>{msg.unverified.join(', ')}. Sprawdź je w tekście przepisu, zanim oprzesz na nich decyzję.</p>
+    </Warn>
+  ) : null
   const avg = p.kind === 'answer' ? msg.content.match(/(?:średni\p{L}*|wynik\p{L}*)\s+(?:wynosi\s+|to\s+)?(\d)[,.](\d{1,2})/u) : null
 
   if (p.kind === 'notFound' || p.kind === 'unresolved') {
@@ -219,6 +225,7 @@ function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
       )}
       <Rich text={p.text} onFn={pick} active={active} />
       <SourceChips sources={p.sources} active={active} onPick={pick} />
+      {unverified}
       {inlinePreview && active && <SourcePreview parsed={p} n={active} mode={mode} onPick={onPick} onClose={() => onPick(null)} />}
     </AiFrame>
   )

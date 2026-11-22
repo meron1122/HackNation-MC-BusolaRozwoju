@@ -3,7 +3,7 @@ import { api, LOGOUT_EVENT } from '../api'
 
 /**
  * Jedna rozmowa z asystentem dla całej aplikacji: okno w rogu, zakładka „✦ Asystent” w kreatorze i strona „Asystent”
- * pokazują ten sam stan. Backend bez zmian: POST agent/chat { messages, context } → { reply, contextLabel }.
+ * pokazują ten sam stan. POST agent/chat { messages, context } → { reply, contextLabel, signature, unverified }.
  */
 
 /** Na co patrzy użytkownik. Backend dociąga dane encji sam, w zakresie uprawnień użytkownika. */
@@ -11,8 +11,11 @@ export type Screen = { page: string; evaluationId: number | null; employeeId: nu
 export type StepRef = { id: string; title: string } | null
 /** 'rules' = pytanie o zasady: do modelu nie idzie oceniana osoba ani pracownik z ekranu. 'context' = z kontekstem ekranu. */
 export type Mode = 'rules' | 'context'
-/** signature: podpis serwera pod odpowiedzią asystenta; bez niego backend odrzuca historię rozmowy. */
-export type Msg = { id: number; role: 'user' | 'assistant'; content: string; error?: boolean; signature?: string }
+/**
+ * signature: podpis serwera pod odpowiedzią asystenta; bez niego backend odrzuca historię rozmowy.
+ * unverified: odwołania (§ / art. / strony), których model nie miał w materiale — możliwa halucynacja, pokazujemy ostrzeżenie.
+ */
+export type Msg = { id: number; role: 'user' | 'assistant'; content: string; error?: boolean; signature?: string; unverified?: string[] }
 
 type State = {
   msgs: Msg[]
@@ -71,12 +74,12 @@ export async function ask(question: string, mode: Mode) {
   set({ msgs: [...state.msgs, history[history.length - 1]], busy: true })
   const mine = session
   try {
-    const r = await api<{ reply: string; contextLabel: string; signature: string }>('agent/chat', 'POST', {
+    const r = await api<{ reply: string; contextLabel: string; signature: string; unverified?: string[] }>('agent/chat', 'POST', {
       messages: history.slice(-19).map(({ role, content, signature }) => ({ role, content, signature })),
       context: contextFor(mode),
     })
     if (mine !== session) return
-    set({ msgs: [...state.msgs, { id: ++seq, role: 'assistant', content: r.reply, signature: r.signature }] })
+    set({ msgs: [...state.msgs, { id: ++seq, role: 'assistant', content: r.reply, signature: r.signature, unverified: r.unverified }] })
   } catch (e) {
     if (mine !== session) return
     set({ msgs: [...state.msgs, { id: ++seq, role: 'assistant', content: (e as Error).message, error: true }] })

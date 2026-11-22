@@ -24,7 +24,8 @@ public sealed class AgentController(AgentRunner agent, ScreenContextService scre
 
     public sealed record ChatRequest([Required, MinLength(1), MaxLength(20)] IReadOnlyList<ChatMessage> Messages, ScreenContext? Context = null);
 
-    public sealed record ChatResponse(string Reply, string ContextLabel, string Signature);
+    /// <param name="Unverified">Odwołania z odpowiedzi, których model nie dostał w materiale (możliwa halucynacja).</param>
+    public sealed record ChatResponse(string Reply, string ContextLabel, string Signature, IReadOnlyList<string> Unverified);
 
     public sealed record ContextResponse(string Label);
 
@@ -58,8 +59,8 @@ public sealed class AgentController(AgentRunner agent, ScreenContextService scre
         var screen = await screens.DescribeAsync(request.Context, ct);
         try
         {
-            var reply = await agent.RunAsync(request.Messages.Select(m => new LlmMessage(m.Role, m.Content)).ToList(), screen.Prompt, ct);
-            return new ChatResponse(reply, screen.Label, guard.Sign(userId, reply));
+            var (reply, unverified) = await agent.RunAsync(request.Messages.Select(m => new LlmMessage(m.Role, m.Content)).ToList(), screen.Prompt, ct);
+            return new ChatResponse(reply, screen.Label, guard.Sign(userId, reply), unverified);
         }
         catch (LlmUnavailableException e)
         {
