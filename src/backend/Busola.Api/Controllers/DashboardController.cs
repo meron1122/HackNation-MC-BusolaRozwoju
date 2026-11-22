@@ -68,11 +68,22 @@ public sealed class DashboardController(BusolaDbContext db, AccessScopeService a
             .ToListAsync(ct);
         var ids = members.Select(m => m.Id).ToList();
 
-        // Otwarta ocena, a gdy jej brak — ostatnia (np. zamknięta bez nowego cyklu).
+        // Najpilniejsza otwarta ocena (po sporządzeniu oceny są dwie: zapoznanie ze starą i nowy cykl — zapoznanie
+        // nie może zniknąć z „wymaga uwagi”), a gdy otwartej brak — ostatnia zamknięta.
         var rows = await EvaluationProgress.LoadAsync(db, db.Evaluations.Where(e => ids.Contains(e.EmployeeId)), Today, ct);
         var byEmployee = rows
             .GroupBy(r => r.EmployeeId)
-            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.Progress.IsFinal).ThenByDescending(r => r.EvaluationId).First().Progress);
+            .ToDictionary(g => g.Key, g =>
+            {
+                var open = g.Where(r => !r.Progress.IsFinal).ToList();
+                return open.Count == 0
+                    ? g.MaxBy(r => r.EvaluationId)!.Progress
+                    : open
+                        .OrderByDescending(r => EvaluationProgress.NeedsAttention(r.Progress, days))
+                        .ThenBy(r => r.Progress.DueTo ?? DateOnly.MaxValue)
+                        .ThenBy(r => r.EvaluationId)
+                        .First().Progress;
+            });
 
         var result = members.Select(m =>
         {

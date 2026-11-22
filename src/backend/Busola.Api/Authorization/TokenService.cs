@@ -14,8 +14,16 @@ public sealed class TokenService(BusolaDbContext db, UserManager<User> userManag
     {
         var roles = (await userManager.GetRolesAsync(user)).ToHashSet();
 
+        // Nazwa do wyświetlania: imię i nazwisko pracownika, a konto bez pracownika — e-mail.
+        var displayName = user.UserName!;
+
         if (user.EmployeeId is { } employeeId)
         {
+            displayName = await db.Employees
+                .Where(e => e.Id == employeeId)
+                .Select(e => e.FirstName + " " + e.LastName)
+                .SingleOrDefaultAsync(ct) ?? displayName;
+
             roles.Add(RoleNames.Employee);
             // Przełożony: ma podwładnych albo kieruje komórką organizacyjną.
             if (await db.Employees.AnyAsync(e => e.SupervisorId == employeeId, ct)
@@ -41,7 +49,7 @@ public sealed class TokenService(BusolaDbContext db, UserManager<User> userManag
             Claims = new Dictionary<string, object>
             {
                 [BusolaClaims.UserId] = user.Id,
-                [BusolaClaims.Name] = user.UserName!,
+                [BusolaClaims.Name] = displayName,
                 [BusolaClaims.Role] = roleList,
                 [BusolaClaims.Permission] = permissions,
                 [BusolaClaims.SecurityStamp] = user.SecurityStamp!,
