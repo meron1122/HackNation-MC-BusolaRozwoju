@@ -5,6 +5,7 @@ import { AiFrame, Compass, Info, ScaleBar, Spark, Warn } from '../v2'
 import { DOCS, parseReply, type Parsed, type SourceRef } from './parse'
 import { ask, contextFor, hasEntity, resetChat, useAssistant, type Mode, type Msg } from './store'
 import './assistant.css'
+import { extractTours, startTour, toursFor, type Tour } from './tours'
 
 export type Variant = 'page' | 'panel' | 'pop'
 
@@ -164,11 +165,27 @@ export function SourcePreview({ parsed, n, onClose, onPick, mode }: {
   )
 }
 
+/** Prowadzenia zaproponowane przez asystenta: klik przyciemnia ekran i prowadzi krok po kroku. */
+function TourButtons({ tours }: { tours: Tour[] }) {
+  if (!tours.length) return null
+  return (
+    <div className="asst-tours">
+      {tours.map((t) => (
+        <button key={t.id} type="button" className="secondary" onClick={() => startTour(t.id)}>
+          <span aria-hidden="true">➜</span> Pokaż mi: {t.title}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
   msg: Msg; last: boolean; mode: Mode; active: number | null; onPick: (n: number | null) => void; inlinePreview: boolean
 }) {
   if (msg.error) return <Warn title="Asystent jest chwilowo niedostępny"><p>{msg.content}</p></Warn>
-  const p = parseReply(msg.content)
+  const { text: replyText, tours } = extractTours(msg.content)
+  const p = parseReply(replyText)
+  const tourButtons = <TourButtons tours={tours} />
   const pick = (n: number) => onPick(active === n ? null : n)
   // Odwołania spoza materiału (sprawdza backend) — osobno od źródeł, żeby nie wyglądały na potwierdzone.
   const unverified = msg.unverified?.length ? (
@@ -188,6 +205,7 @@ function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
           <div>
             <h3>{p.kind === 'notFound' ? 'Nie znalazłem tego w bazie wiedzy' : 'Baza tego nie rozstrzyga'}</h3>
             <Rich text={body.replace(/^Nie znalazłem[^.]*\.\s*/i, '')} />
+            {tourButtons}
             {p.sources.length > 0 && (
               <div className="asst-see">
                 <span>Zobacz też</span>
@@ -225,6 +243,7 @@ function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
       )}
       <Rich text={p.text} onFn={pick} active={active} />
       <SourceChips sources={p.sources} active={active} onPick={pick} />
+      {tourButtons}
       {unverified}
       {inlinePreview && active && <SourcePreview parsed={p} n={active} mode={mode} onPick={onPick} onClose={() => onPick(null)} />}
     </AiFrame>
@@ -298,6 +317,8 @@ export function AssistantChat({ variant, autoFocus = false }: { variant: Variant
   const preview = variant === 'page' && activeMsg && active ? parseReply(activeMsg.content) : null
   const chips = (step && STEP_CHIPS[step.id]) ?? PAGE_CHIPS[screen.evaluationId ? 'evaluations' : screen.page] ?? DEFAULT_CHIPS
   const hello = vocative(userName)
+  // Proaktywnie: na starcie rozmowy prowadzenie po ekranie, który użytkownik właśnie ogląda.
+  const tourHere = toursFor(screen.evaluationId ? 'evaluations' : screen.page, step?.title ?? null)[0]
 
   const toggle = entity && (
     <div className="asst-mode" role="group" aria-label="Tryb pytania">
@@ -347,6 +368,9 @@ export function AssistantChat({ variant, autoFocus = false }: { variant: Variant
               <Compass size={56} state="settle" />
               <p className="asst-start-title">W czym pomóc{hello ? `, ${hello}` : ''}?</p>
               <div className="asst-chips">
+                {tourHere && (
+                  <button type="button" className="asst-chip" onClick={() => startTour(tourHere.id)}>➜ Poprowadź mnie: {tourHere.title}</button>
+                )}
                 {chips.map((c) => <button key={c} type="button" className="asst-chip" onClick={() => { if (entity) setMode('context'); void ask(c, entity ? 'context' : effectiveMode) }}>{c}</button>)}
               </div>
             </div>

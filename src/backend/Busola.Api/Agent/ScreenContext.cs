@@ -76,6 +76,7 @@ public sealed class ScreenContextService(
             prompt.Append('\n').Append((await DescribeEmployeeAsync(me, myEmployeeId, ct)).Text);
         }
 
+        prompt.Append('\n').Append(Tours.Describe(screen));
         return new ScreenDescription(label, prompt.ToString());
     }
 

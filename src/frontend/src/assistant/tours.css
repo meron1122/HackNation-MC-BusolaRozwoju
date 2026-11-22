@@ -1,0 +1,11 @@
+/* Dymek prowadzenia (driver.js) w barwach Busoli. */
+.driver-popover.busola-tour { border-radius: var(--radius-card, 16px); color: var(--text); max-width: 340px; padding: 18px 20px; }
+.driver-popover.busola-tour .driver-popover-title { font-size: 17px; font-weight: 700; }
+.driver-popover.busola-tour .driver-popover-description { font-size: 15px; line-height: 1.45; color: var(--text); }
+.driver-popover.busola-tour .driver-popover-progress-text { color: var(--muted); }
+.driver-popover.busola-tour .driver-popover-footer button {
+  text-shadow: none; border-radius: 10px; padding: 6px 14px; font-size: 14px; font-weight: 600;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+}
+.driver-popover.busola-tour .driver-popover-footer .driver-popover-next-btn { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.asst-tours { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

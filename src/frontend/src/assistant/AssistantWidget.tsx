@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ASK_ASSISTANT_EVENT } from '../v2'
 import { AssistantChat } from './AssistantChat'
+import { TOUR_STARTED_EVENT } from './tours'
 import { ask, setScreen, useAssistant, type Screen } from './store'
 
 export { setAssistantStep, type Screen } from './store'
@@ -33,9 +34,12 @@ export function AssistantWidget({ screen, userName = '' }: { screen: Screen; use
       show()
       if (q) void ask(q, 'rules')
     }
+    const hide = () => setOpen(false)
     window.addEventListener(OPEN_ASSISTANT_EVENT, show)
     window.addEventListener(ASK_ASSISTANT_EVENT, askIt)
+    window.addEventListener(TOUR_STARTED_EVENT, hide)
     return () => {
+      window.removeEventListener(TOUR_STARTED_EVENT, hide)
       window.removeEventListener(OPEN_ASSISTANT_EVENT, show)
       window.removeEventListener(ASK_ASSISTANT_EVENT, askIt)
     }

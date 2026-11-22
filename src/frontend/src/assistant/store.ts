@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import { api, LOGOUT_EVENT } from '../api'
+import { asksForTour, extractTours, startTour } from './tours'
 
 /**
  * Jedna rozmowa z asystentem dla całej aplikacji: okno w rogu, zakładka „✦ Asystent” w kreatorze i strona „Asystent”
@@ -80,6 +81,9 @@ export async function ask(question: string, mode: Mode) {
     })
     if (mine !== session) return
     set({ msgs: [...state.msgs, { id: ++seq, role: 'assistant', content: r.reply, signature: r.signature, unverified: r.unverified }] })
+    // „Pokaż mi…” — prowadzenie startuje od razu; inaczej zostaje przyciskiem w odpowiedzi.
+    const tour = extractTours(r.reply).tours[0]
+    if (tour && asksForTour(q)) startTour(tour.id)
   } catch (e) {
     if (mine !== session) return
     set({ msgs: [...state.msgs, { id: ++seq, role: 'assistant', content: (e as Error).message, error: true }] })
