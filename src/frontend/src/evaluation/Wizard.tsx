@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../api'
-import { Avatar } from '../Avatar'
-import { AssistantPanel } from '../assistant/AssistantPanel'
+import { Person } from '../Person'
+import { setAssistantStep } from '../assistant/AssistantWidget'
 import { PdfButton, type Step, type StepProps } from './common'
 import { canSignNow } from './data'
 import { AcknowledgementStep, ResultStep, ReviewStep, SectionStep } from './FinalSteps'
@@ -194,6 +194,11 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
   }, [fetchAll, apply])
 
   const steps = useMemo(() => (detail ? buildSteps(detail, check) : []), [detail, check])
+  // Asystent (prawy dolny róg) dostaje bieżący krok jako część kontekstu ekranu.
+  const shown = steps.find((s) => s.id === stepId) ?? steps[0]
+  const [shownId, shownTitle] = [shown?.id, shown?.title]
+  useEffect(() => setAssistantStep(shownId && shownTitle ? { id: shownId, title: shownTitle } : null), [shownId, shownTitle])
+  useEffect(() => () => setAssistantStep(null), [])
 
   if (!detail) return error ? <p role="alert" className="error">{error}</p> : <p>Ładowanie…</p>
 
@@ -207,14 +212,11 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
   const current = detail.stages.find((s) => s.key === detail.currentStageKey)
 
   return (
-    <section className={detail.isOwn ? 'wizard no-assistant' : 'wizard'}>
+    <section className="wizard">
       <aside className="wizard-nav card">
-        <div className="avatar-row">
-          <Avatar path={`employees/${detail.employeeId}/avatar`} name={detail.employeeName} size={36} />
-          <div>
-            <strong>{detail.employeeName}</strong>
-            <p className="muted small">{kindLabel(detail.templateCode)}</p>
-          </div>
+        <div className="wizard-person">
+          <Person id={detail.employeeId} name={detail.employeeName} size="xl" stacked
+            detail={<>{[detail.employeePosition, detail.employeeDepartment].filter(Boolean).join(' · ')}<br />{kindLabel(detail.templateCode)}</>} />
         </div>
         <nav aria-label="Kroki oceny">
           {groups.map((group) => (
@@ -239,6 +241,7 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
               <p className="muted small">Termin · {detail.phase}</p>
               <strong>{current.dueTo ? `${current.dueFrom ? `${fmtDate(current.dueFrom)} – ` : 'do '}${fmtDate(current.dueTo)}` : current.title}</strong>
               <p className={current.overdue ? 'error small' : 'muted small'}>{daysLabel(daysUntil(current.dueTo), current.overdue)}</p>
+              {current.dueNote && <p className="muted small">{current.dueNote}</p>}
             </>
           ) : <strong>{detail.phase}</strong>}
         </div>
@@ -254,7 +257,6 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
         {error && <p role="alert" className="error">{error}</p>}
         <StepView key={step.id} step={step} props={props} />
       </div>
-      {!detail.isOwn && <AssistantPanel key={step.id} stepId={step.id} />}
     </section>
   )
 }

@@ -7,7 +7,8 @@ public sealed class SearchKnowledgeTool(IKnowledgeBase knowledge) : IAgentTool
     public string Name => "search_knowledge";
 
     public string Description =>
-        "Przeszukuje bazę wiedzy systemu: zasady, procedury, proces raportów, FAQ. Zwraca pasujące fragmenty z nazwą dokumentu.";
+        "Przeszukuje bazę wiedzy: rozporządzenia o ocenie okresowej (2016) i pierwszej ocenie (2015), ustawę o służbie cywilnej "
+        + "oraz Q&A z poradników KPRM. Wyszukiwanie semantyczne: pytaj pełnym zdaniem. Zwraca fragmenty z dokumentem i paragrafem/artykułem.";
 
     public string Parameters => """
         {
@@ -19,13 +20,13 @@ public sealed class SearchKnowledgeTool(IKnowledgeBase knowledge) : IAgentTool
 
     public string? RequiredPermission => null;
 
-    public Task<string> ExecuteAsync(JsonElement arguments, CancellationToken ct)
+    public async Task<string> ExecuteAsync(JsonElement arguments, CancellationToken ct)
     {
         var query = arguments.TryGetProperty("query", out var q) ? q.GetString() ?? "" : "";
-        var results = knowledge.Search(query, limit: 5);
+        var results = await knowledge.SearchAsync(query, limit: 6, ct);
 
-        return Task.FromResult(results.Count == 0
+        return results.Count == 0
             ? "Brak pasujących fragmentów w bazie wiedzy."
-            : string.Join("\n\n", results.Select(r => $"## {r.Title} (źródło: {r.Source})\n{r.Text}")));
+            : string.Join("\n\n", results.Select(r => $"## {r.Source} — {r.Title}\n{r.Text}"));
     }
 }

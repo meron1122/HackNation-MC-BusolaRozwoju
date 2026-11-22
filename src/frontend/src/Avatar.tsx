@@ -8,12 +8,14 @@ type Props = {
   size?: number
   /** Zmiana wymusza ponowne pobranie (po wgraniu nowego zdjęcia). */
   version?: number
+  /** Nazwisko jest obok — czytnik ekranu nie musi go słyszeć dwa razy. */
+  decorative?: boolean
 }
 
 const initials = (name: string) =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]!.toUpperCase()).join('')
 
-export function Avatar({ path, name, size = 32, version = 0 }: Props) {
+export function Avatar({ path, name, size = 32, version = 0, decorative = false }: Props) {
   const [url, setUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -37,7 +39,9 @@ export function Avatar({ path, name, size = 32, version = 0 }: Props) {
   const style = { width: size, height: size, fontSize: size * 0.4 }
   const shown = path ? url : null
   return shown ? (
-    <img className="avatar" src={shown} alt={name} style={style} />
+    <img className="avatar" src={shown} alt={decorative ? '' : name} style={style} />
+  ) : decorative ? (
+    <span className="avatar initials" aria-hidden="true" style={style}>{initials(name)}</span>
   ) : (
     <span className="avatar initials" role="img" aria-label={name} style={style}>{initials(name)}</span>
   )

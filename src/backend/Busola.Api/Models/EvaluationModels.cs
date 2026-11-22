@@ -49,7 +49,9 @@ public sealed record EvaluationDetailDto(
     string? UnitHeadName,
     bool CanEditSelfAssessment,
     IReadOnlyList<AnswerDto> Prefill,
-    IReadOnlyList<SignatureSlotDto> SignatureSlots);
+    IReadOnlyList<SignatureSlotDto> SignatureSlots,
+    string? EmployeePosition = null,
+    string? EmployeeDepartment = null);
 
 /// <summary>
 /// Pole podpisu: czy już podpisane i czy etap/termin pozwala je teraz podpisać (niezależnie od tego, kto podpisuje —
@@ -151,6 +153,7 @@ public sealed record SendRemindersRequest(IReadOnlyList<int> EvaluationIds, stri
 
 public sealed record SendRemindersResponse(int Sent, IReadOnlyList<int> Skipped);
 
+/// <summary>DueNote: skąd termin, gdy nie wynika wprost z szablonu (przedłużenie o nieobecność, nowy termin z decyzji).</summary>
 public sealed record StageDto(
     string Key,
     string Title,
@@ -159,7 +162,8 @@ public sealed record StageDto(
     DateOnly? DueFrom,
     DateOnly? DueTo,
     DateOnly? CompletedOn,
-    bool Overdue);
+    bool Overdue,
+    string? DueNote = null);
 
 /// <summary>Wartość pola; wszystkie wartości puste = usunięcie wpisu.</summary>
 public sealed record AnswerDto(

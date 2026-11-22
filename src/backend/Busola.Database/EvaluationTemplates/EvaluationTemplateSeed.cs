@@ -31,7 +31,10 @@ internal static class EvaluationTemplateSeed
         // first v4: podpis ocenianego pod sprawozdaniem (formularz z załącznika nr 3), „sprawozdanie złożone
         // w wyznaczonym terminie” wyliczane z etapu sprawozdania (prefill report.onTime), domyślny termin sprawozdania
         // od 7. do 10. miesiąca (§ 6 ust. 1: co najmniej 7 miesięcy pracy) — przełożony wyznacza go na rozmowie wstępnej.
-        Load(10, "first", 4, EvaluationKind.First, active: true),
+        Load(10, "first", 4, EvaluationKind.First, active: false),
+
+        // first v5: termin sprawozdania po upływie 8 miesięcy od nawiązania stosunku pracy (§ 4 ust. 1), nie od 7.
+        Load(11, "first", 5, EvaluationKind.First, active: true),
     ];
 
     private static EvaluationTemplate Load(int id, string code, int version, EvaluationKind kind, bool active)

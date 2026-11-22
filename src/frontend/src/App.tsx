@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AccountPage } from './Account'
 import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
-import { AssistantPage } from './AssistantPage'
-import { Avatar } from './Avatar'
+import { AssistantWidget } from './assistant/AssistantWidget'
+import { Person } from './Person'
 import { CrudPage, ServiceName, type Column, type Field, type Row } from './Crud'
 import { TeamDashboard, TeamPage } from './Dashboard'
 import { DepartmentHead } from './DepartmentHead'
@@ -19,7 +19,6 @@ import { Logo } from './Logo'
 import { ProfilePage, type ProfileTab } from './Profile'
 import { UserMenu } from './UserMenu'
 import { UsersPage } from './Users'
-import { SHOW_PAGE_EVENT } from './hifi-helpers'
 
 // shortcut: lista pracowników to pierwsze 200 rekordów (API stronicuje); przy większej bazie dodać stronicowanie
 const EMPLOYEES_QUERY = 'pageSize=200'
@@ -58,7 +57,7 @@ function FirstEvaluationNote() {
     <>
       <p>
         Zaznacz, jeśli pracownik podlega pierwszej ocenie — system założy jej cykl od daty zatrudnienia
-        (rozmowa wstępna do 21 dni, sprawozdanie w terminie wyznaczonym przez przełożonego — domyślnie 7.–10. mies.,
+        (rozmowa wstępna do 21 dni, sprawozdanie w terminie wyznaczonym przez przełożonego — domyślnie 8.–10. mies.,
         ocena w 8.–11. mies.). Bez zaznaczenia od razu
         rusza cykl oceny okresowej (24 mies.).
       </p>
@@ -86,12 +85,41 @@ const employeeCreatedNotice = (created: { email: string; temporaryPassword: stri
   </p>
 )
 
+const absenceFields: Field[] = [
+  {
+    name: 'employeeId',
+    label: 'Pracownik',
+    options: { path: `employees?${EMPLOYEES_QUERY}`, label: (e) => `${e.lastName} ${e.firstName}` },
+  },
+  { name: 'startDate', label: 'Od', type: 'date' },
+  { name: 'endDate', label: 'Do', type: 'date', optional: true, note: 'Puste — nieobecność trwa.' },
+  { name: 'reasonId', label: 'Powód', options: { path: 'absence-reasons', label: (r) => r.name } },
+]
+
+const ABSENCE_KINDS: Record<string, string> = {
+  Justified: 'usprawiedliwiona',
+  OfficialDuty: 'obowiązki poza miejscem pracy',
+  Unjustified: 'nieusprawiedliwiona',
+}
+
+/** Dni od–do włącznie; dla trwającej — do dziś. */
+const absenceDays = (a: Row) =>
+  Math.max(0, Math.floor(((a.endDate ? Date.parse(a.endDate) : Date.now()) - Date.parse(a.startDate)) / 86_400_000) + 1)
+
+const absenceColumns = (nav: Nav): Column[] => [
+  ['Pracownik', (a) => <button className="link person-link" onClick={() => nav.showProfile(a.employeeId)}>{a.employeeName}</button>],
+  ['Od', (a) => fmtDate(a.startDate)],
+  ['Do', (a) => (a.endDate ? fmtDate(a.endDate) : <strong>trwa</strong>)],
+  ['Dni', (a) => absenceDays(a)],
+  ['Powód', (a) => a.reasonName],
+  ['Rodzaj', (a) => <span className="muted small">{ABSENCE_KINDS[a.kind] ?? a.kind}</span>],
+]
+
 const employeeColumns = (nav: Nav): Column[] => [
-  ['Zdjęcie', (e) => (
-    <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={`${e.firstName} ${e.lastName}`} size={28} />
+  ['Pracownik', (e) => (
+    <Person id={e.id} name={`${e.firstName} ${e.lastName}`} detail={e.positionName} hasAvatar={e.hasAvatar}
+      onOpen={() => nav.showProfile(e.id)} />
   )],
-  ['Nazwisko i imię', (e) => <button className="link person-link" onClick={() => nav.showProfile(e.id)}>{e.lastName} {e.firstName}</button>],
-  ['Stanowisko', (e) => e.positionName ?? '—'],
   ['E-mail', (e) => e.email ?? '—'],
   ['Urodzony', (e) => fmtDate(e.dateOfBirth)],
   ['Zatrudniony', (e) => fmtDate(e.hireDate)],
@@ -182,13 +210,6 @@ const PAGES: Page[] = [
     render: (_, nav) => <MyEvaluationPage onOpen={nav.showEvaluation} />,
   },
   {
-    // Po stronach startowych ról (pierwsza widoczna strona = start), żeby nie zastąpić ich asystentem. W13: asystent zasad w pełnym widoku (przełożony, HR, oceniany). Odpowiada z bazy wiedzy, bez danych pracowników.
-    key: 'assistant',
-    label: 'Asystent',
-    visible: (s) => isSupervisor(s) || can(s, 'remind_evaluations') || s.roles.includes('Employee'),
-    render: () => <AssistantPage />,
-  },
-  {
     // Terminy etapów to zadania prowadzących ocenę (przełożony, HR), nie ocenianego.
     key: 'deadlines',
     label: 'Terminy',
@@ -202,13 +223,24 @@ const PAGES: Page[] = [
     render: (s, nav) => <EvaluationsPage canAdd={can(s, 'add_evaluation')} openId={nav.openEvaluation} onOpen={nav.showEvaluation} />,
   },
   {
+    // Kartoteka dla kadr; przełożonemu wystarczy „Mój zespół”, pracownikowi własny profil.
     key: 'employees',
     label: 'Pracownicy',
-    visible: (s) => can(s, 'read_employees'),
+    visible: (s) => can(s, 'add_employee') || can(s, 'edit_employee'),
     render: (s, nav) => (
       <CrudPage title="Pracownicy" path="employees" query={EMPLOYEES_QUERY} fields={employeeFields} columns={employeeColumns(nav)}
         canAdd={can(s, 'add_employee')} canEdit={can(s, 'edit_employee')} canDelete={can(s, 'delete_employee')}
         createdNotice={employeeCreatedNotice} />
+    ),
+  },
+  {
+    // Nieobecności wszystkich pracowników w zakresie kadr; własne każdy widzi w profilu.
+    key: 'absences',
+    label: 'Nieobecności',
+    visible: (s) => can(s, 'edit_employee'),
+    render: (s, nav) => (
+      <CrudPage title="Nieobecności" path="absences" fields={absenceFields} columns={absenceColumns(nav)}
+        canAdd={can(s, 'edit_employee')} canEdit={can(s, 'edit_employee')} canDelete={can(s, 'edit_employee')} />
     ),
   },
   {
@@ -304,17 +336,6 @@ export default function App() {
     return () => window.removeEventListener('popstate', pop)
   }, [])
 
-  // „Zapytaj asystenta” z pulpitu i „Mojej oceny”: przejście na stronę przez zdarzenie (wpis w historii jak przy go()).
-  useEffect(() => {
-    const show = (e: Event) => {
-      const v: View = { ...(history.state?.pageKey ? history.state : START_VIEW), pageKey: String((e as CustomEvent).detail), openEvaluation: null, evaluationReturn: null }
-      history.pushState(v, '')
-      setView(v)
-    }
-    window.addEventListener(SHOW_PAGE_EVENT, show)
-    return () => window.removeEventListener(SHOW_PAGE_EVENT, show)
-  }, [])
-
   useEffect(() => {
     const logout = () => setTokenState(null)
     window.addEventListener(LOGOUT_EVENT, logout)
@@ -401,6 +422,11 @@ export default function App() {
           <EmptyState title="Nie masz jeszcze dostępu do żadnego modułu">Poproś administratora o nadanie roli, a moduły pojawią się w menu.</EmptyState>
         )}
       </main>
+      <AssistantWidget screen={{
+        page: onMyProfile ? MY_PROFILE_PAGE : onProfile ? PROFILE_PAGE : page?.key ?? '',
+        evaluationId: page?.key === 'evaluations' ? openEvaluation : null,
+        employeeId: onProfile ? profileId : null,
+      }} />
     </>
   )
 }

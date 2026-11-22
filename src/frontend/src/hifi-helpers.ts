@@ -49,12 +49,3 @@ export function waitsFor(p: Progress): string {
   return 'przełożony'
 }
 
-/**
- * Przejście do strony „Asystent” z przycisku na stronie. App nie przekazuje stronom zmiany zakładki,
- * więc klikamy zakładkę w nagłówku (ta sama akcja co użytkownik).
- */
-/** Przejście na stronę Asystent: App nasłuchuje zdarzenia i zmienia stronę (bez klikania w nawigację). */
-export const SHOW_PAGE_EVENT = 'busola-show-page'
-export function goToAssistant() {
-  window.dispatchEvent(new CustomEvent(SHOW_PAGE_EVENT, { detail: 'assistant' }))
-}

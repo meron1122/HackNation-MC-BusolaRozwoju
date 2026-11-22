@@ -32,7 +32,36 @@ export type Schema = {
 
 
 export type Answer = { fieldKey: string; itemKey: string | null; valueText: string | null; valueNumber: number | null; valueDate: string | null; valueDateTo: string | null }
-export type Stage = { key: string; title: string; status: string; optional: boolean; dueFrom: string | null; dueTo: string | null; completedOn: string | null; overdue: boolean }
+/** dueNote: skąd termin, gdy nie wynika z szablonu (przedłużenie o nieobecność z art. 81 ust. 7, nowy termin z decyzji). */
+export type Stage = {
+  key: string; title: string; status: string; optional: boolean; dueFrom: string | null; dueTo: string | null; completedOn: string | null; overdue: boolean
+  dueNote?: string | null
+}
+
+/** kind: Justified (usprawiedliwiona), OfficialDuty (obowiązki poza miejscem pracy), Unjustified. endDate null = trwa. */
+export type Absence = { id: number; startDate: string; endDate: string | null; reasonId: number; reasonName: string; kind: string }
+export type AbsenceReason = { id: number; name: string; kind: string }
+
+export type TermChange = {
+  id: number; kind: 'ReportTerm' | 'EvaluationTerm' | 'ContractExtension'; stageKey: string; legalRef: string
+  oldFrom: string | null; oldTo: string | null; newFrom: string | null; newTo: string | null; contractEnd: string | null
+  reason: string; changedByName: string; changedOn: string; hasNotice: boolean
+}
+
+/** Terminy oceny a nieobecności (GET evaluations/{id}/terms). */
+export type EvaluationTerms = {
+  absences: Absence[]
+  changes: TermChange[]
+  /** § 5 ust. 1: dotychczasowy koniec terminu sprawozdania + dni nieobecności w terminie; latest — koniec okresu oceny (§ 5 ust. 3). */
+  reportSuggestion: { from: string | null; to: string; absenceDays: number; absences: string[]; latest: string | null } | null
+  /** Art. 35 ust. 4: usprawiedliwione nieobecności w pierwszych 12 miesiącach. */
+  firstYear: { justifiedDays: number; longContinuous: boolean; threshold: boolean } | null
+  contractEnd: string | null
+  canChangeReportTerm: boolean
+  canExtendContract: boolean
+  canChangeEvaluationTerm: boolean
+  evaluationTermEarliest: string | null
+}
 export type Signature = { id: number; fieldKey: string; role: string; signerName: string; signedOn: string; place: string | null; hasImage: boolean }
 export type CriterionScoring = {
   key: string; label: string; ratedIndicators: number; totalIndicators: number
@@ -46,6 +75,8 @@ export type Detail = {
   stages: Stage[]; answers: Answer[]; signatures: Signature[]; canEdit: boolean; isOwn: boolean
   templateCode: string; phase: string; currentStageKey: string | null; lockedSections: string[]
   scoring: Scoring | null; previous: Previous | null; unitHeadName: string | null; canEditSelfAssessment: boolean
+  /** Kim jest oceniany: stanowisko i komórka (do nagłówka z twarzą). */
+  employeePosition?: string | null; employeeDepartment?: string | null
   /**
    * Podpowiedzi z kartoteki dla pól bez zapisu (osoby: imię, nazwisko, wydział, stanowisko; nazwa urzędu; data zatrudnienia).
    * Backend traktuje je w /check jako wypełnione i zapisuje przy zamknięciu etapu. Brak pola = starsze API.

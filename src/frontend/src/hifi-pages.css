@@ -31,15 +31,12 @@
 }
 .hifi-task:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(31, 42, 90, .08); border-color: var(--field-border, #7d869d); }
 .hifi-task-main { flex: 1 1 280px; display: grid; gap: 6px; min-width: 0; justify-items: start; }
-.hifi-task-who { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; }
-.hifi-task-who strong { font-size: 17px; }
+.hifi-task-who { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
 .hifi-why { margin: 0; color: var(--muted); font-size: 15px; }
 .hifi-when { font-size: 17px; white-space: nowrap; }
 .hifi-team { list-style: none; margin: 0; padding: 0; }
-.hifi-team li { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--border); }
-.hifi-team-who { display: grid; justify-items: start; gap: 0; min-width: 0; }
-.hifi-team .person-link { padding: 0; font-size: 16px; font-weight: 550; }
-.hifi-path { white-space: nowrap; }
+.hifi-team li { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; padding: 14px 0; border-top: 1px solid var(--border); }
+.hifi-team-open { padding: 0; text-align: right; }
 .hifi-team-status { margin-left: auto; text-align: right; }
 .hifi-legend { margin-top: 4px; }
 
@@ -81,15 +78,6 @@
 .hifi-toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ---------- Asystent ---------- */
-.hifi-assistant { max-width: 880px; width: 100%; margin-inline: auto; gap: 18px; }
-.hifi-kb p { margin: 0; }
-.hifi-suggest { display: grid; gap: 10px; }
-.hifi-assistant .assistant-chip { font-size: 14.5px; padding: 8px 14px; }
-.hifi-feed { display: grid; gap: 12px; }
-.hifi-feed .bubble-a { background: var(--surface); }
-.hifi-ask-bar { position: sticky; bottom: 0; display: grid; gap: 6px; padding: 12px 0 16px; background: var(--bg); }
-.hifi-ask-bar .assistant-ask { background: var(--surface); }
-.hifi-ask-bar p { margin: 0; }
 
 /* ---------- Moja ocena ---------- */
 .hifi-my { max-width: 960px; }

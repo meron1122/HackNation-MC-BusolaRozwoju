@@ -64,7 +64,7 @@ public sealed class DashboardController(BusolaDbContext db, AccessScopeService a
         var members = await db.Employees
             .Where(e => e.SupervisorId == me.Id)
             .OrderBy(e => e.LastName).ThenBy(e => e.FirstName)
-            .Select(e => new { e.Id, e.FirstName, e.LastName })
+            .Select(e => new { e.Id, e.FirstName, e.LastName, PositionName = e.Position != null ? e.Position.Name : null })
             .ToListAsync(ct);
         var ids = members.Select(m => m.Id).ToList();
 
@@ -89,7 +89,7 @@ public sealed class DashboardController(BusolaDbContext db, AccessScopeService a
         {
             var progress = byEmployee.GetValueOrDefault(m.Id);
             return new TeamMemberDto(m.Id, m.FirstName, m.LastName,
-                progress is not null && EvaluationProgress.NeedsAttention(progress, days), progress);
+                progress is not null && EvaluationProgress.NeedsAttention(progress, days), progress, m.PositionName);
         }).ToList();
 
         return new TeamDashboardDto(me.DepartmentName, result.Count, result);

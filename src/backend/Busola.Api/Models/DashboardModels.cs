@@ -22,7 +22,7 @@ public sealed record LastReminderDto(DateTimeOffset SentAt, string SentByName, s
 /// NeedsAttention: po terminie, termin w ciągu `days` dni albo etap bez terminu, który trzeba zrobić niezwłocznie
 /// (zapoznanie z oceną — § 12 ust. 1 / § 11 ust. 1). Evaluation = otwarta ocena, a gdy jej brak — ostatnia.
 /// </summary>
-public sealed record TeamMemberDto(int EmployeeId, string FirstName, string LastName, bool NeedsAttention, EvaluationProgressDto? Evaluation);
+public sealed record TeamMemberDto(int EmployeeId, string FirstName, string LastName, bool NeedsAttention, EvaluationProgressDto? Evaluation, string? PositionName = null);
 
 public sealed record TeamDashboardDto(string? DepartmentName, int Count, IReadOnlyList<TeamMemberDto> Members);
 

@@ -5,9 +5,10 @@ import { daysLabel, fmtDate, plural } from './evaluation/types'
 import { deadlineReason } from './hifi-helpers'
 import './hifi-pages.css'
 import { Icon } from './Icon'
+import { Person } from './Person'
 
 type Deadline = {
-  evaluationId: number; employeeName: string; templateTitle: string; stageKey: string; stageTitle: string
+  evaluationId: number; employeeId: number; employeeName: string; templateTitle: string; stageKey: string; stageTitle: string
   dueFrom: string | null; dueTo: string; daysLeft: number; overdue: boolean
 }
 type WithoutEvaluation = { employeeId: number; employeeName: string; hireDate: string; subjectToFirstEvaluation: boolean }
@@ -57,7 +58,7 @@ export function DeadlinesPage({ onOpen }: { onOpen: (evaluationId: number) => vo
                       </div>
                       {reason && <div className="muted small">{reason}</div>}
                     </td>
-                    <td><strong>{r.employeeName}</strong></td>
+                    <td><Person id={r.employeeId} name={r.employeeName} /></td>
                     <td>{r.stageTitle}</td>
                     <td>{r.templateTitle}</td>
                     <td className="hifi-action">
@@ -93,7 +94,8 @@ function WithoutEvaluationList() {
       <ul>
         {rows.map((r) => (
           <li key={r.employeeId}>
-            {r.employeeName} <span className="muted">— data zatrudnienia {fmtDate(r.hireDate)}{r.subjectToFirstEvaluation ? ', podlega pierwszej ocenie' : ''}</span>
+            <Person id={r.employeeId} name={r.employeeName}
+              detail={`zatrudnienie ${fmtDate(r.hireDate)}${r.subjectToFirstEvaluation ? ' · podlega pierwszej ocenie' : ''}`} />
           </li>
         ))}
       </ul>

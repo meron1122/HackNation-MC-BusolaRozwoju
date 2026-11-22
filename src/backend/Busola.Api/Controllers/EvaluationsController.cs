@@ -124,6 +124,7 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
 
         var evaluation = await EvaluationWorkflow.StartAsync(db, employee, template.Code, start, ct);
         await db.SaveChangesAsync(ct);
+        await AbsenceDeadlines.RecalculateAsync(db, employee.Id, ct);
 
         return CreatedAtAction(nameof(Get), new { id = evaluation.Id }, (await LoadDetailAsync(evaluation.Id, scope, ct))!);
     }
@@ -317,6 +318,7 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
         EvaluationWorkflow.Complete(schema, evaluation, stage, request.CompletedOn);
         EvaluationWorkflow.ApplyDeadlinesFromAnswers(schema, evaluation, stageKey, new AnswerSet(evaluation.Answers.Select(ToDto)));
         await db.SaveChangesAsync(ct);
+        await AbsenceDeadlines.RecalculateAsync(db, evaluation.EmployeeId, ct);
 
         if (stageKey == "evaluation")
         {
@@ -447,6 +449,7 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
         var templateCode = await EvaluationWorkflow.PeriodicTemplateCodeAsync(db, finished.EmployeeId, ct);
         await EvaluationWorkflow.StartAsync(db, finished.Employee, templateCode, start, ct);
         await db.SaveChangesAsync(ct);
+        await AbsenceDeadlines.RecalculateAsync(db, finished.EmployeeId, ct);
     }
 
     /// <summary>
@@ -633,6 +636,7 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             evaluation.Stages = EvaluationWorkflow.CreateStages(newSchema, start);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
+            await AbsenceDeadlines.RecalculateAsync(db, evaluation.EmployeeId, ct);
         }
 
         var scope = await access.ResolveAsync(Permissions.ReadEvaluations, ct);
@@ -801,7 +805,8 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             .Select(x => new StageDto(
                 x.definition.Key, x.definition.Title, x.stage!.Status.ToString(), x.definition.Optional,
                 x.stage.DueFrom, x.stage.DueTo, x.stage.CompletedOn,
-                x.stage.Status == StageStatus.Pending && x.stage.DueTo < today && !isFinal))
+                x.stage.Status == StageStatus.Pending && x.stage.DueTo < today && !isFinal,
+                x.stage.DueNote))
             .ToList();
 
         // Oceniany nie widzi roboczej oceny (punkty, wynik, uzasadnienie), dopóki nie jest sporządzona.
@@ -820,6 +825,10 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             .Where(e => e.Id == evaluation.EmployeeId && e.Department.Head != null)
             .Select(e => e.Department.Head!.FirstName + " " + e.Department.Head.LastName)
             .SingleOrDefaultAsync(ct);
+        var person = await db.Employees
+            .Where(e => e.Id == evaluation.EmployeeId)
+            .Select(e => new { Position = e.Position != null ? e.Position.Name : null, Department = e.Department.Name })
+            .SingleAsync(ct);
         var prefill = EvaluationWorkflow.WithoutDraft(schema, draft,
             await EvaluationPrefill.LoadAsync(db, id, schema, evaluation.Answers.Select(ToDto), ct), a => a.FieldKey).ToList();
 
@@ -849,7 +858,9 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             unitHead,
             canEditSelfAssessment,
             prefill,
-            SignatureSlots(schema, evaluation, signatures));
+            SignatureSlots(schema, evaluation, signatures),
+            person.Position,
+            person.Department);
     }
 
     private static IReadOnlyList<SignatureSlotDto> SignatureSlots(TemplateSchema schema, Evaluation evaluation, IReadOnlyList<SignatureDto> signatures)

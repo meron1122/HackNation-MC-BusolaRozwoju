@@ -22,5 +22,14 @@ public class EvaluationStage
     /// <summary>Nie później niż.</summary>
     public DateOnly? DueTo { get; set; }
 
+    /// <summary>
+    /// Termin sprzed przedłużenia z mocy prawa (ocena okresowa: nieobecność ponad miesiąc, art. 81 ust. 7 ustawy);
+    /// DueTo = ten termin + nieobecności. Null = termin nie jest przedłużony.
+    /// </summary>
+    public DateOnly? BaseDueTo { get; set; }
+
+    /// <summary>Skąd się wziął termin, gdy nie wynika wprost z szablonu (np. „+44 dni: nieobecność …”).</summary>
+    public string? DueNote { get; set; }
+
     public DateOnly? CompletedOn { get; set; }
 }

@@ -109,7 +109,10 @@ Przebieg oceny (`EvaluationsController`, `EvaluationCheck`, `EvaluationScoring`)
 - **Termin samooceny:** sprawozdanie (pierwsza ocena) — termin etapu ustalony na rozmowie wstępnej; samoocena przy okresowej — 30 dni przed terminem sporządzenia oceny (`EvaluationWorkflow.SelfAssessmentLeadDays`, organizacyjny). Po terminie nadal można przekazać, do zamknięcia etapu.
 - **Sprawozdanie** (pierwsza ocena, `first` v4, `SelfAssessmentController`): formularz z zał. nr 3 do rozporządzenia z 2015 r. — nagłówek z arkusza (urząd, dane ocenianego, termin z rozmowy wstępnej), treść wpisana przez ocenianego (`report`), pod nią samoocena elementów i potrzeby rozwojowe jako tekst, podpis ocenianego (`reportEvaluatedSignature`); podpis i przekazanie = złożenie. Złożyć można dopiero po rozmowie wstępnej i od początku terminu wyznaczonego przez przełożonego; po końcu terminu nadal, ale wtedy „sprawozdanie złożone w wyznaczonym terminie” = nie. PDF formularza: `GET /api/evaluations/{id}/self-assessment/pdf` (oceniany zawsze, inni po złożeniu).
 - **Sprawozdanie w terminie** (`prefill: "report.onTime"`, pole liczone): tak — etap sprawozdania zamknięty złożeniem w terminie od–do; nie — po terminie albo oznaczone jako niezłożone; zapisuje się przy sporządzeniu oceny i wchodzi do wyniku (§ 10 ust. 1 pkt 2).
-- **Termin sprawozdania w arkuszu:** zakres z `prefill: "stage:x"` nie może zaczynać się przed najwcześniejszym terminem etapu `x` z szablonu (sprawozdanie: 7 mies. pracy, § 6 ust. 1; ocena: 8 mies., § 4 ust. 1) ani kończyć po końcu okresu następnego etapu wpisanego w arkuszu (sprawozdanie przed końcem okresu pierwszej oceny — poradnik, pkt 4.1).
+- **Termin sprawozdania w arkuszu:** zakres z `prefill: "stage:x"` nie może zaczynać się przed najwcześniejszym terminem etapu `x` z szablonu (sprawozdanie: po 8 mies., § 4 ust. 1 rozporządzenia; ocena: po 8 mies., art. 38 ust. 1 ustawy) ani kończyć po końcu okresu następnego etapu wpisanego w arkuszu (sprawozdanie przed końcem okresu pierwszej oceny — poradnik, pkt 4.1).
+- **Nieobecności** (`AbsencesController`, profil → Nieobecności; `AbsenceDeadlines`): słownik powodów z rodzajem (usprawiedliwiona, obowiązki służbowe poza miejscem pracy, nieusprawiedliwiona), nieobecność bez końca = trwa. Wpisy łączą się w nieprzerwaną nieobecność, gdy dzielą je tylko dni wolne (zmiana powodu nie przerywa).
+  - **Ocena okresowa, art. 81 ust. 7:** usprawiedliwiona nieobecność trwająca nieprzerwanie dłużej niż miesiąc (trwa po dniu, który datą odpowiada jej pierwszemu dniowi) przedłuża termin oceny o cały swój czas, z mocy prawa i do skutku (przedłużony termin może objąć kolejną). Termin bazowy w `evaluation_stages.base_due_to`, opis w `due_note`; przeliczenie po każdej zmianie nieobecności i terminu bazowego. Nie dotyczy oceny po zmianie terminu decyzją (art. 81 ust. 8).
+  - **Decyzje** (`EvaluationTermsController`, panel „Terminy i nieobecności” w ocenie, historia w `evaluation_term_changes`): pierwsza ocena — nowy termin sprawozdania przedłużający dotychczasowy (§ 5 ust. 1–2 rozporządzenia z 2015 r.; podpowiedź: koniec + dni nieobecności w terminie; najpóźniej do końca okresu oceny, § 5 ust. 3) i przedłużenie umowy o czas nieobecności (art. 35 ust. 4; próg: ciągła ponad 3 mies. albo łącznie ponad 90 dni w pierwszych 12 mies. — art. 114 KC), które przesuwa okres oceny na miesiąc przed nowym końcem umowy; ocena okresowa — zmiana terminu z art. 81 ust. 8 (ponad 6 mies. od początku okresu). Zawiadomienia PDF: `GET /api/evaluations/{id}/terms/changes/{changeId}/pdf` (§ 5 ust. 4 / § 8 rozporządzenia z 2016 r.).
 - **PDF** (`GET /api/evaluations/{id}/pdf`, `Pdf/EvaluationSheetPdf.cs`): układ urzędowych wzorów — arkusz B/C (zał. nr 3 i 4 do rozporządzenia z 2016 r.) i arkusz pierwszej oceny (zał. nr 2 do rozporządzenia z 2015 r.): te same części i tabele, „X” w polach wyboru, bloki podpisów (miejscowość, data, podpis albo „podpisano w systemie”), pouczenie i przypisy. Część III tylko przy wniosku o kolejny stopień. Wskaźniki, notatki, samoocena i kontekst nie trafiają do PDF.
 
 Terminy:
@@ -117,7 +120,7 @@ Terminy:
 | Szablon | Etap | Termin |
 |---|---|---|
 | `first` | rozmowa wstępna | do 21 dni od `start` (data zatrudnienia) |
-| | sprawozdanie | od 7 do 10 miesięcy od `start` (v4; v1–v3: do 7 miesięcy) — domyślnie, ostatecznie termin wyznacza przełożony na rozmowie wstępnej |
+| | sprawozdanie | od 8 do 10 miesięcy od `start` (v5, § 4 ust. 1; v4: od 7; v1–v3: do 7 miesięcy) — domyślnie, ostatecznie termin wyznacza przełożony na rozmowie wstępnej |
 | | pierwsza ocena | od 8 do 11 miesięcy od `start` |
 | `periodic-b`/`-c` | kryteria i zapoznanie z nimi | do 30 dni od `start` (sporządzenie poprzedniej oceny na piśmie albo zatrudnienie na czas nieokreślony) |
 | | ocena | do 24 miesięcy od `start`; data sporządzenia oceny na piśmie jest `start` kolejnego cyklu |
@@ -230,16 +233,15 @@ Frontend (`npm run dev` w `src/frontend`) przekierowuje `/api` na `http://localh
 
 QuestPDF (licencja Community). `Busola.Api/Pdf/PdfReport.cs` daje wspólny układ (A4, nagłówek, numeracja stron) i tabelę. Nowy raport: `PdfReport.Render("Tytuł", c => PdfReport.Table(c, nagłówki, wiersze))` i `File(bytes, "application/pdf", "nazwa.pdf")`.
 
-## Agent AI (harness)
+## Asystent AI
 
-`Busola.Api/Agent`: szkielet agenta, bez gotowej logiki biznesowej. LLM przez OpenRouter (`OpenRouter__ApiKey`, `OpenRouter__Model`, slug z openrouter.ai/models). Bez klucza endpoint zwraca 503.
+Pływający asystent w prawym dolnym rogu każdego ekranu (front: `src/frontend/src/assistant/AssistantWidget.tsx`), backend: `Busola.Api/Agent`. Model przez OpenRouter: `OpenRouter__ApiKey`, `OpenRouter__Model` (slug z openrouter.ai/models), opcjonalnie `OpenRouter__EmbeddingModel` (domyślnie `openai/text-embedding-3-small`) i `OpenRouter__BaseUrl` (tylko do testów z atrapą). Bez klucza czat zwraca 503, a baza wiedzy działa po słowach.
 
-- `POST /api/agent/chat` `{ messages: [{ role: "user"|"assistant", content }] }` zwraca `{ reply }`. Bezstanowy: klient przysyła całą rozmowę.
-- **Uprawnienia**: agent działa w żądaniu zalogowanego użytkownika. Narzędzie z `RequiredPermission` jest pokazywane modelowi tylko, gdy użytkownik ma to uprawnienie, a dane filtruje tak jak kontrolery (`AccessScopeService` + `InScope`). Wzór: `Tools/ListEmployeesTool.cs`.
-- **Nowe narzędzie**: klasa implementująca `IAgentTool` (nazwa, opis, JSON Schema argumentów, uprawnienie, `ExecuteAsync`) i jedna linia `AddScoped<IAgentTool, ...>()` w `AgentServiceCollectionExtensions`.
-- **Baza wiedzy (RAG)**: pliki `*.md` w `Busola.Api/Agent/Knowledge` (np. opis flow raportów), cięte po nagłówkach i przeszukiwane narzędziem `search_knowledge`. Wyszukiwanie po słowach. Na embeddingi podmienia się implementację `IKnowledgeBase`.
-- **Inny dostawca LLM**: implementacja `ILlmClient` i podmiana rejestracji w `AddAgent`.
-- **Prompt systemowy**: `AgentPrompt.cs`.
+- `POST /api/agent/chat` `{ messages: [{ role, content }], context: { page, evaluationId?, employeeId?, step? } }` → `{ reply, contextLabel }`. Bezstanowy: klient przysyła rozmowę i to, na co patrzy. `POST /api/agent/context` zwraca samą etykietę („Ocena · Anna Nowak”) do nagłówka okna.
+- **Kontekst ekranu** (`ScreenContext.cs`): front przysyła tylko identyfikatory, a backend dociąga dane encji tymi samymi zakresami uprawnień co kontrolery (`AccessScopeService` + `InScope`). Encja spoza zakresu = informacja „brak dostępu, nie podawaj szczegółów”. Z kartoteki idą tylko dane służbowe (stanowisko, komórka, przełożony, oceny), bez adresu, rodziny itd. Uwaga: ten kontekst trafia do dostawcy modelu (OpenRouter).
+- **Baza wiedzy (RAG)**: pliki `*.md` w `Busola.Api/Agent/Knowledge`: rozporządzenia o ocenie okresowej (2016) i pierwszej ocenie (2015), ustawa o służbie cywilnej (tekst jednolity z ELI Sejmu) i Q&A zespołu. Cięte po nagłówkach (`## Rozdział`, `### § 5` / `### Art. 81`, długie artykuły na okna ~2000 znaków). `KnowledgeIndexer` po starcie liczy embeddingi tylko dla nowych/zmienionych fragmentów (klucz: SHA-256 treści + model) i trzyma je w tabeli `knowledge_embeddings`; wyszukiwanie: podobieństwo cosinusowe w pamięci. Nowy dokument = nowy plik `.md` + restart.
+- **Narzędzia**: `search_knowledge` (przepisy), `team_overview` (podwładni i najbliższe etapy ocen), `list_employees`. Narzędzie z `RequiredPermission` model dostaje tylko, gdy użytkownik ma to uprawnienie. Nowe narzędzie: klasa `IAgentTool` + linia `AddScoped<IAgentTool, ...>()` w `AgentServiceCollectionExtensions`.
+- **Prompt systemowy**: `AgentPrompt.cs`. **Inny dostawca**: implementacje `ILlmClient` / `IEmbeddingClient`.
 
 ## Podpisy odręczne (demo)
 
