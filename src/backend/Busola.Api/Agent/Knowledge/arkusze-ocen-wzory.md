@@ -1,6 +1,6 @@
 # Wzory arkuszy ocen (pliki docx zespołu)
 
-## Arkusz oceny b
+## Arkusz oceny B
 
 Załącznik nr 3
 WZÓR
@@ -128,7 +128,7 @@ Umotywowanie wniosku
 ………………………………….	………………………………….	………………………………….	………………………………….
 miejscowość	data (dd.mm.rrrr)	imię i nazwisko lub pieczątka oceniającego	podpis oceniającego
 
-## Arkusz oceny c
+## Arkusz oceny C
 
 Załącznik nr 4
 WZÓR

@@ -33,7 +33,7 @@ n1 = pdf(f"{src}/ocena-okresowa/poradnik-kprm-oceny-okresowe.pdf",
 n2 = pdf(f"{src}/pierwsza-ocena/poradnik-kprm-pierwsza-ocena.pdf",
          "Poradnik KPRM: Pierwsza ocena w służbie cywilnej (2016)", "poradnik-pierwsza-ocena.md")
 n3 = docs(glob.glob(f"{txt}/arkusz-*.txt"), "Wzory arkuszy ocen (pliki docx zespołu)", "arkusze-ocen-wzory.md",
-          lambda f: os.path.basename(f)[:-4].replace("-", " ").capitalize())
+          lambda f: (lambda n: n[0].upper() + n[1:])(os.path.basename(f)[:-4].replace("-", " ")))
 n4 = docs(glob.glob(f"{txt}/OSP*.txt"), "Przykładowe opisy stanowisk pracy (OSP) — wzory do doboru kryteriów", "przyklady-osp.md",
           lambda f: os.path.basename(f)[:-4])
 
