@@ -36,11 +36,11 @@ export function useApi<T>(path: string | null) {
 export function useWorkContext(evaluationId: number) {
   const { data, error, reload, setData } = useApi<WorkContext>(`evaluations/${evaluationId}/context`)
   const indicator = (key: string): IndicatorContext =>
-    data?.indicators.find((i) => i.indicatorKey === key) ?? { indicatorKey: key, expectation: null, frequency: null, complexity: null }
+    data?.indicators.find((i) => i.indicatorKey === key) ?? { indicatorKey: key, expectation: null }
   const reason = (criterionKey: string) => data?.criteria.find((c) => c.criterionKey === criterionKey)?.scoreReason ?? ''
 
   // PUT to łatka: pominięte pole = bez zmian, "" = wyczyść (oczekiwanie tylko w 1. etapie, reszta w etapie ocen).
-  async function saveIndicator(key: string, patch: Partial<Pick<IndicatorContext, 'expectation' | 'frequency' | 'complexity'>>) {
+  async function saveIndicator(key: string, patch: Partial<Pick<IndicatorContext, 'expectation'>>) {
     const next = { ...indicator(key), ...patch }
     const body = Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, v ?? '']))
     await api(`evaluations/${evaluationId}/context/indicators/${encodeURIComponent(key)}`, 'PUT', body)

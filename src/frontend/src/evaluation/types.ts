@@ -30,14 +30,12 @@ export type Schema = {
   competencyModel?: CompetencyModel
 }
 
-/** Wartość wskaźnika bez oceny — model wymaga odnotowania braku okazji do obserwacji. */
-export const NO_BASIS = 'n/a'
 
 export type Answer = { fieldKey: string; itemKey: string | null; valueText: string | null; valueNumber: number | null; valueDate: string | null; valueDateTo: string | null }
 export type Stage = { key: string; title: string; status: string; optional: boolean; dueFrom: string | null; dueTo: string | null; completedOn: string | null; overdue: boolean }
 export type Signature = { id: number; fieldKey: string; role: string; signerName: string; signedOn: string; place: string | null; hasImage: boolean }
 export type CriterionScoring = {
-  key: string; label: string; ratedIndicators: number; noBasisIndicators: number; totalIndicators: number
+  key: string; label: string; ratedIndicators: number; totalIndicators: number
   indicatorMean: number | null; suggested: number | null; score: number | null
 }
 export type Scoring = { scoresField: string; criteria: CriterionScoring[]; average: number | null; level: string | null; levelLabel: string | null; result: string | null }
@@ -77,9 +75,8 @@ export type NoteRequest = {
   observedOn: string; situation: string; action: string; result: string; indicatorKey: string | null; isPrivate: boolean; discussedWithEmployee: boolean
 }
 
-export type Frequency = 'once' | 'sometimes' | 'regularly'
-export type Complexity = 'typical' | 'high'
-export type IndicatorContext = { indicatorKey: string; expectation: string | null; frequency: Frequency | null; complexity: Complexity | null }
+/** Kontekst wskaźnika: tylko oczekiwanie ustalone w pierwszym etapie (bez częstotliwości i złożoności — decyzja W07). */
+export type IndicatorContext = { indicatorKey: string; expectation: string | null }
 export type WorkContext = { indicators: IndicatorContext[]; criteria: { criterionKey: string; scoreReason: string | null }[] }
 
 export type SelfAssessment = {

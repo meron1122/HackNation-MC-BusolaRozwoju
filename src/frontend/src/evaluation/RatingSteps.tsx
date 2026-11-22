@@ -3,21 +3,15 @@ import { SheetForm } from '../Evaluations'
 import { NextButton, Pill, TopicList, type StepProps } from './common'
 import { saveAnswers, useApi, useWorkContext } from './data'
 import {
-  NO_BASIS, answerOf, criteriaOf, emptyAnswer, fmtDate, indicatorFieldOf, isFirstTemplate, plural, scoresFieldOf,
-  type Complexity, type CriterionScoring, type Detail, type Frequency, type Indicator, type Notes, type ScaleOption, type SelfAssessment,
+  answerOf, criteriaOf, emptyAnswer, fmtDate, indicatorFieldOf, isFirstTemplate, plural, scoresFieldOf,
+  type CriterionScoring, type Detail, type Indicator, type Notes, type ScaleOption, type SelfAssessment,
 } from './types'
-
-const FREQUENCY: { value: Frequency; label: string }[] = [
-  { value: 'once', label: 'Jednorazowo' }, { value: 'sometimes', label: 'Czasem' }, { value: 'regularly', label: 'Regularnie' },
-]
-const COMPLEXITY: { value: Complexity; label: string }[] = [{ value: 'typical', label: 'Typowa' }, { value: 'high', label: 'Wysoka' }]
 
 /**
  * Oznaczenia opisów zachowań: litery w przetasowanej kolejności, bo cyfry (1, 3, 5…) wyglądałyby jak punkty skali.
- * „Nie było okazji” to odpowiedź przy wskaźniku z modelu kompetencji (valueText n/a), nie ocena — w arkuszu jej nie ma.
+ * Każdy wskaźnik trzeba ocenić jednym z opisów — bez „nie było okazji” (decyzja W07: odpowiedź jest wymagana).
  */
 const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E']
-const NO_BASIS_LETTER = 'N'
 
 type Choice = { valueNumber: number | null; valueText: string | null }
 
@@ -36,10 +30,9 @@ const nearest = (scale: ScaleOption[], mean: number) =>
 function criterionScoring(detail: Detail, key: string, indicators: Indicator[], choices: Record<string, Choice>, scale: ScaleOption[], scoresKey: string): CriterionScoring {
   const fromApi = detail.scoring?.criteria.find((c) => c.key === key)
   const rated = indicators.map((i) => choices[i.key]?.valueNumber).filter((n): n is number => n != null)
-  const noBasis = indicators.filter((i) => choices[i.key]?.valueText === NO_BASIS).length
   const mean = rated.length ? Math.round((rated.reduce((a, b) => a + b, 0) / rated.length) * 100) / 100 : null
   return {
-    key, label: fromApi?.label ?? key, ratedIndicators: rated.length, noBasisIndicators: noBasis, totalIndicators: indicators.length,
+    key, label: fromApi?.label ?? key, ratedIndicators: rated.length, totalIndicators: indicators.length,
     // Backend jest źródłem prawdy (ta sama reguła); lokalnie tylko, gdy API nie podało sugestii.
     indicatorMean: fromApi?.indicatorMean ?? mean,
     suggested: fromApi ? fromApi.suggested : mean == null ? null : nearest(scale, mean),
@@ -60,7 +53,8 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
 
   const [choices, setChoices] = useState<Record<string, Choice>>(() => Object.fromEntries(
     detail.answers.filter((a) => a.fieldKey === indicatorField.key && a.itemKey).map((a) => [a.itemKey!, { valueNumber: a.valueNumber, valueText: a.valueText }])))
-  const answered = (key: string) => choices[key] && (choices[key].valueNumber != null || choices[key].valueText != null)
+  // Odpowiedź = wybrany opis zachowania (wartość skali); dawne „n/a” nie liczy się jako odpowiedź.
+  const answered = (key: string) => choices[key]?.valueNumber != null
   const [pos, setPos] = useState<{ c: number; i: number | 'summary' }>(() => {
     for (let c = 0; c < criteria.length; c++) {
       const i = competencies[criteria[c].key].indicators.findIndex((x) => !answered(x.key))
@@ -87,7 +81,7 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
     }
   }
 
-  // Klawisze A–E wybierają opis, N = nie było okazji (poza polami tekstowymi). Litery, nie cyfry — żeby nie mylić z punktami.
+  // Klawisze A–E wybierają opis (poza polami tekstowymi). Litery, nie cyfry — żeby nie mylić z punktami.
   useEffect(() => {
     if (!indicator || !editable) return
     const order = shuffled(scale, indicator.key)
@@ -95,8 +89,7 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
       if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select') || e.ctrlKey || e.metaKey || e.altKey) return
       const key = e.key.toUpperCase()
       const n = OPTION_LETTERS.indexOf(key)
-      if (key === NO_BASIS_LETTER) choose(indicator.key, { valueNumber: null, valueText: NO_BASIS })
-      else if (key.length === 1 && n >= 0 && n < order.length) choose(indicator.key, { valueNumber: order[n].value, valueText: null })
+      if (key.length === 1 && n >= 0 && n < order.length) choose(indicator.key, { valueNumber: order[n].value, valueText: null })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -154,7 +147,7 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
           ? <button type="button" className="secondary" onClick={prev} disabled={pos.c === 0 && pos.i === 0}>← Poprzedni wskaźnik</button>
           : <button type="button" className="secondary" onClick={() => setPos({ c: pos.c, i: 0 })}>← Zmień odpowiedzi</button>}
         <span className="grow" />
-        {indicator && editable && <span className="small muted">Klawisze A–{OPTION_LETTERS[scale.length - 1]} · {NO_BASIS_LETTER} = nie było okazji</span>}
+        {indicator && editable && <span className="small muted">Klawisze A–{OPTION_LETTERS[scale.length - 1]}</span>}
         {indicator || pos.c < criteria.length - 1
           ? <button type="button" onClick={next}>
             {indicator
@@ -178,7 +171,6 @@ function IndicatorQuestion({ detail, indicator, scale, choice, editable, onChoos
   notes: Notes['notes']
 }) {
   const context = work.indicator(indicator.key)
-  const contextEditable = editable && !work.error
   const agreedOn = detail.stages[0]?.completedOn
   return (
     <div className="card question">
@@ -197,23 +189,6 @@ function IndicatorQuestion({ detail, indicator, scale, choice, editable, onChoos
             </button>
           )
         })}
-        <button type="button" role="radio" aria-checked={choice?.valueText === NO_BASIS} disabled={!editable}
-          className={choice?.valueText === NO_BASIS ? 'option no-basis selected' : 'option no-basis'}
-          onClick={() => onChoose({ valueNumber: null, valueText: NO_BASIS })}>
-          <span className="option-key">{NO_BASIS_LETTER}</span><span>Nie było okazji tego zaobserwować</span>
-        </button>
-      </div>
-      <div className="inline gap small">
-        <span>Jak często? (opcjonalnie)</span>
-        {FREQUENCY.map((f) => (
-          <button key={f.value} type="button" disabled={!contextEditable} className={context.frequency === f.value ? 'chip-button active' : 'chip-button'}
-            onClick={() => work.saveIndicator(indicator.key, { frequency: context.frequency === f.value ? null : f.value })}>{f.label}</button>
-        ))}
-        <span>· Złożoność:</span>
-        {COMPLEXITY.map((c) => (
-          <button key={c.value} type="button" disabled={!contextEditable} className={context.complexity === c.value ? 'chip-button active' : 'chip-button'}
-            onClick={() => work.saveIndicator(indicator.key, { complexity: context.complexity === c.value ? null : c.value })}>{c.label}</button>
-        ))}
       </div>
       {notes.length > 0 && (
         <details className="notes-preview">
@@ -271,16 +246,15 @@ function CriterionSummary({ detail, criterionKey, label, indicators, choices, sc
       {indicators.map((i) => {
         const c = choices[i.key]
         const option = scale.find((o) => o.value === c?.valueNumber)
-        const freq = FREQUENCY.find((f) => f.value === work.indicator(i.key).frequency)?.label
         return (
           <div key={i.key} className="card summary-row">
             <div className="grow">
               <p className="muted small">{i.text}</p>
-              <p>{option ? i.levels[option.key] : c?.valueText === NO_BASIS ? 'Nie było okazji tego zaobserwować' : <span className="error">brak odpowiedzi</span>}</p>
+              <p>{option ? i.levels[option.key] : <span className="error">brak odpowiedzi</span>}</p>
             </div>
             <div className="summary-meta">
-              {option ? <Pill>{option.label.toLowerCase()} · {option.value}</Pill> : c?.valueText === NO_BASIS ? <Pill>brak podstaw</Pill> : null}
-              <span className="small muted">{[freq, `${noteCount(i.key)} ${plural(noteCount(i.key), 'notatka', 'notatki', 'notatek')}`].filter(Boolean).join(' · ')}</span>
+              {option && <Pill>{option.label.toLowerCase()} · {option.value}</Pill>}
+              <span className="small muted">{noteCount(i.key)} {plural(noteCount(i.key), 'notatka', 'notatki', 'notatek')}</span>
             </div>
           </div>
         )
@@ -288,8 +262,7 @@ function CriterionSummary({ detail, criterionKey, label, indicators, choices, sc
       <div className="callout info">
         <strong>{suggested ? `Sugerowany poziom: ${suggested.label.toLowerCase()} (${suggested.value} pkt)` : 'Sugestia pojawi się po ocenie wskaźników'}</strong>
         <p className="small">
-          {scoring.indicatorMean != null && <>Średnia wybranych zachowań: {scoring.indicatorMean.toFixed(2)} ({scoring.ratedIndicators} z {scoring.totalIndicators} wskaźników
-            {scoring.noBasisIndicators > 0 && `, ${scoring.noBasisIndicators} bez podstaw do oceny — nie liczą się`}). </>}
+          {scoring.indicatorMean != null && <>Średnia wybranych zachowań: {scoring.indicatorMean.toFixed(2)} ({scoring.ratedIndicators} z {scoring.totalIndicators} wskaźników). </>}
           Liczy reguła: średnia ocenionych wskaźników zaokrąglona do najbliższego stopnia skali. To podpowiedź, nie ocena.
         </p>
       </div>

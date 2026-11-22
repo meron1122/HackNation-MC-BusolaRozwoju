@@ -5,7 +5,7 @@ import type { Row } from './Crud'
 import { initialValues, signatureState } from './evaluation/data'
 import { EvaluationWizard } from './evaluation/Wizard'
 import {
-  NO_BASIS, RESULT_LABELS, emptyAnswer, fmtDate, keyOf, pathLabel, today,
+  RESULT_LABELS, emptyAnswer, fmtDate, keyOf, pathLabel, today,
   type Answer, type Competency, type Cond, type Detail, type Field, type Level, type ScaleOption, type Section, type Stage,
 } from './evaluation/types'
 import { SignaturePad } from './SignaturePad'
@@ -293,11 +293,10 @@ export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage
     if (!indicatorField) return null
     const answers = competency.indicators.map((i) => get(indicatorField.key, i.key))
     const rated = answers.map((a) => a?.valueNumber).filter((n): n is number => n != null)
-    const noBasis = answers.filter((a) => a?.valueText === NO_BASIS).length
-    if (rated.length === 0) return { rated: 0, noBasis, total: competency.indicators.length, mean: null, value: null }
+    if (rated.length === 0) return { rated: 0, total: competency.indicators.length, mean: null, value: null }
     const mean = rated.reduce((a, b) => a + b, 0) / rated.length
     const value = scale.reduce((best, o) => (Math.abs(o.value - mean) < Math.abs(best - mean) ? o.value : best), scale[0].value)
-    return { rated: rated.length, noBasis, total: competency.indicators.length, mean: Math.round(mean * 100) / 100, value }
+    return { rated: rated.length, total: competency.indicators.length, mean: Math.round(mean * 100) / 100, value }
   }
 
   function average(scoresKey: string): number | null {
@@ -503,7 +502,7 @@ export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage
                   </summary>
                   {hint && (
                     <p className="muted small">
-                      Ocenione wskaźniki: {hint.rated} z {hint.total}{hint.noBasis > 0 && `, brak podstaw: ${hint.noBasis}`}
+                      Ocenione wskaźniki: {hint.rated} z {hint.total}
                       {hint.value != null && <>
                         {' '}· średnia {hint.mean} → sugerowana ocena <strong>{hint.value}</strong>{' '}
                         {!disabled && get(f.key, item.key)?.valueNumber !== hint.value && (
@@ -520,7 +519,6 @@ export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage
                           <tr>
                             <th>Wskaźnik behawioralny</th>
                             {scale.map((o) => <th key={o.key}>{o.value} – {o.label}</th>)}
-                            <th>Brak podstaw</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -542,15 +540,6 @@ export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage
                                     </label>
                                   </td>
                                 ))}
-                                <td className={answer?.valueText === NO_BASIS ? 'chosen no-basis' : 'no-basis'}
-                                  onClick={() => choose({ valueNumber: null, valueText: NO_BASIS })}>
-                                  <label>
-                                    <input type="radio" name={name} disabled={disabled} checked={answer?.valueText === NO_BASIS}
-                                      onChange={() => choose({ valueNumber: null, valueText: NO_BASIS })}
-                                      aria-label={`${indicator.text}: brak podstaw do oceny`} />
-                                    <span>Nie było okazji zaobserwować</span>
-                                  </label>
-                                </td>
                               </tr>
                             )
                           })}

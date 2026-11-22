@@ -159,7 +159,7 @@ export function StartStep({ detail, steps, go, reload }: StepProps) {
               {detail.unitHeadName ?? <span className="muted">nie wskazano (Wydziały → kierujący komórką)</span>}
               <span className="muted small"> · współtworzy ocenę i podpisuje jej potwierdzenie</span>
             </div>
-            <p className="muted small">Każdy wskaźnik oceniany albo „nie było okazji zaobserwować”. Wnioski rozwojowe tylko przy ocenie pozytywnej.</p>
+            <p className="muted small">Każdy wskaźnik trzeba ocenić jednym z opisów zachowań. Wnioski rozwojowe tylko przy ocenie pozytywnej.</p>
           </div>
         )}
       </div>
@@ -199,7 +199,7 @@ export function CriteriaStep({ detail, steps, go, reload }: StepProps) {
           {competency ? (
             <ul className="indicator-list">{competency.indicators.map((i) => <li key={i.key}>{i.text}</li>)}</ul>
           ) : <p className="muted small">To kryterium nie ma wskaźników w modelu kompetencji.</p>}
-          <p className="muted small">Każde kryterium oceniasz przez wszystkie jego wskaźniki; gdy nie było okazji zaobserwować zachowania, zaznaczysz to przy ocenie.</p>
+          <p className="muted small">Każde kryterium oceniasz przez wszystkie jego wskaźniki — przy każdym wybierasz jeden opis zachowania.</p>
         </div>
       )}
       <div className="step-actions"><span className="grow" /><NextButton steps={steps} current="criteria" go={go} /></div>
