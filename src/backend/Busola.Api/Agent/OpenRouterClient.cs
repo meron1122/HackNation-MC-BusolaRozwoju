@@ -60,7 +60,7 @@ public sealed class OpenRouterClient(HttpClient http, IOptions<OpenRouterOptions
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", o.ApiKey);
 
-        using var response = await http.SendAsync(request, ct);
+        using var response = await http.SendToProviderAsync(request, log, ct);
         var text = await response.Content.ReadAsStringAsync(ct);
 
         // OpenRouter potrafi zwrócić błąd także przy 200 (pole "error").

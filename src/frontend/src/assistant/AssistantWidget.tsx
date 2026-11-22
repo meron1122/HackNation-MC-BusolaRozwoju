@@ -49,7 +49,7 @@ function inline(text: string): ReactNode[] {
     part.startsWith('**') && part.endsWith('**') ? <strong key={i}>{part.slice(2, -2)}</strong> : <Fragment key={i}>{part}</Fragment>)
 }
 
-/** Odpowiedź modelu: akapity i listy „- ” / „1. ” (podzbiór Markdownu, bez HTML-a z modelu). */
+/** Odpowiedź modelu: akapity i listy „- ” / „1. ” (podzbiór Markdownu, bez HTML-a z modelu). Tabela, gdyby model ją wstawił, staje się listą „a · b · c” — w wąskim oknie i tak by się nie zmieściła. */
 function Rich({ text }: { text: string }) {
   const blocks: ReactNode[] = []
   let list: string[] = []
@@ -57,7 +57,16 @@ function Rich({ text }: { text: string }) {
     if (list.length) blocks.push(<ul key={blocks.length}>{list.map((l, i) => <li key={i}>{inline(l)}</li>)}</ul>)
     list = []
   }
+  let tableHeader = true
   for (const line of text.split('\n')) {
+    if (/^\s*\|/.test(line)) {
+      const cells = line.split('|').map((c) => c.trim()).filter(Boolean)
+      if (cells.every((c) => /^:?-{2,}:?$/.test(c))) continue
+      if (tableHeader) tableHeader = false // wiersz nagłówka pomijamy: kolumny bez tabeli nic nie znaczą
+      else list.push(cells.join(' · '))
+      continue
+    }
+    tableHeader = true
     const item = line.match(/^\s*(?:[-*•]|\d+[.)])\s+(.*)$/)
     if (item) list.push(item[1])
     else {
