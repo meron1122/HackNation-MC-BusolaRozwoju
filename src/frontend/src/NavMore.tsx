@@ -3,9 +3,11 @@ import './nav-more.css'
 
 export type NavMoreItem = { key: string; label: string }
 
-/** Menu „Więcej ▾” w nagłówku: strony administracyjne (kartoteki, słowniki, konta), żeby główne zakładki mieściły się w 1280 px.
+/** Menu tematyczne w nagłówku („Kadry ▾”, „Organizacja ▾”, „Administracja ▾”), żeby główne zakładki mieściły się w 1280 px.
  *  Klawiatura: Enter/Spacja/↓ otwiera i ustawia fokus na pierwszej pozycji, ↑/↓/Home/End przesuwają, Escape zamyka i wraca do przycisku. */
-export function NavMore({ items, activeKey, onPick }: { items: NavMoreItem[]; activeKey: string | null; onPick: (key: string) => void }) {
+export function NavMore({ label = 'Więcej', items, activeKey, onPick }: {
+  label?: string; items: NavMoreItem[]; activeKey: string | null; onPick: (key: string) => void
+}) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -23,8 +25,18 @@ export function NavMore({ items, activeKey, onPick }: { items: NavMoreItem[]; ac
     return () => document.removeEventListener('mousedown', outside)
   }, [open])
 
-  if (items.length === 0) return null
   const active = items.find((i) => i.key === activeKey)
+  const menuId = `nav-more-${label.toLowerCase().normalize('NFD').replace(/[^a-z]/g, '')}`
+  if (items.length === 0) return null
+  // Jedna strona w grupie: zwykła zakładka, rozwijanie nic by nie dało.
+  if (items.length === 1) {
+    const only = items[0]
+    return (
+      <button type="button" className={active ? 'tab active' : 'tab'} aria-current={active ? 'page' : undefined} onClick={() => onPick(only.key)}>
+        {only.label}
+      </button>
+    )
+  }
 
   const openAt = (index: number) => {
     focusOnOpen.current = index
@@ -55,13 +67,13 @@ export function NavMore({ items, activeKey, onPick }: { items: NavMoreItem[]; ac
   return (
     <div className="nav-more" ref={ref}>
       <button ref={trigger} type="button" className={active ? 'tab active nav-more-trigger' : 'tab nav-more-trigger'}
-        aria-haspopup="menu" aria-expanded={open} aria-controls="nav-more-menu"
+        aria-haspopup="menu" aria-expanded={open} aria-controls={menuId}
         onClick={() => (open ? close(false) : openAt(active ? items.indexOf(active) : 0))} onKeyDown={onTriggerKey}>
-        {active ? active.label : 'Więcej'}
+        {label}
         <span aria-hidden="true" className="nav-more-caret">▾</span>
       </button>
       {open && (
-        <div className="nav-more-menu" role="menu" id="nav-more-menu" aria-label="Więcej stron" onKeyDown={onMenuKey}>
+        <div className="nav-more-menu" role="menu" id={menuId} aria-label={label} onKeyDown={onMenuKey}>
           {items.map((item, i) => (
             <button key={item.key} type="button" role="menuitem" tabIndex={-1}
               ref={(el) => { itemRefs.current[i] = el }}

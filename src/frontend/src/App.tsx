@@ -178,8 +178,14 @@ type Nav = {
 }
 type Page = { key: string; label: string; visible: (s: Session) => boolean; render: (s: Session, nav: Nav) => ReactNode }
 
-// Strony administracyjne (kartoteki, słowniki, konta) trafiają do menu „Więcej ▾”, żeby główne zakładki mieściły się w nagłówku.
-const MORE_PAGES = new Set(['employees', 'absences', 'departments', 'positions', 'locations', 'services', 'users', 'dev'])
+// Na wierzchu zostaje codzienna praca (pulpit, zespół, oceny, terminy); reszta w menu tematycznych, żeby admin z wieloma
+// uprawnieniami nie szukał wśród kilkunastu zakładek. Grupa z jedną widoczną stroną to zwykła zakładka.
+const NAV_GROUPS: { label: string; keys: string[] }[] = [
+  { label: 'Kadry', keys: ['employees', 'absences'] },
+  { label: 'Organizacja', keys: ['departments', 'positions', 'locations', 'services'] },
+  { label: 'Administracja', keys: ['users', 'audit', 'dev'] },
+]
+const GROUPED = new Set(NAV_GROUPS.flatMap((g) => g.keys))
 
 // Profil innego pracownika: otwierany z listy albo ze struktury w innym profilu.
 const PROFILE_PAGE = 'profile'
@@ -415,14 +421,16 @@ export default function App() {
       <header className="topbar">
         <Logo width={128} />
         <nav>
-          {pages.filter((p) => !MORE_PAGES.has(p.key)).map((p) => (
+          {pages.filter((p) => !GROUPED.has(p.key)).map((p) => (
             <button key={p.key} className={p === page ? 'tab active' : 'tab'} aria-current={p === page ? 'page' : undefined}
               onClick={() => go({ pageKey: p.key, openEvaluation: null, evaluationReturn: null })}>
               {p.label}
             </button>
           ))}
-          <NavMore items={pages.filter((p) => MORE_PAGES.has(p.key))} activeKey={page?.key ?? null}
-            onPick={(key) => go({ pageKey: key, openEvaluation: null, evaluationReturn: null })} />
+          {NAV_GROUPS.map((g) => (
+            <NavMore key={g.label} label={g.label} items={pages.filter((p) => g.keys.includes(p.key))} activeKey={page?.key ?? null}
+              onPick={(key) => go({ pageKey: key, openEvaluation: null, evaluationReturn: null })} />
+          ))}
         </nav>
         <UserMenu name={session.name} avatarVersion={avatarVersion} active={onMyProfile}
           onProfile={() => openMyProfile('personal')} onStructure={() => openMyProfile('structure')} onLogout={logout} />
