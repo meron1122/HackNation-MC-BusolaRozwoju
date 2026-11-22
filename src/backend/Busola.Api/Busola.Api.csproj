@@ -17,6 +17,8 @@
 
   <ItemGroup>
     <Content Include="Agent/Knowledge/**/*.md" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Logo poziome z paczki marki do nagłówka raportów PDF (PdfReport). -->
+    <EmbeddedResource Include="Pdf/Assets/busola-logo.svg" LogicalName="busola-logo.svg" />
   </ItemGroup>
 
   <ItemGroup>

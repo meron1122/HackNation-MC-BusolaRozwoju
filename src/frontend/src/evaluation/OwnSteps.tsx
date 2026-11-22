@@ -1,5 +1,6 @@
 import { Fragment, useState } from 'react'
 import { api } from '../api'
+import { ConfirmButton } from '../ConfirmButton'
 import { SignatureField } from '../Evaluations'
 import { Pill, type StepProps } from './common'
 import { useApi, useWorkContext } from './data'
@@ -19,7 +20,7 @@ export function OwnCriteriaStep({ detail }: StepProps) {
       <div className="card">
         <dl className="summary">
           <dt>Faza</dt><dd>{detail.phase}</dd>
-          <dt>Oceniający</dt><dd>{detail.evaluatorName ?? '—'}</dd>
+          <dt>Przełożony</dt><dd>{detail.evaluatorName ?? '—'}</dd>
           {current && <><dt>Najbliższy termin</dt><dd>{current.title}{current.dueTo && ` · do ${fmtDate(current.dueTo)}`}</dd></>}
         </dl>
       </div>
@@ -48,7 +49,7 @@ export function OwnCriteriaStep({ detail }: StepProps) {
 /** Samoocena / sprawozdanie ocenianego: poziom i komentarz per kryterium, potrzeby rozwojowe; po przekazaniu tylko odczyt. */
 export function SelfAssessmentStep(props: StepProps) {
   const { data, error, reload } = useApi<SelfAssessment>(`evaluations/${props.detail.id}/self-assessment`)
-  if (error) return <p className="callout warn">Samoocena niedostępna: {error}</p>
+  if (error) return <p className="callout attention">Samoocena niedostępna: {error}</p>
   if (!data) return <p>Ładowanie…</p>
   return <SelfAssessmentForm key={`${data.updatedAt}-${data.submittedAt}`} {...props} data={data} reloadSelf={reload} />
 }
@@ -80,9 +81,6 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
     }
   }
   async function submit() {
-    if (!confirm(closesStage
-      ? 'Złożyć sprawozdanie? To zamyka etap sprawozdania — potem nie będzie można go zmienić.'
-      : 'Przekazać samoocenę przełożonemu? Potem nie będzie można jej zmienić.')) return
     setBusy(true)
     try {
       await api(`evaluations/${detail.id}/self-assessment`, 'PUT', body())
@@ -103,8 +101,8 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
         <h2>{detail.schema.stages?.find((s) => s.key === data.stageKey)?.phase === 'Sprawozdanie' ? 'Sprawozdanie i samoocena' : 'Samoocena'}</h2>
         {/* Termin samooceny z API (przy okresowej 30 dni przed terminem oceny); po terminie przekazać nadal można. */}
         {data.submitted
-          ? <Pill tone="ok">{closesStage ? 'złożone' : 'przekazana'} {fmtDate(data.submittedAt)}</Pill>
-          : (data.dueTo ?? stage?.dueTo) && <Pill tone={data.overdue ? 'warn' : 'neutral'}>do {fmtDate(data.dueTo ?? stage?.dueTo)}{data.overdue && ' · po terminie'}</Pill>}
+          ? <Pill tone="done" icon="done">{closesStage ? 'złożone' : 'przekazana'} {fmtDate(data.submittedAt)}</Pill>
+          : (data.dueTo ?? stage?.dueTo) && <Pill tone={data.overdue ? 'attention' : 'neutral'} icon="clock">do {fmtDate(data.dueTo ?? stage?.dueTo)}{data.overdue && ' · po terminie'}</Pill>}
       </div>
       {!data.stageOpen && !data.submitted && <p className="callout info">Samoocena będzie dostępna w etapie „{stage?.title ?? data.stageKey}”.</p>}
       <p className="muted small">Oceń, jak w tym okresie wyglądała Twoja praca w każdym kryterium. Przełożony zobaczy samoocenę dopiero po jej przekazaniu i omówi ją na rozmowie oceniającej.</p>
@@ -134,7 +132,11 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
         <div className="step-actions">
           <button type="button" className="secondary" onClick={save} disabled={busy}>Zapisz roboczo</button>
           <span className="grow" />
-          <button type="button" onClick={submit} disabled={busy}>{closesStage ? 'Złóż sprawozdanie' : 'Przekaż przełożonemu'}</button>
+          <ConfirmButton primary disabled={busy} onConfirm={submit}
+            question={closesStage ? 'Złożenie zamyka etap sprawozdania, potem nie zmienisz treści.' : 'Po przekazaniu nie zmienisz samooceny.'}
+            confirmLabel={closesStage ? 'Złóż sprawozdanie' : 'Przekaż przełożonemu'}>
+            {closesStage ? 'Złóż sprawozdanie' : 'Przekaż przełożonemu'}
+          </ConfirmButton>
         </div>
       )}
     </div>
@@ -195,7 +197,7 @@ export function OwnSignaturesStep({ detail, reload, sections }: StepProps & { se
         )
       })}
       {objection?.status === 'Pending' && objection.dueTo && (
-        <p className="callout warn">Sprzeciw do dyrektora generalnego urzędu możesz złożyć do {fmtDate(objection.dueTo)}.</p>
+        <p className="callout attention">Sprzeciw do dyrektora generalnego urzędu możesz złożyć do {fmtDate(objection.dueTo)}.</p>
       )}
     </div>
   )

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api } from './api'
 import { Avatar } from './Avatar'
+import { ConfirmButton } from './ConfirmButton'
+import { EmptyState } from './EmptyState'
+import { fmtDate } from './evaluation/types'
 import { OrgChart } from './Org'
 
 type Values = Record<string, string | number | null>
@@ -223,7 +226,7 @@ export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation, initi
             <section className="card profile-section">
               <h3>Przydział</h3>
               <dl className="readonly-grid">
-                <div><dt>Data zatrudnienia</dt><dd>{e.hireDate}</dd></div>
+                <div><dt>Data zatrudnienia</dt><dd>{fmtDate(e.hireDate)}</dd></div>
                 <div><dt>Służba</dt><dd>{e.serviceName}</dd></div>
                 <div><dt>Lokalizacja</dt><dd>{e.locationName}</dd></div>
                 <div><dt>Wydział</dt><dd>{e.departmentName}</dd></div>
@@ -283,7 +286,7 @@ function EvaluationHistory({ employeeId, onOpen }: { employeeId: number; onOpen:
 
   if (error) return <p role="alert" className="error">{error}</p>
   if (!rows) return <p>Ładowanie…</p>
-  if (!rows.length) return <p className="muted">Brak ocen.</p>
+  if (!rows.length) return <EmptyState title="Ten pracownik nie ma jeszcze ocen">Pierwsza ocena i oceny okresowe pojawią się tutaj po ich założeniu.</EmptyState>
   return (
     <div className="table-wrap">
       <table>
@@ -295,7 +298,7 @@ function EvaluationHistory({ employeeId, onOpen }: { employeeId: number; onOpen:
             <tr key={r.id}>
               <td>{r.templateTitle}</td>
               <td>{r.isFinal ? <strong>{r.statusLabel}</strong> : r.statusLabel}</td>
-              <td>{r.startDate}</td>
+              <td>{fmtDate(r.startDate)}</td>
               <td>{r.nextStageTitle ?? '—'}</td>
               <td>{r.nextDueTo ?? '—'}</td>
               <td className="actions"><button className="link" onClick={() => onOpen(r.id)}>Otwórz</button></td>
@@ -374,7 +377,7 @@ function SectionForm({ title, fields, values, editable, hr, onSave }: {
         <div className="section-footer">
           <span role="status" className="muted">{status}</span>
           {fields.some((f) => f.required) && <span className="muted small">* wymagane</span>}
-          <button type="submit">Zapisz</button>
+          <button type="submit">Zapisz zmiany</button>
         </div>
       )}
     </form>
@@ -424,13 +427,13 @@ function ListSection({ title, fields, items, editable, onSave }: {
         <form onSubmit={submit} className="list-editor" key={String(editing)}>
           <Inputs fields={fields} values={editing === 'new' ? {} : items[editing]} disabled={false} hr />
           <div className="buttons">
-            <button type="submit">Zapisz</button>
+            <button type="submit">Zapisz wpis</button>
             <button type="button" className="secondary" onClick={() => setEditing(null)}>Anuluj</button>
           </div>
         </form>
       )}
       {error && <p role="alert" className="error">{error}</p>}
-      <p className="muted small">{items.length ? `Rekordy: ${items.length}` : 'Brak rekordów.'}</p>
+      <p className="muted small">{items.length ? `Rekordy: ${items.length}` : editable ? 'Nic tu jeszcze nie ma. Uzupełnij przyciskiem „Dodaj”.' : 'Nic tu jeszcze nie ma.'}</p>
       {items.length > 0 && (
         <div className="table-wrap">
           <table>
@@ -447,9 +450,9 @@ function ListSection({ title, fields, items, editable, onSave }: {
                   {editable && (
                     <td className="actions">
                       <button className="link" onClick={() => setEditing(i)}>Edytuj</button>
-                      <button className="link danger" onClick={() => confirm('Usunąć ten rekord?') && persist(items.filter((_, j) => j !== i))}>
+                      <ConfirmButton compact question="Usunąć ten wpis?" confirmLabel="Usuń" onConfirm={() => persist(items.filter((_, j) => j !== i))}>
                         Usuń
-                      </button>
+                      </ConfirmButton>
                     </td>
                   )}
                 </tr>

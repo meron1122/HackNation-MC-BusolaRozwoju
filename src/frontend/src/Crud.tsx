@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
-import { api } from './api'
+import { api, ApiError, fieldKey } from './api'
+import { ConfirmButton } from './ConfirmButton'
+import { EmptyState } from './EmptyState'
+import { Field as FormField } from './Field'
 
 // Wiersze to DTO z API, kształt zależy od strony.
 export type Row = { id: number } & Record<string, any>
@@ -9,7 +12,7 @@ export type Field = {
   label: string
   type?: 'text' | 'date' | 'url' | 'email' | 'checkbox'
   optional?: boolean
-  /** Przypis pod polem (np. kto spełnia warunek). */
+  /** Podpowiedź pod etykietą (np. kto spełnia warunek, format). */
   note?: ReactNode
   /** Tylko przy dodawaniu (np. e-mail, z którym powstaje konto); przy edycji pole jest ukryte i nie jest wysyłane. */
   createOnly?: boolean
@@ -70,7 +73,6 @@ export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit,
   }
 
   async function remove(row: Row) {
-    if (!confirm('Usunąć ten rekord?')) return
     try {
       await api(`${path}/${row.id}`, 'DELETE')
       setError('')
@@ -84,7 +86,7 @@ export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit,
     <section>
       <div className="toolbar">
         <h2>{title}</h2>
-        {canAdd && editing === null && <button onClick={() => { setEditing('new'); setNotice(null) }}>Dodaj</button>}
+        {canAdd && editing === null && <button onClick={() => { setEditing('new'); setNotice(null) }}>Dodaj wpis</button>}
       </div>
       {error && <p role="alert" className="error">{error}</p>}
       {notice && (
@@ -105,7 +107,10 @@ export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit,
       {rows === null ? (
         <p>Ładowanie…</p>
       ) : rows.length === 0 ? (
-        <p className="muted">Brak danych.</p>
+        <EmptyState title="Ta lista jest jeszcze pusta"
+          action={canAdd && editing === null && <button onClick={() => { setEditing('new'); setNotice(null) }}>Dodaj pierwszy wpis</button>}>
+          {canAdd ? 'Dodaj pierwszy wpis, a pojawi się w tej tabeli.' : 'Gdy ktoś doda pierwszy wpis, pojawi się w tej tabeli.'}
+        </EmptyState>
       ) : (
         <div className="table-wrap">
           <table>
@@ -122,7 +127,7 @@ export function CrudPage({ title, path, query, columns, fields, canAdd, canEdit,
                   {(canEdit || canDelete) && (
                     <td className="actions">
                       {canEdit && <button className="link" onClick={() => setEditing(row)}>Edytuj</button>}
-                      {canDelete && <button className="link danger" onClick={() => remove(row)}>Usuń</button>}
+                      {canDelete && <ConfirmButton compact question="Usunąć ten wpis? Tego nie da się cofnąć." confirmLabel="Usuń" onConfirm={() => remove(row)}>Usuń</ConfirmButton>}
                     </td>
                   )}
                 </tr>
@@ -143,6 +148,7 @@ function EntityForm({ fields, row, onSave, onCancel }: {
 }) {
   const [options, setOptions] = useState<Record<string, Row[]>>({})
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const visibleFields = row ? fields.filter((f) => !f.createOnly) : fields
 
@@ -170,10 +176,15 @@ function EntityForm({ fields, row, onSave, onCancel }: {
     }
     setBusy(true)
     setError('')
+    setFieldErrors({})
     try {
       await onSave(body)
     } catch (err) {
-      setError((err as Error).message)
+      // Błędy walidacji trafiają pod swoje pola; ogólny komunikat tylko dla reszty.
+      const byField = err instanceof ApiError ? err.fieldErrors : {}
+      const known = visibleFields.some((f) => byField[fieldKey(f.name)])
+      setFieldErrors(byField)
+      setError(known ? 'Popraw zaznaczone pola i zapisz ponownie.' : (err as Error).message)
       setBusy(false)
     }
   }
@@ -189,8 +200,7 @@ function EntityForm({ fields, row, onSave, onCancel }: {
           {f.note && <div className="field-note">{f.note}</div>}
         </div>
       ) : (
-        <label key={f.name}>
-          {f.label}
+        <FormField key={f.name} label={f.label} hint={f.note} error={fieldErrors[fieldKey(f.name)]}>
           {f.options && !options[f.name] ? (
             <select key="loading" disabled><option>Ładowanie…</option></select>
           ) : f.options ? (
@@ -202,11 +212,11 @@ function EntityForm({ fields, row, onSave, onCancel }: {
           ) : (
             <input name={f.name} type={f.type ?? 'text'} defaultValue={row?.[f.name] ?? ''} required={!f.optional} />
           )}
-        </label>
+        </FormField>
       ))}
       {error && <p role="alert" className="error">{error}</p>}
       <div className="buttons">
-        <button type="submit" disabled={busy}>{row ? 'Zapisz' : 'Dodaj'}</button>
+        <button type="submit" disabled={busy}>{row ? 'Zapisz zmiany' : 'Dodaj wpis'}</button>
         <button type="button" className="secondary" onClick={onCancel}>Anuluj</button>
       </div>
     </form>

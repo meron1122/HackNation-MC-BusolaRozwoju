@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
-import { DuePill, Pill } from './evaluation/common'
+import { EmptyState } from './EmptyState'
+import { DuePill, Pill, StatusPill, type EvaluationStatus } from './evaluation/common'
 import {
   initials, fmtDate, isFirstTemplate, pathLabel, plural, type Progress,
 } from './evaluation/types'
@@ -26,10 +27,23 @@ const fullName = (m: TeamMember) => `${m.firstName} ${m.lastName}`
 const kindOf = (p: Progress) => (isFirstTemplate(p.templateCode) ? 'Pierwsza ocena' : 'Ocena okresowa')
 const thisWeek = (p: Progress) => p.overdue || p.daysLeft == null || p.daysLeft <= 7
 
-export function PhasePill({ progress }: { progress: Progress | null }) {
+/** Etap oceny jako jeden z czterech statusów z guidelines; faza z szablonu zostaje jako dopisek. */
+function statusOf(p: Progress): EvaluationStatus {
+  if (p.isFinal) return p.phase === 'Anulowana' ? 'cancelled' : 'done'
+  if (!p.started || p.phase === NOT_STARTED) return 'planned'
+  return p.stageKey === 'acknowledgement' ? 'sign' : 'progress'
+}
+
+/** `showOverdue`: tam, gdzie obok nie ma kolumny z terminem, „po terminie” jako osobna pigułka (słowo, nie czerwień). */
+export function PhasePill({ progress, showOverdue = false }: { progress: Progress | null; showOverdue?: boolean }) {
   if (!progress) return <Pill>Brak oceny</Pill>
-  const tone = progress.overdue ? 'danger' : progress.phase === NOT_STARTED ? 'warn' : progress.isFinal ? 'ok' : progress.stageKey === 'acknowledgement' ? 'info' : 'neutral'
-  return <Pill tone={tone}>{progress.phase}</Pill>
+  const status = statusOf(progress)
+  return (
+    <>
+      {showOverdue && progress.overdue && !progress.isFinal && <Pill tone="attention" icon="clock">po terminie</Pill>}
+      <StatusPill status={status} detail={status === 'progress' || status === 'done' ? progress.phase : null} />
+    </>
+  )
 }
 
 function actionLabel(p: Progress): string {
@@ -67,7 +81,7 @@ export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
       </div>
       <div className="dashboard-grid">
         <div className="card attention">
-          <div className="card-head"><h3>Wymaga uwagi</h3><Pill tone={attention.length ? 'warn' : 'ok'}>{attention.length} {plural(attention.length, 'zadanie', 'zadania', 'zadań')}</Pill></div>
+          <div className="card-head"><h3>Wymaga uwagi</h3><Pill tone={attention.length ? 'attention' : 'neutral'}>{attention.length} {plural(attention.length, 'zadanie', 'zadania', 'zadań')}</Pill></div>
           {groups.length === 0 && <p className="muted">Nic pilnego w najbliższych {ATTENTION_DAYS} dniach.</p>}
           {groups.map((g) => (
             <div key={g.title}>
@@ -96,7 +110,7 @@ export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
         </div>
         <div className="card">
           <h3>Mój zespół</h3>
-          {team.members.length === 0 && <p className="muted">Nie masz bezpośrednich podwładnych.</p>}
+          {team.members.length === 0 && <EmptyState title="W zespole nie ma jeszcze pracowników">Gdy kadry przypiszą Ci pracowników, pojawią się tutaj, a Busola policzy ich terminy ocen.</EmptyState>}
           <ul className="team-list">
             {team.members.map((m) => (
               <li key={m.employeeId}>
@@ -104,7 +118,7 @@ export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
                   onClick={() => (m.evaluation ? onOpenEvaluation(m.evaluation.evaluationId) : onOpenProfile(m.employeeId))}>{fullName(m)}</button>
                 <span className="grow" />
                 {m.evaluation && <span className="muted small">{pathLabel(m.evaluation.templateCode)}</span>}
-                <PhasePill progress={m.evaluation} />
+                <PhasePill progress={m.evaluation} showOverdue />
               </li>
             ))}
           </ul>
@@ -122,7 +136,7 @@ export function TeamPage({ onOpenEvaluation, onOpenProfile }: { onOpenEvaluation
   return (
     <section>
       <div className="toolbar"><h2>Mój zespół</h2><span className="muted">{team.departmentName}</span></div>
-      {team.members.length === 0 ? <p className="muted">Nie masz bezpośrednich podwładnych.</p> : (
+      {team.members.length === 0 ? <EmptyState title="W zespole nie ma jeszcze pracowników">Gdy kadry przypiszą Ci pracowników, pojawią się tutaj, a Busola policzy ich terminy ocen.</EmptyState> : (
         <div className="table-wrap">
           <table>
             <thead><tr><th>Osoba</th><th>Ścieżka</th><th>Faza</th><th>Etap</th><th>Termin</th><th>Status</th><th /></tr></thead>

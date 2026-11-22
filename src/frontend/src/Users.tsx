@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { api } from './api'
+import { ConfirmButton } from './ConfirmButton'
 import type { Row } from './Crud'
 
 type User = { id: string; email: string; employeeId: number | null; roles: string[]; twoFactorEnabled: boolean }
@@ -56,7 +57,6 @@ export function UsersPage({ superAdmin }: { superAdmin: boolean }) {
   }
 
   function resetTwoFactor(user: User) {
-    if (!confirm(`Wyłączyć weryfikację dwuetapową dla ${user.email}? Użytkownik zostanie wylogowany i będzie mógł skonfigurować ją od nowa.`)) return
     run(() => api(`users/${user.id}/two-factor`, 'DELETE'))
   }
 
@@ -69,7 +69,7 @@ export function UsersPage({ superAdmin }: { superAdmin: boolean }) {
     <section>
       <div className="toolbar">
         <h2>Konta</h2>
-        {!adding && <button onClick={() => setAdding(true)}>Dodaj</button>}
+        {!adding && <button onClick={() => setAdding(true)}>Dodaj użytkownika</button>}
       </div>
       {error && <p role="alert" className="error">{error}</p>}
       {adding && (
@@ -89,7 +89,7 @@ export function UsersPage({ superAdmin }: { superAdmin: boolean }) {
           </fieldset>
           <p className="muted">Hasło: min. 6 znaków, duża i mała litera, cyfra i znak specjalny.</p>
           <div className="buttons">
-            <button type="submit">Dodaj</button>
+            <button type="submit">Dodaj użytkownika</button>
             <button type="button" className="secondary" onClick={() => setAdding(false)}>Anuluj</button>
           </div>
         </form>
@@ -99,7 +99,7 @@ export function UsersPage({ superAdmin }: { superAdmin: boolean }) {
       ) : (
         <div className="table-wrap">
           <table>
-            <thead><tr><th>E-mail</th><th>Pracownik</th><th>2FA</th><th>Role</th></tr></thead>
+            <thead><tr><th>E-mail</th><th>Pracownik</th><th>Weryfikacja dwuetapowa</th><th>Role</th></tr></thead>
             <tbody>
               {users.map((u) => (
                 <tr key={u.id}>
@@ -107,7 +107,8 @@ export function UsersPage({ superAdmin }: { superAdmin: boolean }) {
                   <td>{employeeName(u.employeeId)}</td>
                   <td className="nowrap">
                     {u.twoFactorEnabled ? (
-                      <>włączona <button className="link danger" onClick={() => resetTwoFactor(u)}>Resetuj</button></>
+                      <>włączona <ConfirmButton compact question={`Wyłączyć weryfikację dwuetapową dla ${u.email}? Użytkownik zostanie wylogowany i skonfiguruje ją od nowa.`}
+                        confirmLabel="Wyłącz weryfikację" onConfirm={() => resetTwoFactor(u)}>Resetuj</ConfirmButton></>
                     ) : '—'}
                   </td>
                   <td>

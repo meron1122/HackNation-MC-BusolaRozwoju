@@ -57,7 +57,7 @@ export function OrgChart({ startId, onOpenProfile }: { startId: number; onOpenPr
             {view.reports.map((r) => <li key={r.id}>{card(r, 'report')}</li>)}
           </ul>
         ) : (
-          <p className="muted">Brak podwładnych.</p>
+          <p className="muted">Nikt nie podlega bezpośrednio tej osobie.</p>
         )}
       </div>
     </div>

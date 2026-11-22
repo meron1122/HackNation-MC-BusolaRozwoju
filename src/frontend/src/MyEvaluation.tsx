@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
 import { DuePill, Pill } from './evaluation/common'
+import { Icon } from './Icon'
 import { signatureState, slotBlock } from './evaluation/data'
 import { daysUntil, fmtDate, kindLabel, type Detail, type SelfAssessment } from './evaluation/types'
 
@@ -86,15 +87,15 @@ export function MyEvaluationPage({ onOpen }: { onOpen: (id: number) => void }) {
             <div className="card-head">
               <div>
                 <h3>{kindLabel(d.templateCode)}</h3>
-                <p className="muted small">Oceniający: {d.evaluatorName ?? '—'} · od {fmtDate(d.startDate)}</p>
+                <p className="muted small">Przełożony: {d.evaluatorName ?? '—'} · od {fmtDate(d.startDate)}</p>
               </div>
-              <Pill tone={d.isFinal ? 'ok' : 'info'}>{d.phase}</Pill>
+              <Pill tone={d.isFinal ? 'done' : 'info'}>{d.phase}</Pill>
             </div>
             {tasks.length > 0 ? (
               <ul className="my-tasks">
                 {tasks.map((t) => (
                   <li key={t.text} className={t.tone}>
-                    <span className="grow">{t.tone === 'action' ? '→ ' : t.tone === 'waiting' ? '⏳ ' : 'ℹ '}{t.text}</span>
+                    <span className="grow">{t.tone === 'action' ? '→ ' : t.tone === 'waiting' ? <><Icon name="clock" /> </> : ''}{t.text}</span>
                     {t.dueTo && <DuePill dueTo={t.dueTo} daysLeft={daysUntil(t.dueTo)} overdue={(daysUntil(t.dueTo) ?? 0) < 0} />}
                   </li>
                 ))}

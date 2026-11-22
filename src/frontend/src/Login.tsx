@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { api } from './api'
+import { Logo } from './Logo'
 
 type LoginResponse = { token: string | null; requiresTwoFactor: boolean }
 
@@ -44,7 +45,7 @@ export function Login({ onLogin }: { onLogin: (token: string) => void }) {
 
   return (
     <main className="login">
-      <h1>Busola Rozwoju</h1>
+      <h1 className="brand-heading"><Logo layout="vertical" width={120} /></h1>
       {credentials === null ? (
         <form onSubmit={submitPassword} className="form">
           <label>

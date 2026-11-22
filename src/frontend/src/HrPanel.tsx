@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from './api'
+import { EmptyState } from './EmptyState'
 import { DuePill, Pill } from './evaluation/common'
 import { fmtDate, pathLabel, plural, type Progress } from './evaluation/types'
 
@@ -76,12 +77,12 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
         )}
       </div>
       <div className="counters">
-        <div className="card counter"><strong>{c.overdue}</strong><Pill tone="danger">Po terminie</Pill></div>
-        <div className="card counter"><strong>{c.dueIn7Days}</strong><Pill tone="warn">Termin w 7 dni</Pill></div>
-        <div className="card counter"><strong>{c.inProgress}</strong><Pill tone="info">W toku</Pill></div>
+        <div className="card counter"><strong>{c.overdue}</strong><Pill tone="attention" icon="clock">Po terminie</Pill></div>
+        <div className="card counter"><strong>{c.dueIn7Days}</strong><Pill tone="info" icon="clock">Termin w 7 dni</Pill></div>
+        <div className="card counter"><strong>{c.inProgress}</strong><Pill tone="info" icon="progress">W toku</Pill></div>
         <div className="card counter">
           <strong>{c.closedInYear}</strong>
-          <label className="check"><Pill tone="ok">Zamknięte w</Pill>
+          <label className="check"><Pill tone="done" icon="done">Zamknięte w</Pill>
             <select value={year} onChange={(e) => setYear(Number(e.target.value))} aria-label="Rok">
               {[thisYear, thisYear - 1, thisYear - 2].map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
@@ -107,7 +108,7 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
         <button type="button" className={riskOnly ? 'chip-button active' : 'chip-button'} aria-pressed={riskOnly} onClick={() => setRiskOnly((v) => !v)}>Tylko zagrożone</button>
       </div>
       {status && <p className="muted" role="status">{status}</p>}
-      {rows.length === 0 ? <p className="muted">Brak ocen dla wybranych filtrów.</p> : (
+      {rows.length === 0 ? <EmptyState title="Żadna ocena nie pasuje do filtrów">Zmień albo wyczyść filtry powyżej.</EmptyState> : (
         <div className="table-wrap">
           <table>
             <thead><tr><th>Osoba</th><th>Przełożony</th><th>Ścieżka</th><th>Etap</th><th>Termin</th><th>Status</th><th>Akcja</th></tr></thead>

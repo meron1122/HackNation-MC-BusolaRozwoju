@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api, apiBlobUrl } from './api'
 import { Avatar } from './Avatar'
+import { EmptyState } from './EmptyState'
+import { Icon } from './Icon'
 import type { Row } from './Crud'
 import { initialValues, signatureState, slotBlock } from './evaluation/data'
 import { EvaluationWizard } from './evaluation/Wizard'
@@ -44,7 +46,10 @@ function EvaluationList({ canAdd, onOpen }: { canAdd: boolean; onOpen: (id: numb
       </div>
       {error && <p role="alert" className="error">{error}</p>}
       {adding && <CreateForm onCancel={() => setAdding(false)} onCreated={(id) => onOpen(id)} />}
-      {rows === null ? <p>Ładowanie…</p> : rows.length === 0 ? <p className="muted">Brak ocen.</p> : (
+      {rows === null ? <p>Ładowanie…</p> : rows.length === 0 ? <EmptyState title="Nie ma jeszcze żadnych ocen"
+          action={canAdd && !adding && <button onClick={() => setAdding(true)}>Załóż ocenę</button>}>
+          {canAdd ? 'Załóż pierwszą ocenę, a Busola policzy jej terminy.' : 'Gdy przełożony albo kadry założą ocenę, pojawi się tutaj.'}
+        </EmptyState> : (
         <div className="table-wrap">
           <table>
             <thead><tr><th>Pracownik</th><th>Ścieżka</th><th>Faza</th><th>Najbliższy etap</th><th>Termin</th><th /></tr></thead>
@@ -55,7 +60,9 @@ function EvaluationList({ canAdd, onOpen }: { canAdd: boolean; onOpen: (id: numb
                   <td title={r.templateTitle}>{r.templateCode ? pathLabel(r.templateCode) : r.templateTitle}</td>
                   <td>{r.phase ?? r.statusLabel}</td>
                   <td>{r.nextStageTitle ?? '—'}</td>
-                  <td className={r.nextDueTo && r.nextDueTo < today() ? 'overdue' : undefined}>{fmtDate(r.nextDueTo)}</td>
+                  <td className={r.nextDueTo && r.nextDueTo < today() ? 'overdue' : undefined}>
+                    {fmtDate(r.nextDueTo)}{r.nextDueTo && r.nextDueTo < today() && ' · po terminie'}
+                  </td>
                   <td className="actions"><button className="link" onClick={() => onOpen(r.id)}>Otwórz</button></td>
                 </tr>
               ))}
@@ -144,7 +151,7 @@ function EvaluationCard({ id, onBack, backLabel = 'Wróć do listy' }: { id: num
           <Avatar path={`employees/${detail.employeeId}/avatar`} name={detail.employeeName} size={48} />
           <p>
             <strong>{detail.employeeName}</strong> · status: <strong>{detail.statusLabel}</strong><br />
-            <span className="muted">Oceniający / przełożony: {detail.evaluatorName ?? '—'} · początek: {detail.startDate}</span>
+            <span className="muted">Przełożony: {detail.evaluatorName ?? '—'} · początek: {fmtDate(detail.startDate)}</span>
           </p>
         </div>
         {detail.isOwn && <p className="muted">To Twoja ocena — możesz ją przeglądać i podpisać swoje pola.</p>}
@@ -154,11 +161,11 @@ function EvaluationCard({ id, onBack, backLabel = 'Wróć do listy' }: { id: num
         && detail.schema.sections.some((s) => s.fields.some((f) => f.type === 'criteriaSelection' && f.additional?.from === 'competencyModel')) && (
         <div className="card panel cycle-start">
           <p>
-            <strong>Początek cyklu:</strong> wybierz do 3 kryteriów dodatkowych z modelu kompetencji i omów je z ocenianym
+            <strong>Początek cyklu:</strong> wybierz do 3 kryteriów dodatkowych z modelu kompetencji i omów je z pracownikiem
             {detail.stages.find((s) => s.key === 'criteria')?.dueTo && <> (termin: {detail.stages.find((s) => s.key === 'criteria')!.dueTo})</>}.
           </p>
           <div className="buttons">
-            <button onClick={() => document.getElementById('criteria-picker')?.scrollIntoView({ behavior: 'smooth' })}>Wybierz kryteria</button>
+            <button onClick={() => document.getElementById('criteria-picker')?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })}>Wybierz kryteria</button>
           </div>
         </div>
       )}
@@ -203,10 +210,10 @@ export function Stages({ detail, onChange }: { detail: Detail; onChange: () => v
               <tr key={s.key}>
                 <td>{s.title}{s.optional && <span className="muted"> (opcjonalny)</span>}</td>
                 <td className={s.overdue ? 'overdue' : undefined}>
-                  {s.dueFrom && s.dueTo ? `${s.dueFrom} – ${s.dueTo}` : s.dueTo ? `do ${s.dueTo}` : s.status === 'Pending' ? 'po poprzednim etapie' : '—'}
+                  {s.dueFrom && s.dueTo ? `${fmtDate(s.dueFrom)}–${fmtDate(s.dueTo)}` : s.dueTo ? `do ${fmtDate(s.dueTo)}` : s.status === 'Pending' ? 'po poprzednim etapie' : '—'}
                   {s.overdue && ' (po terminie)'}
                 </td>
-                <td>{s.status === 'Completed' ? `wykonany ${s.completedOn}` : s.status === 'Skipped' ? 'pominięty' : 'otwarty'}</td>
+                <td>{s.status === 'Completed' ? `wykonany ${fmtDate(s.completedOn)}` : s.status === 'Skipped' ? 'pominięty' : 'otwarty'}</td>
                 <td className="actions">
                   {s.status === 'Pending' && canChange(s) && !closedByEvaluated(s) && (
                     <form className="inline" onSubmit={(e) => complete(e, s)}>
@@ -339,7 +346,7 @@ export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage
     }
   }
 
-  const auto = <span className="auto" title="Liczy system — nie do edycji">🔒 auto</span>
+  const auto = <span className="auto" title="Liczy system — nie do edycji"><Icon name="lock" /> auto</span>
 
   function computedValue(f: Field): ReactNode {
     const saved = get(f.key)
@@ -369,7 +376,7 @@ export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage
       return <p key={f.key} className="computed"><strong>{f.label}:</strong> {computedValue(f)} {auto}</p>
     }
     if (fromPrevious(f)) {
-      return <p key={f.key} className="computed"><strong>{f.label}:</strong> {previousValue(f)} <span className="auto">🔒</span></p>
+      return <p key={f.key} className="computed"><strong>{f.label}:</strong> {previousValue(f)} <span className="auto" title="Z poprzedniej oceny — nie do edycji"><Icon name="lock" /> z poprzedniej oceny</span></p>
     }
     switch (f.type) {
       case 'text':
@@ -426,7 +433,7 @@ export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage
               <h4>{label}</h4>
               <p>
                 <strong>Obowiązkowe (z arkusza):</strong>{' '}
-                {mandatory.map((m) => <span key={m.key} className="chip">🔒 {m.label}</span>)}
+                {mandatory.map((m) => <span key={m.key} className="chip"><Icon name="lock" /> {m.label}</span>)}
               </p>
               <p className={selected.length === max ? 'success' : 'muted'}>
                 Kryteria dodatkowe (nie więcej niż {max}): wybrano <strong>{selected.length}/{max}</strong>.
@@ -504,7 +511,7 @@ export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage
                     <p className="muted small">
                       Ocenione wskaźniki: {hint.rated} z {hint.total}
                       {hint.value != null && <>
-                        {' '}· średnia {hint.mean} → sugerowana ocena <strong>{hint.value}</strong>{' '}
+                        {' '}· średnia {hint.mean} → sugerowany poziom <strong>{hint.value}</strong>{' '}
                         {!disabled && get(f.key, item.key)?.valueNumber !== hint.value && (
                           <button type="button" className="link" onClick={() => set(f.key, item.key, { valueNumber: hint.value })}>Użyj</button>
                         )}
@@ -585,7 +592,7 @@ export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage
         const hasValues = fields.some(savable)
         return (
           <div key={section.key} className="card panel sheet-section">
-            <h3>{section.part ? `${section.part} · ` : ''}{section.title}{locked && <span className="auto"> 🔒 zamknięta</span>}</h3>
+            <h3>{section.part ? `${section.part} · ` : ''}{section.title}{locked && <span className="auto"> <Icon name="lock" /> zamknięta</span>}</h3>
             {showStage && <p className="muted small">Etap: {detail.stages.find((s) => s.key === section.stage)?.title ?? section.stage}</p>}
             <div className="sheet-fields">
               {fields.map((f) => renderField(f, disabled, locked))}
@@ -603,7 +610,7 @@ export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage
   )
 }
 
-const ROLE_LABELS: Record<string, string> = { evaluated: 'oceniany', supervisor: 'bezpośredni przełożony', unitHead: 'kierujący komórką', evaluator: 'oceniający' }
+const ROLE_LABELS: Record<string, string> = { evaluated: 'pracownik', supervisor: 'bezpośredni przełożony', unitHead: 'kierujący komórką', evaluator: 'przełożony' }
 
 /**
  * Pole podpisu. Oceniający/przełożony podpisuje sam (data, miejscowość, opcjonalnie odręcznie albo na tablecie).
@@ -688,7 +695,7 @@ export function SignatureField({ field, detail, onSigned, locked = false, blocke
       <p>{field.label && <>{field.label}<br /></>}<span className="muted">Podpis: {ROLE_LABELS[field.role] ?? field.role}</span></p>
       {signature ? (
         <p>
-          ✔ {signature.signerName}, {fmtDate(signature.signedOn)}{signature.place ? `, ${signature.place}` : ''}
+          <Icon name="done" /> {signature.signerName}, {fmtDate(signature.signedOn)}{signature.place ? `, ${signature.place}` : ''}
           {signature.hasImage && <><br /><SignatureImage path={`evaluations/${detail.id}/signatures/${signature.id}/image`} /></>}
           {error && <><br /><span role="alert" className="error">{error}</span></>}
         </p>
@@ -713,7 +720,7 @@ export function SignatureField({ field, detail, onSigned, locked = false, blocke
         <p className="muted">{blockedByDeadline}</p>
       ) : waitsForEvaluated ? (
         <div className="stack">
-          <p><span className="pill warn">Czeka na podpis ocenianego</span></p>
+          <p><span className="pill attention"><span>Czeka na podpis pracownika</span></span></p>
           {/* Link/QR do pola ocenianego może zlecić tylko sam oceniany (SignaturesController.CheckSignRulesAsync). */}
           <p className="muted small">
             Podpisuje {detail.employeeName} ze swojego konta (Oceny → ta ocena → „Moje podpisy”) — tam może też podpisać
@@ -723,8 +730,8 @@ export function SignatureField({ field, detail, onSigned, locked = false, blocke
       ) : waitsForEvaluator ? (
         <p className="muted">
           {detail.isOwn
-            ? 'Podpiszesz po rozmowie, gdy podpisze przełożony (oceniający) — potwierdzasz rozmowę, która już się odbyła.'
-            : 'Oceniany podpisze po podpisie przełożonego (oceniającego) w tej części.'}
+            ? 'Podpiszesz po rozmowie, gdy podpisze przełożony. Podpisem potwierdzasz rozmowę, która już się odbyła.'
+            : 'Pracownik podpisze tę część po podpisie przełożonego.'}
         </p>
       ) : (
         <p className="muted">

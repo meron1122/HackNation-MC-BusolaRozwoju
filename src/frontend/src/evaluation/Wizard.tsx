@@ -195,7 +195,7 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
 
   const go = (next: string) => {
     setStepId(next)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
   }
   const step = steps.find((s) => s.id === stepId) ?? steps[0]
   const props: StepProps = { detail, check, steps, reload: load, go, onOpenEvaluation }

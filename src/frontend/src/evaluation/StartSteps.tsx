@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { api } from '../api'
 import { SheetForm } from '../Evaluations'
-import { CompleteStage, DuePill, IssueList, NextButton, PdfButton, Pill, TopicList, type StepProps } from './common'
+import { Auto, CompleteStage, DuePill, IssueList, NextButton, PdfButton, Pill, TopicList, type StepProps } from './common'
 import { useApi, useWorkContext, withoutAutoFilled } from './data'
 import {
   daysUntil, criteriaFieldOf, criteriaOf, fmtDate, isFirstTemplate, scoresFieldOf, sheetLetter, stageOf, type Detail, type Field, type PositiveRule, type Schema,
@@ -80,7 +80,7 @@ export function StartStep({ detail, steps, go, reload }: StepProps) {
     return (
       <div className={selected ? 'choice-card selected' : clickable ? 'choice-card clickable' : 'choice-card disabled'}
         role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined} aria-pressed={selected}
-        onClick={() => clickable && switchTo(target!)} onKeyDown={(e) => clickable && e.key === 'Enter' && switchTo(target!)}>
+        onClick={() => clickable && switchTo(target!)} onKeyDown={(e) => { if (clickable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); switchTo(target!) } }}>
         <div className="choice-head"><strong>{title}</strong>{selected && <span className="small accent">wybrana</span>}</div>
         <p className="muted small">{text}</p>
         {extra}
@@ -118,7 +118,7 @@ export function StartStep({ detail, steps, go, reload }: StepProps) {
       {error && <p role="alert" className="error">{error}</p>}
 
       {!first && (
-        <div className="callout ok">
+        <div className="callout">
           <strong>Arkusz {letter}</strong> {schema.appliesTo && <span>· {schema.appliesTo}</span>}
           {schema.legalBasis && <p className="muted small">{schema.legalBasis}</p>}
         </div>
@@ -133,7 +133,7 @@ export function StartStep({ detail, steps, go, reload }: StepProps) {
               return (
               <li key={s.key} className={s.key === detail.currentStageKey ? 'current' : s.status !== 'Pending' ? 'done' : undefined}>
                 <span>{phase}{phase !== s.title && <span className="muted small"> · {s.title}</span>}</span>
-                <Pill tone={s.overdue ? 'danger' : s.key === detail.currentStageKey ? 'warn' : 'neutral'}>
+                <Pill tone={s.overdue ? 'attention' : s.key === detail.currentStageKey ? 'info' : 'neutral'}>
                   {s.key === detail.currentStageKey && !s.dueTo ? 'niezwłocznie' : stageDue(detail, s.key)}
                 </Pill>
               </li>
@@ -209,8 +209,8 @@ export function CriteriaStep({ detail, steps, go, reload }: StepProps) {
 
 const LEVEL_CARDS = [
   { key: 'meets', title: 'Tego oczekuję', tone: 'info', note: 'na poziomie oczekiwań' },
-  { key: 'above', title: 'Tak wygląda więcej', tone: 'ok', note: 'powyżej oczekiwań' },
-  { key: 'below', title: 'Tego unikaj', tone: 'warn', note: 'poniżej oczekiwań' },
+  { key: 'above', title: 'Tak wygląda więcej', tone: 'neutral', note: 'powyżej oczekiwań' },
+  { key: 'below', title: 'Tego unikaj', tone: 'neutral', note: 'poniżej oczekiwań' },
 ] as const
 
 /** W04: rozmowa rozpoczynająca — oczekiwania (opisy poziomów wskaźników + przykład) i tematy z § 5 ust. 1. */
@@ -238,7 +238,7 @@ export function KickoffStep({ detail, steps, go }: StepProps) {
         <PdfButton detail={detail} label="Podgląd PDF dla pracownika" />
         <span className="grow" />
         {tab === 'expectations'
-          ? <button type="button" onClick={() => setTab('topics')}>Dalej: tematy rozmowy →</button>
+          ? <button type="button" onClick={() => setTab('topics')}>Tematy rozmowy →</button>
           : <NextButton steps={steps} current="kickoff" go={go} />}
       </div>
     </div>
@@ -257,7 +257,7 @@ function Expectations({ detail }: { detail: Detail }) {
   return (
     <>
       <p className="muted small">
-        Opisy zachowań z modelu kompetencji pokazują ocenianemu, czego oczekujesz. Możesz dopisać przykład z pracy wydziału — oceniany go zobaczy.
+        Opisy zachowań z modelu kompetencji pokazują pracownikowi, czego oczekujesz. Możesz dopisać przykład z pracy wydziału, a pracownik go zobaczy.
       </p>
       {work.error && <p className="muted small">Przykładów nie da się teraz zapisać: {work.error}</p>}
       <div className="chips" role="tablist">
@@ -333,10 +333,10 @@ function Topics({ detail }: { detail: Detail }) {
       ...stageSections.flatMap((s) => s.fields).filter((f) => f.type === 'dateRange').map((f) => `${f.label}${f.legalRef ? ` (${f.legalRef})` : ''}.`),
     ]
     : [
-      'Główne obowiązki ocenianego wynikające z opisu stanowiska pracy.',
+      'Główne obowiązki pracownika wynikające z opisu stanowiska pracy.',
       `Kryteria oceny: obowiązkowe z arkusza i wybrane dodatkowe (${criteriaOf(detail).map((c) => c.label).join(', ') || 'jeszcze niewybrane'}).`,
-      'Oczekiwania oceniającego co do spełniania kryteriów — opisy zachowań z zakładki „Oczekiwania”.',
-      'Cele do osiągnięcia przez ocenianego — jeśli to uzasadnione.',
+      'Oczekiwania przełożonego co do spełniania kryteriów — opisy zachowań z zakładki „Oczekiwania”.',
+      'Cele do osiągnięcia przez pracownika — jeśli to uzasadnione.',
     ]
   return (
     <div className="card">
@@ -344,14 +344,14 @@ function Topics({ detail }: { detail: Detail }) {
       {topics ? <ol className="topics">{topics.map((t) => <li key={t}>{t}</li>)}</ol> : <TopicList topics={fromTemplate!} />}
       {!first && <p className="small">Kryteria tej oceny: {criteriaOf(detail).map((c) => c.label).join(', ') || 'jeszcze niewybrane'}. Oczekiwania — zakładka „Oczekiwania”.</p>}
       <p className="muted small">
-        Lista nic nie zapisuje. Potwierdzeniem przeprowadzenia rozmowy i zapoznania ocenianego z {first ? 'terminami' : 'kryteriami i terminem sporządzenia oceny'} są
+        Lista nic nie zapisuje. Potwierdzeniem przeprowadzenia rozmowy i zapoznania pracownika z {first ? 'terminami' : 'kryteriami i terminem sporządzenia oceny'} są
         podpisy {first ? 'w części „Rozmowa wstępna”' : 'w części I arkusza'}{signatureRef ? ` (${signatureRef})` : ''}.
       </p>
     </div>
   )
 }
 
-/** W05: część I (dane, kryteria, termin 🔒 auto) i podpisy; zapis zamyka etap i rozpoczyna okres obserwacji. */
+/** W05: część I (dane, kryteria, termin liczony automatycznie) i podpisy; zapis zamyka etap i rozpoczyna okres obserwacji. */
 export function PartOneStep({ detail, check, steps, go, reload, sections }: StepProps & { sections: string[] }) {
   const schema = detail.schema
   const first = isFirstTemplate(detail.templateCode)
@@ -379,7 +379,7 @@ export function PartOneStep({ detail, check, steps, go, reload, sections }: Step
           <PdfButton detail={detail} />
         </div>
         <dl className="summary">
-          <dt>Oceniany</dt><dd>{detail.employeeName}</dd>
+          <dt>Pracownik</dt><dd>{detail.employeeName}</dd>
           {criteriaField ? (
             <>
               <dt>Kryteria obowiązkowe</dt><dd>{mandatory.length} (arkusz {sheetLetter(detail.templateCode)})</dd>
@@ -389,7 +389,7 @@ export function PartOneStep({ detail, check, steps, go, reload, sections }: Step
             <><dt>Elementy oceny</dt><dd>{criteria.map((c) => c.label).join(', ')}</dd></>
           )}
           {report && <><dt>Sprawozdanie</dt><dd>{stageDue(detail, report.key)}</dd></>}
-          {evaluation && <><dt>{first ? 'Okres pierwszej oceny' : 'Termin sporządzenia oceny'}</dt><dd><strong>{stageDue(detail, evaluation.key)}</strong> <span className="auto">🔒 auto</span></dd></>}
+          {evaluation && <><dt>{first ? 'Okres pierwszej oceny' : 'Termin sporządzenia oceny'}</dt><dd><strong>{stageDue(detail, evaluation.key)}</strong> <Auto /></dd></>}
           <dt>Opisy zachowań dla wybranych kryteriów</dt>
           <dd>{criteria.length} {first ? 'elementów' : 'kryteriów'}{examples > 0 && ` · ${examples} przykładów z pracy wydziału`}</dd>
         </dl>
@@ -398,7 +398,7 @@ export function PartOneStep({ detail, check, steps, go, reload, sections }: Step
         fieldFilter={(f: Field) => f.type !== 'criteriaSelection' && !(f.type === 'date' && f.prefill?.startsWith('stage:'))} />
       {!closed && <IssueList issues={stageIssues} steps={steps} go={go} />}
       {closed ? (
-        <div className="callout ok">Etap zamknięty {fmtDate(firstStage?.completedOn)} — część I jest zablokowana.</div>
+        <div className="callout">Etap zamknięty {fmtDate(firstStage?.completedOn)} — część I jest zablokowana.</div>
       ) : (
         <CompleteStage detail={detail} check={check} stageKey={firstStage!.key} defaultDate={signedDates[signedDates.length - 1]}
           label={first ? 'Zapisz i zamknij rozmowę wstępną →' : 'Zapisz i rozpocznij obserwację →'} onDone={async () => { await reload(); go('notes') }}>

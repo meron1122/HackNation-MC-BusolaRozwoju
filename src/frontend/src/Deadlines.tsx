@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import { EmptyState } from './EmptyState'
 import { api } from './api'
+import { fmtDate } from './evaluation/types'
 
 type Deadline = {
   evaluationId: number; employeeName: string; templateTitle: string; stageKey: string; stageTitle: string
@@ -38,14 +40,14 @@ export function DeadlinesPage({ onOpen }: { onOpen: (evaluationId: number) => vo
           {overdue > 0 && <>, w tym <strong className="overdue">{overdue} po terminie</strong></>}.
         </p>
       )}
-      {rows === null ? <p>Ładowanie…</p> : rows.length === 0 ? <p className="muted">Brak terminów w tym okresie.</p> : (
+      {rows === null ? <p>Ładowanie…</p> : rows.length === 0 ? <EmptyState title="W tym okresie nie ma terminów">Wybierz dłuższy zakres powyżej, żeby zobaczyć kolejne terminy etapów.</EmptyState> : (
         <div className="table-wrap">
           <table>
             <thead><tr><th>Termin</th><th>Zostało</th><th>Pracownik</th><th>Etap</th><th>Arkusz</th><th /></tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={`${r.evaluationId}-${r.stageTitle}`} className={r.overdue ? 'overdue-row' : undefined}>
-                  <td className="nowrap">{r.dueFrom ? `${r.dueFrom} – ${r.dueTo}` : r.dueTo}</td>
+                  <td className="nowrap">{r.dueFrom ? `${fmtDate(r.dueFrom)}–${fmtDate(r.dueTo)}` : fmtDate(r.dueTo)}</td>
                   <td className={r.overdue ? 'overdue nowrap' : 'nowrap'}>
                     {r.overdue ? `${-r.daysLeft} dni po terminie` : r.daysLeft === 0 ? 'dziś' : `${r.daysLeft} dni`}
                   </td>
@@ -84,7 +86,7 @@ function WithoutEvaluationList() {
       <ul>
         {rows.map((r) => (
           <li key={r.employeeId}>
-            {r.employeeName} <span className="muted">— zatrudniony {r.hireDate}{r.subjectToFirstEvaluation ? ', podlega pierwszej ocenie' : ''}</span>
+            {r.employeeName} <span className="muted">— data zatrudnienia {fmtDate(r.hireDate)}{r.subjectToFirstEvaluation ? ', podlega pierwszej ocenie' : ''}</span>
           </li>
         ))}
       </ul>

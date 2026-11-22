@@ -1,5 +1,6 @@
 import { Fragment, useState, type FormEvent } from 'react'
 import { api } from '../api'
+import { ConfirmButton } from '../ConfirmButton'
 import { CompleteStage, DuePill, IssueList, Pill, type StepProps } from './common'
 import { useApi } from './data'
 import {
@@ -22,8 +23,8 @@ export function SelfAssessmentStatus({ detail }: { detail: Detail }) {
     <p className="small">
       Samoocena pracownika:{' '}
       {data.submitted
-        ? <Pill tone="ok">przekazana {fmtDate(data.submittedAt)}</Pill>
-        : data.stageOpen ? <Pill tone="warn">jeszcze nieprzekazana</Pill> : <Pill>niedostępna w tym etapie</Pill>}
+        ? <Pill tone="done" icon="done">przekazana {fmtDate(data.submittedAt)}</Pill>
+        : data.stageOpen ? <Pill tone="attention">jeszcze nieprzekazana</Pill> : <Pill>niedostępna w tym etapie</Pill>}
     </p>
   )
 }
@@ -58,7 +59,6 @@ export function NotesStep({ detail, steps, go }: StepProps) {
     await reload()
   }
   async function remove(id: number) {
-    if (!confirm('Usunąć notatkę?')) return
     await api(`evaluations/${detail.id}/notes/${id}`, 'DELETE')
     await reload()
   }
@@ -66,12 +66,12 @@ export function NotesStep({ detail, steps, go }: StepProps) {
   return (
     <div className="step">
       {stage?.status === 'Pending' && left != null && left <= 30 && (
-        <div className="callout warn row">
+        <div className="callout attention row">
           <strong className="grow">{left < 0 ? `Termin oceny minął ${-left} dni temu.` : `${left} dni do terminu oceny.`} Zaplanuj rozmowę oceniającą.</strong>
           {ratingStep && <button type="button" onClick={() => go(ratingStep.id)}>Przejdź do oceny</button>}
         </div>
       )}
-      <div className="step-head"><h2>Notatki z obserwacji</h2><Pill>tylko dla oceniającego</Pill></div>
+      <div className="step-head"><h2>Notatki z obserwacji</h2><Pill icon="lock">tylko dla przełożonego</Pill></div>
       {progress != null && (
         <div className="timeline" aria-label="Okres obserwacji">
           <div className="timeline-bar"><div style={{ width: `${progress * 100}%` }} /></div>
@@ -82,12 +82,12 @@ export function NotesStep({ detail, steps, go }: StepProps) {
       )}
       <SelfAssessmentStatus detail={detail} />
       {error ? (
-        <p className="callout warn">Notatki nie są jeszcze dostępne: {error}</p>
+        <p className="callout attention">Notatki nie są jeszcze dostępne: {error}</p>
       ) : !data ? <p>Ładowanie…</p> : (
         <>
           {data.evidence.recentShare != null && notesCount >= 3 && data.evidence.recentShare >= 0.5 && (
-            <p className="callout warn">
-              ⚠ {Math.round(data.evidence.recentShare * 100)}% notatek pochodzi z ostatnich 4 miesięcy. Dodaj obserwacje z wcześniejszej części okresu, żeby ocena objęła cały okres.
+            <p className="callout attention">
+              {Math.round(data.evidence.recentShare * 100)}% notatek pochodzi z ostatnich 4 miesięcy. Dodaj obserwacje z wcześniejszej części okresu, żeby ocena objęła cały okres.
             </p>
           )}
           {data.evidence.outsidePeriod > 0 && (
@@ -105,7 +105,7 @@ export function NotesStep({ detail, steps, go }: StepProps) {
               {options.filter((o) => o.criterionKey === criterion).map((o) => (
                 <li key={o.key}>
                   <span>{o.text}</span>
-                  {count(o.key) > 0 ? <Pill tone="ok">{count(o.key)} {plural(count(o.key), 'notatka', 'notatki', 'notatek')}</Pill> : <Pill tone="warn">brak dowodów</Pill>}
+                  {count(o.key) > 0 ? <Pill tone="info">{count(o.key)} {plural(count(o.key), 'notatka', 'notatki', 'notatek')}</Pill> : <Pill tone="attention">brak dowodów</Pill>}
                 </li>
               ))}
             </ul>
@@ -140,12 +140,12 @@ function NoteView({ note, options, onEdit, onDelete }: { note: Note; options: In
       <div className="note-head">
         <strong>{fmtDate(note.observedOn)}</strong>
         {indicator && <Pill>{indicator.criterionLabel} · {indicator.text.length > 60 ? `${indicator.text.slice(0, 60)}…` : indicator.text}</Pill>}
-        {note.isPrivate && <Pill>🔒 prywatna</Pill>}
-        {note.discussedWithEmployee && <Pill tone="ok">omówiono z pracownikiem</Pill>}
-        {!note.inPeriod && <Pill tone="warn">sprzed okresu oceny</Pill>}
+        {note.isPrivate && <Pill icon="lock">prywatna</Pill>}
+        {note.discussedWithEmployee && <Pill tone="info" icon="done">omówiono z pracownikiem</Pill>}
+        {!note.inPeriod && <Pill tone="attention">sprzed okresu oceny</Pill>}
         <span className="grow" />
         {onEdit && <button type="button" className="link" onClick={onEdit}>Edytuj</button>}
-        {onDelete && <button type="button" className="link danger" onClick={onDelete}>Usuń</button>}
+        {onDelete && <ConfirmButton compact question="Usunąć notatkę?" confirmLabel="Usuń notatkę" onConfirm={onDelete}>Usuń</ConfirmButton>}
       </div>
       <dl className="sar">
         <dt>Sytuacja</dt><dd>{note.situation || '—'}</dd>
@@ -242,13 +242,13 @@ export function StageStep(props: StepProps & { stepId: string; stageKey: string 
     <div className="step">
       <div className="step-head">
         <h2>{def?.phase ?? stage.title}</h2>
-        {stage.status === 'Pending' && stage.dueTo && <Pill tone={stage.overdue ? 'danger' : 'warn'}>do {fmtDate(stage.dueTo)}</Pill>}
+        {stage.status === 'Pending' && stage.dueTo && <Pill tone={stage.overdue ? 'attention' : 'neutral'} icon="clock">do {fmtDate(stage.dueTo)}{stage.overdue ? ' · po terminie' : ''}</Pill>}
       </div>
       <p>{stage.title}{def?.legalRef && <span className="muted"> · {def.legalRef}</span>}</p>
       {def?.selfAssessment && (
         <div className="card">
           <SelfAssessmentStatus detail={detail} />
-          <p className="muted small">Oceniany wypełnia {def.phase === 'Sprawozdanie' ? 'sprawozdanie' : 'samoocenę'} ze swojego konta. Po przekazaniu zobaczysz je w rozmowie oceniającej.</p>
+          <p className="muted small">Pracownik wypełnia {def.phase === 'Sprawozdanie' ? 'sprawozdanie' : 'samoocenę'} ze swojego konta. Po przekazaniu zobaczysz je w rozmowie oceniającej.</p>
         </div>
       )}
       {stage.status === 'Pending' ? (
@@ -257,7 +257,7 @@ export function StageStep(props: StepProps & { stepId: string; stageKey: string 
           <CompleteStage detail={detail} check={check} stageKey={stageKey} label={`Zamknij etap: ${(def?.phase ?? stage.title).toLowerCase()}`} onDone={reload} />
         </>
       ) : (
-        <p className="callout ok">{stage.status === 'Skipped' ? 'Etap pominięty.' : `Etap zamknięty ${fmtDate(stage.completedOn)}.`}</p>
+        <p className="callout">{stage.status === 'Skipped' ? 'Etap pominięty.' : `Etap zamknięty ${fmtDate(stage.completedOn)}.`}</p>
       )}
     </div>
   )
@@ -278,7 +278,6 @@ function EvaluatedStageStep({ detail, check, reload, stageKey }: StepProps & { s
   const firstName = detail.employeeName.split(' ')[0]
 
   async function skip() {
-    if (!confirm(`Oznaczyć ${name} jako niezłożone? Ocena przejdzie do rozmowy oceniającej.`)) return
     setBusy(true)
     try {
       await api(`evaluations/${detail.id}/stages/${stageKey}/skip`, 'POST')
@@ -300,7 +299,7 @@ function EvaluatedStageStep({ detail, check, reload, stageKey }: StepProps & { s
       <p>{stage.title}{def?.legalRef && <span className="muted"> · {def.legalRef}</span>}</p>
       {stage.status === 'Pending' && (
         <div className="callout info">
-          <strong>Czeka na {name} ocenianego{stage.dueTo ? ` do ${fmtDate(stage.dueTo)}` : ''}.</strong>
+          <strong>Czeka na {name} pracownika{stage.dueTo ? ` do ${fmtDate(stage.dueTo)}` : ''}.</strong>
           <p className="small">
             {firstName} składa {name} ze swojego konta — przekazanie zamyka ten etap. Ty go nie zamykasz.
           </p>
@@ -310,15 +309,16 @@ function EvaluatedStageStep({ detail, check, reload, stageKey }: StepProps & { s
       {stage.status === 'Pending' && detail.canEdit && stageCheck?.canSkip && (
         <div className="step-footer">
           <p className="grow small">Termin minął, a {name} nie wpłynęło. Możesz oznaczyć je jako niezłożone — ocena przejdzie do rozmowy oceniającej (§ 8 ust. 1).</p>
-          <button type="button" className="secondary" disabled={busy} onClick={skip}>Oznacz jako niezłożone</button>
+          <ConfirmButton question={`Oznaczyć ${name} jako niezłożone? Ocena przejdzie do rozmowy oceniającej i nie da się tego cofnąć.`}
+            confirmLabel="Oznacz jako niezłożone" disabled={busy} onConfirm={skip}>Oznacz jako niezłożone</ConfirmButton>
         </div>
       )}
-      {stage.status === 'Skipped' && <p className="callout warn">{name[0].toUpperCase() + name.slice(1)} oznaczone jako niezłożone w terminie.</p>}
-      {stage.status === 'Completed' && <p className="callout ok"><strong>Złożone {fmtDate(stage.completedOn)}.</strong></p>}
+      {stage.status === 'Skipped' && <p className="callout attention">{name[0].toUpperCase() + name.slice(1)} oznaczone jako niezłożone w terminie.</p>}
+      {stage.status === 'Completed' && <p className="callout"><strong>Złożone {fmtDate(stage.completedOn)}.</strong></p>}
       {error && <p role="alert" className="error">{error}</p>}
       {self?.submitted && (
         <div className="card">
-          <h3>{name[0].toUpperCase() + name.slice(1)} ocenianego (tylko do odczytu)</h3>
+          <h3>{name[0].toUpperCase() + name.slice(1)} pracownika (tylko do odczytu)</h3>
           <dl className="summary">
             {self.criteria.map((c) => (
               <Fragment key={c.key}>

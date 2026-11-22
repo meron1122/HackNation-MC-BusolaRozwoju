@@ -151,7 +151,7 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
         {indicator || pos.c < criteria.length - 1
           ? <button type="button" onClick={next}>
             {indicator
-              ? (pos.i as number) < indicators.length - 1 ? 'Dalej: następny wskaźnik →' : 'Dalej: podsumowanie kryterium →'
+              ? (pos.i as number) < indicators.length - 1 ? 'Następny wskaźnik →' : 'Podsumowanie kryterium →'
               : `Zapisz roboczo i przejdź do: ${criteria[pos.c + 1].label} →`}
           </button>
           : <NextButton steps={steps} current="indicators" go={go} />}
@@ -242,7 +242,7 @@ function CriterionSummary({ detail, criterionKey, label, indicators, choices, sc
   return (
     <>
       <h2>{label} · podsumowanie kryterium</h2>
-      {firstContext && <p className="callout info small">Oczekiwanie ustalone z ocenianym: „{firstContext}” — widoczne też dla ocenianego.</p>}
+      {firstContext && <p className="callout info small">Oczekiwanie ustalone z pracownikiem: „{firstContext}”. Widzi je też pracownik.</p>}
       {indicators.map((i) => {
         const c = choices[i.key]
         const option = scale.find((o) => o.value === c?.valueNumber)
@@ -270,7 +270,7 @@ function CriterionSummary({ detail, criterionKey, label, indicators, choices, sc
         <div className="card-head">
           <h3>Twoja ocena robocza</h3>
           {meets && <Pill>punkt wyjścia: {meets.value} · {meets.label.toLowerCase()}</Pill>}
-          <Pill tone="warn">potwierdzisz po rozmowie oceniającej</Pill>
+          <Pill tone="attention">potwierdzisz po rozmowie oceniającej</Pill>
         </div>
         <div className="score-buttons" role="radiogroup" aria-label={`Ocena cząstkowa: ${label}`}>
           {scale.map((o) => (
@@ -377,7 +377,7 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
 
   return (
     <div className="step">
-      <div className="step-head"><h2>{section?.title ?? 'Rozmowa oceniająca'}</h2><Pill>robocza ocena niewidoczna dla ocenianego</Pill></div>
+      <div className="step-head"><h2>{section?.title ?? 'Rozmowa oceniająca'}</h2><Pill icon="lock">robocza ocena niewidoczna dla pracownika</Pill></div>
       {templateTopics?.length ? (
         <details className="card" open>
           <summary><strong>Do omówienia{first ? '' : ' (§ 10 rozporządzenia)'}</strong></summary>
@@ -410,7 +410,8 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
                   <div className="chips" role="radiogroup" aria-label={`Ocena cząstkowa: ${criterion.label}`}>
                     {scores.scale.map((o) => (
                       <button key={o.value} type="button" role="radio" aria-checked={score === o.value} title={o.label}
-                        className={score === o.value ? 'chip-button active' : 'chip-button'} onClick={() => changeScore(o.value)}>
+                        className={['chip-button', score === o.value && 'active', suggested === o.value && 'suggested'].filter(Boolean).join(' ')}
+                        onClick={() => changeScore(o.value)}>
                         {o.value}{suggested === o.value ? ' · sugestia' : ''}
                       </button>
                     ))}

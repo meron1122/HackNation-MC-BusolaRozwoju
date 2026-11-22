@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from './api'
+import { ConfirmButton } from './ConfirmButton'
+import { Logo } from './Logo'
 import { SignaturePad } from './SignaturePad'
 
 type Info = { title: string; signerName: string; requestedBy: string | null; status: string; linkExpiresAt: string }
@@ -35,7 +37,7 @@ export function SignPage({ token, test = false }: { token: string; test?: boolea
 
   return (
     <main className="sign-page">
-      <h1>Busola Rozwoju</h1>
+      <h1 className="brand-heading"><Logo width={160} /></h1>
       {test && <p role="note" className="test-banner">Tryb testowy: podpis nie zostanie zapisany w systemie.</p>}
       {done === 'signed' ? (
         <p role="status" className="sign-done">Dziękujemy, podpis został zapisany. Możesz zamknąć tę stronę.</p>
@@ -59,13 +61,10 @@ export function SignPage({ token, test = false }: { token: string; test?: boolea
             <button onClick={() => submit(() => api(path, 'POST', { image: png }), 'signed')} disabled={!png || busy}>
               {busy ? 'Zapisywanie…' : 'Podpisz'}
             </button>
-            <button
-              className="secondary"
-              disabled={busy}
-              onClick={() => confirm('Na pewno odmówić podpisu?') && submit(() => api(`${path}/decline`, 'POST'), 'declined')}
-            >
+            <ConfirmButton question="Odmówić podpisu? Tego nie da się cofnąć." confirmLabel="Odmów podpisu" disabled={busy}
+              onConfirm={() => submit(() => api(`${path}/decline`, 'POST'), 'declined')}>
               Odmów
-            </button>
+            </ConfirmButton>
           </div>
         </>
       )}

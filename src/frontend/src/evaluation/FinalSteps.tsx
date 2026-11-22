@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { api } from '../api'
 import { SheetForm, SignatureField } from '../Evaluations'
-import { CompleteStage, DuePill, IssueList, NextButton, PdfButton, Pill, type StepProps } from './common'
+import { Auto, CompleteStage, DuePill, IssueList, NextButton, PdfButton, Pill, type StepProps } from './common'
 import { completeStage, withoutAutoFilled } from './data'
 import {
   RESULT_LABELS, answerOf, criteriaFieldOf, criteriaOf, daysUntil, fmtDate, isFirstTemplate, plural, scoresFieldOf, sheetLetter, today,
@@ -10,15 +10,16 @@ import {
 
 const roleOfEvaluator = (f: Field) => f.type === 'signature' && f.role !== 'evaluated'
 
-/** Średnia, poziom i wynik — liczone przez backend (🔒 auto). */
+/** Średnia, poziom i wynik — liczone przez backend (kłódka, „auto”). */
 function ComputedChips({ detail }: { detail: Detail }) {
   const s = detail.scoring
   if (!s || s.average == null) return <p className="muted small">Średnia, poziom i wynik pojawią się po wystawieniu wszystkich ocen cząstkowych.</p>
   return (
     <p className="chips">
-      <Pill>Średnia {s.average.toFixed(2)} · auto 🔒</Pill>
-      {s.levelLabel && <Pill>Poziom: {s.levelLabel.toLowerCase()} · auto 🔒</Pill>}
-      {s.result && <Pill tone={s.result === 'positive' ? 'ok' : 'danger'}>{s.result === 'positive' ? '✓' : '✗'} Ocena {RESULT_LABELS[s.result]?.toLowerCase() ?? s.result} · auto 🔒</Pill>}
+      <Pill icon="lock">Średnia {s.average.toFixed(2)} · auto</Pill>
+      {s.levelLabel && <Pill icon="lock">Poziom: {s.levelLabel.toLowerCase()} · auto</Pill>}
+      {/* Wynik bez zieleni/czerwieni i bez ✓/✗: brandbook zabrania kolorów „dobrej” i „złej” oceny. */}
+      {s.result && <Pill icon="lock">Ocena {RESULT_LABELS[s.result]?.toLowerCase() ?? s.result} · auto</Pill>}
     </p>
   )
 }
@@ -75,7 +76,7 @@ function fieldSummary(detail: Detail, field: Field): ReactNode {
     if (field.type === 'level') return scoring?.levelLabel ?? '—'
     return scoring?.result ? RESULT_LABELS[scoring.result] ?? scoring.result : '—'
   }
-  if (field.prefill?.startsWith('previous.')) return 'z poprzedniej oceny 🔒'
+  if (field.prefill?.startsWith('previous.')) return 'z poprzedniej oceny (auto)'
   switch (field.type) {
     case 'date': return a?.valueDate ? fmtDate(a.valueDate) : null
     case 'dateRange': return a?.valueDate ? `od ${fmtDate(a.valueDate)} do ${a.valueDateTo ? fmtDate(a.valueDateTo) : 'dnia podpisu'}` : null
@@ -157,7 +158,7 @@ export function ReviewStep({ detail, check, steps, go, reload, sections }: StepP
         {signatureFields.length === 0 && <p className="muted">Ten etap nie ma podpisów w arkuszu.</p>}
       </div>
       {closed ? (
-        <div className="callout ok row">
+        <div className="callout row">
           <span className="grow">✓ Ocena sporządzona {fmtDate(stage?.completedOn)}.</span>
           <PdfButton detail={detail} />
           <NextButton steps={steps} current="review" go={go} />
@@ -170,7 +171,7 @@ export function ReviewStep({ detail, check, steps, go, reload, sections }: StepP
           )}
           <div className="step-footer">
             <p className="muted small grow">
-              Data sporządzenia = data podpisu oceniającego.{!first && ' Od niej liczy się nowy cykl (rozmowa rozpoczynająca do 30 dni).'}
+              Data sporządzenia = data podpisu przełożonego.{!first && ' Od niej liczy się nowy cykl (rozmowa rozpoczynająca do 30 dni).'}
             </p>
             <PdfButton detail={detail} />
           </div>
@@ -229,7 +230,7 @@ export function AcknowledgementStep({ detail, check, steps, go, reload, sections
   return (
     <div className="step">
       {rating?.status === 'Completed' && (
-        <div className="callout ok">
+        <div className="callout">
           <strong>✓ Ocena {first ? 'dokonana' : 'sporządzona'} {fmtDate(rating.completedOn)}{s?.result && ` · ${RESULT_LABELS[s.result]?.toLowerCase()}`}{s?.levelLabel && ` · ${s.levelLabel.toLowerCase()}`}</strong>
           {nextCycle && (
             <p className="small">
@@ -250,9 +251,9 @@ export function AcknowledgementStep({ detail, check, steps, go, reload, sections
           <PdfButton detail={detail} />
         </div>
         <dl className="summary">
-          {s?.average != null && <><dt>{first ? 'Ocena łączna' : 'Średnia'}</dt><dd><strong>{s.average.toFixed(2)}</strong> <span className="auto">🔒 auto</span></dd></>}
-          {s?.levelLabel && <><dt>Poziom</dt><dd><strong>{s.levelLabel.toLowerCase()}</strong> <span className="auto">🔒 auto</span></dd></>}
-          {s?.result && <><dt>Ocena</dt><dd><strong>{RESULT_LABELS[s.result]?.toLowerCase() ?? s.result}</strong> <span className="auto">🔒 auto</span></dd></>}
+          {s?.average != null && <><dt>{first ? 'Ocena łączna' : 'Średnia'}</dt><dd><strong>{s.average.toFixed(2)}</strong> <Auto /></dd></>}
+          {s?.levelLabel && <><dt>Poziom</dt><dd><strong>{s.levelLabel.toLowerCase()}</strong> <Auto /></dd></>}
+          {s?.result && <><dt>Ocena</dt><dd><strong>{RESULT_LABELS[s.result]?.toLowerCase() ?? s.result}</strong> <Auto /></dd></>}
           {notice && <><dt>Pouczenie</dt><dd>{notice.label}</dd></>}
         </dl>
       </div>
@@ -263,7 +264,7 @@ export function AcknowledgementStep({ detail, check, steps, go, reload, sections
       )}
       {objection && (
         stage?.status === 'Completed' ? (
-          <div className="callout warn">
+          <div className="callout attention">
             {objection.status === 'Pending' ? (
               <>
                 {firstName} może złożyć sprzeciw do {fmtDate(objection.dueTo)} ({objectionDef?.legalRef ?? 'art. 83 ust. 1 ustawy'}).
@@ -279,7 +280,7 @@ export function AcknowledgementStep({ detail, check, steps, go, reload, sections
             {error && <p role="alert" className="error">{error}</p>}
           </div>
         ) : (
-          <p className="callout warn">Po zapoznaniu {firstName} ma 7 dni na sprzeciw do dyrektora generalnego urzędu — termin pojawi się po zamknięciu zapoznania.</p>
+          <p className="callout attention">Po zapoznaniu {firstName} ma 7 dni na sprzeciw do dyrektora generalnego urzędu — termin pojawi się po zamknięciu zapoznania.</p>
         )
       )}
       {stage?.status === 'Pending' && (
@@ -287,7 +288,7 @@ export function AcknowledgementStep({ detail, check, steps, go, reload, sections
           <IssueList issues={check?.stages.find((x) => x.key === stage.key)?.issues ?? []} steps={steps} go={go} />
           <CompleteStage key={signature?.signedOn} detail={detail} check={check} stageKey={stage.key} label="Zapisz zapoznanie i zamknij"
             defaultDate={signature?.signedOn} onDone={reload}>
-            <span className="muted small">Data zapoznania = data podpisu ocenianego.</span>
+            <span className="muted small">Data zapoznania = data podpisu pracownika.</span>
           </CompleteStage>
         </>
       )}

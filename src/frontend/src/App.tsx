@@ -10,7 +10,9 @@ import { DevPage } from './Dev'
 import { EvaluationsPage } from './Evaluations'
 import { HrPanel } from './HrPanel'
 import { MyEvaluationPage } from './MyEvaluation'
+import { EmptyState } from './EmptyState'
 import { Login } from './Login'
+import { Logo } from './Logo'
 import { ProfilePage, type ProfileTab } from './Profile'
 import { UserMenu } from './UserMenu'
 import { UsersPage } from './Users'
@@ -302,7 +304,7 @@ export default function App() {
   return (
     <>
       <header className="topbar">
-        <strong>Busola Rozwoju</strong>
+        <Logo width={128} />
         <nav>
           {pages.map((p) => (
             <button key={p.key} className={p === page ? 'tab active' : 'tab'} aria-current={p === page ? 'page' : undefined}
@@ -324,7 +326,7 @@ export default function App() {
         ) : page ? (
           <div key={page.key}>{page.render(session, nav)}</div>
         ) : (
-          <p>Brak dostępnych modułów dla Twojej roli.</p>
+          <EmptyState title="Nie masz jeszcze dostępu do żadnego modułu">Poproś administratora o nadanie roli, a moduły pojawią się w menu.</EmptyState>
         )}
       </main>
     </>

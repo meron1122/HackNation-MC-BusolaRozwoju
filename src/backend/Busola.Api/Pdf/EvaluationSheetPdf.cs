@@ -39,14 +39,23 @@ public static class EvaluationSheetPdf
                     PeriodicSheet(column, sheet, isB: templateCode == "periodic-b");
                 }
             });
-            page.Footer().AlignCenter().Text(text =>
+            page.Footer().SemanticIgnore().AlignCenter().Text(text =>
             {
                 text.CurrentPageNumber();
                 text.Span(" / ");
                 text.TotalPages();
             });
-        })).GeneratePdf();
+        })).Accessible(SheetTitle(templateCode)).GeneratePdf();
     }
+
+    /// <summary>Tytuł w metadanych PDF (czytniki ekranu, karta przeglądarki) — nazwa arkusza z wzoru.</summary>
+    private static string SheetTitle(string templateCode) => templateCode switch
+    {
+        "first" => "Arkusz pierwszej oceny w służbie cywilnej",
+        "periodic-b" => "Arkusz B — ocena okresowa",
+        "periodic-c" => "Arkusz C — ocena okresowa",
+        _ => "Arkusz oceny",
+    };
 
     // ------------------------------------------------------------------ Arkusz B / C
 
@@ -492,7 +501,7 @@ public static class EvaluationSheetPdf
     private static void Note(TextDescriptor text, int number) => text.Span(number.ToString(CultureInfo.InvariantCulture)).Superscript();
 
     private static void Title(ColumnDescriptor column, IReadOnlyList<(string Text, int? Note)> lines) =>
-        column.Item().PaddingBottom(6).AlignCenter().Column(c =>
+        column.Item().SemanticHeading1().PaddingBottom(6).AlignCenter().Column(c =>
         {
             foreach (var (text, note) in lines)
             {
@@ -508,14 +517,14 @@ public static class EvaluationSheetPdf
         });
 
     private static void PartHeading(ColumnDescriptor column, string text) =>
-        column.Item().PaddingTop(4).AlignCenter().Text(text).Bold().FontSize(11);
+        column.Item().SemanticHeading2().PaddingTop(4).AlignCenter().Text(text).Bold().FontSize(11);
 
     /// <summary>Nagłówek razem z blokiem pod nim (ShowEntire): nagłówek nie zostaje sam na dole strony.</summary>
     private static void Block(ColumnDescriptor column, string heading, int? note, Action<ColumnDescriptor> body) =>
         column.Item().ShowEntire().Column(block =>
         {
             block.Spacing(6);
-            block.Item().PaddingTop(6).Text(t => Bold(t, heading, note));
+            block.Item().SemanticHeading3().PaddingTop(6).Text(t => Bold(t, heading, note));
             body(block);
         });
 
@@ -523,7 +532,7 @@ public static class EvaluationSheetPdf
         column.Item().Element(Cell).MinHeight(50).Text(text);
 
     private static void LabelValueTable(ColumnDescriptor column, IReadOnlyList<((string Text, int? Note) Label, string Value)> rows) =>
-        column.Item().Table(table =>
+        column.Item().SemanticTable().Table(table =>
         {
             table.ColumnsDefinition(c =>
             {
@@ -559,7 +568,7 @@ public static class EvaluationSheetPdf
     }
 
     private static void ChoiceTable(ColumnDescriptor column, string title, string? value, IReadOnlyList<(string Label, string Value, int? Note)> options) =>
-        column.Item().Table(table =>
+        column.Item().SemanticTable().Table(table =>
         {
             table.ColumnsDefinition(c =>
             {
@@ -600,7 +609,7 @@ public static class EvaluationSheetPdf
         {
             if (signature?.Image is { } image)
             {
-                c.Height(30).Image(image).FitArea();
+                c.SemanticImage($"Podpis odręczny: {signature.SignerName}").Height(30).Image(image).FitArea();
             }
             else if (signature is not null)
             {
