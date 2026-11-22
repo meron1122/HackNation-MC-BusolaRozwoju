@@ -1,6 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using Busola.Api.Agent;
+using Busola.Api.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Busola.Api.Controllers;
 
@@ -10,13 +13,18 @@ namespace Busola.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/agent")]
-public sealed class AgentController(AgentRunner agent, ScreenContextService screens) : ControllerBase
+[EnableRateLimiting(AgentServiceCollectionExtensions.RateLimitPolicy)]
+public sealed class AgentController(AgentRunner agent, ScreenContextService screens, AgentGuard guard) : ControllerBase
 {
-    public sealed record ChatMessage([Required] string Role, [Required, MaxLength(8000)] string Content);
+    /// <summary>Pytanie użytkownika: krótko, bo długie wklejki to typowy nośnik prób obejścia zasad.</summary>
+    private const int MaxQuestionLength = 2000;
 
-    public sealed record ChatRequest([Required, MinLength(1), MaxLength(40)] IReadOnlyList<ChatMessage> Messages, ScreenContext? Context = null);
+    /// <param name="Signature">Podpis odpowiedzi asystenta z ChatResponse; bez niego historia jest odrzucana.</param>
+    public sealed record ChatMessage([Required] string Role, [Required, MaxLength(8000)] string Content, string? Signature = null);
 
-    public sealed record ChatResponse(string Reply, string ContextLabel);
+    public sealed record ChatRequest([Required, MinLength(1), MaxLength(20)] IReadOnlyList<ChatMessage> Messages, ScreenContext? Context = null);
+
+    public sealed record ChatResponse(string Reply, string ContextLabel, string Signature);
 
     public sealed record ContextResponse(string Label);
 
@@ -35,11 +43,23 @@ public sealed class AgentController(AgentRunner agent, ScreenContextService scre
                 detail: "Wiadomości mają role user/assistant, a ostatnia musi być od użytkownika.");
         }
 
+        if (request.Messages.Any(m => m.Role == "user" && m.Content.Length > MaxQuestionLength))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: $"Pytanie może mieć najwyżej {MaxQuestionLength} znaków.");
+        }
+
+        var userId = User.FindFirstValue(BusolaClaims.UserId)!;
+        if (request.Messages.Any(m => m.Role == "assistant" && !guard.Verify(userId, m.Content, m.Signature)))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest,
+                detail: "Historia rozmowy nie pochodzi z tego asystenta. Zacznij nową rozmowę.");
+        }
+
         var screen = await screens.DescribeAsync(request.Context, ct);
         try
         {
             var reply = await agent.RunAsync(request.Messages.Select(m => new LlmMessage(m.Role, m.Content)).ToList(), screen.Prompt, ct);
-            return new ChatResponse(reply, screen.Label);
+            return new ChatResponse(reply, screen.Label, guard.Sign(userId, reply));
         }
         catch (LlmUnavailableException e)
         {

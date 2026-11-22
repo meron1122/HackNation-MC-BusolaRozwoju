@@ -1,10 +1,15 @@
+using System.Security.Claims;
+using System.Threading.RateLimiting;
 using Busola.Api.Agent.Tools;
+using Busola.Api.Authorization;
 using Microsoft.Extensions.Options;
 
 namespace Busola.Api.Agent;
 
 public static class AgentServiceCollectionExtensions
 {
+    public const string RateLimitPolicy = "agent";
+
     public static IServiceCollection AddAgent(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<OpenRouterOptions>(configuration.GetSection(OpenRouterOptions.SectionName));
@@ -27,6 +32,18 @@ public static class AgentServiceCollectionExtensions
 
         services.AddScoped<ScreenContextService>();
         services.AddScoped<AgentRunner>();
+        services.AddSingleton<AgentGuard>();
+
+        // Limit na użytkownika: hamuje masowe próby obejścia zasad i koszty modelu. Wymaga app.UseRateLimiter().
+        services.AddRateLimiter(o =>
+        {
+            o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            o.OnRejected = (context, ct) => new ValueTask(context.HttpContext.Response.WriteAsJsonAsync(
+                new { detail = "Za dużo pytań naraz. Odczekaj minutę i spróbuj ponownie." }, ct));
+            o.AddPolicy(RateLimitPolicy, http => RateLimitPartition.GetFixedWindowLimiter(
+                http.User.FindFirstValue(BusolaClaims.UserId) ?? http.Connection.RemoteIpAddress?.ToString() ?? "anon",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1) }));
+        });
 
         // Narzędzia agenta: jedna linia na narzędzie.
         services.AddScoped<IAgentTool, SearchKnowledgeTool>();

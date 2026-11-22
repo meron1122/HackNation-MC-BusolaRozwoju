@@ -1,0 +1,124 @@
+/* Układ dokumentów Markdown z docs/ w druku (WeasyPrint, docs/build.py).
+   Tokeny i typografia jak w src/frontend/src/index.css, nagłówek i stopka jak w Busola.Api/Pdf/PdfReport.cs:
+   logo po lewej, tytuł rozdziału (bieżący # nagłówek) na środku, numer strony w stopce. */
+:root {
+  --text: #1f2a5a;   /* granat: tekst i nagłówki */
+  --muted: #5d6680;  /* tekst drugorzędny */
+  --border: #e4e7ef;
+  --link: #2b6cb0;   /* błękit do tekstu (5,4:1), --blue nie nadaje się do tekstu */
+  --blue: #5aa9e6;
+  --blue-soft: #dceefb;
+  --lavender-text: #6a55c8;
+  --danger: #b42318;
+}
+
+@page {
+  size: A4;
+  margin: 26mm 18mm 20mm;
+
+  /* Brandbook: logo poziome w druku od 30 mm szerokości. Plik ten sam co w aplikacji. */
+  @top-left {
+    content: "";
+    width: 32mm;
+    background: url("../../src/frontend/public/logo/busola-poziomy-jasny.svg") left center / contain no-repeat;
+    margin: 8mm 0 4mm;
+    border-bottom: 0.5pt solid var(--border);
+  }
+  @top-center {
+    content: string(chapter);
+    font: 600 9pt 'Inter', sans-serif;
+    color: var(--text);
+    vertical-align: middle;
+    border-bottom: 0.5pt solid var(--border);
+    margin-bottom: 4mm;
+  }
+  /* Pusta para dla logo, żeby tytuł rozdziału stał dokładnie na środku strony. */
+  @top-right {
+    content: "";
+    width: 32mm;
+    border-bottom: 0.5pt solid var(--border);
+    margin-bottom: 4mm;
+  }
+  @bottom-center {
+    content: "Strona " counter(page) " z " counter(pages);
+    font: 8pt 'Inter', sans-serif;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+html {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 10pt;
+  line-height: 1.5;
+  color: var(--text);
+}
+body { margin: 0; }
+
+/* Każdy # to rozdział: zaczyna nową stronę i trafia do nagłówka strony. */
+h1 {
+  string-set: chapter content();
+  break-before: page;
+  font-size: 24pt;
+  line-height: 1.1;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  margin: 0 0 6mm;
+}
+h1:first-of-type { break-before: auto; }
+/* Akapit wstępny pod tytułem rozdziału: większy, jak opis pod tytułem w guidelines. */
+h1 + p { font-size: 12.5pt; line-height: 1.45; color: var(--muted); margin-bottom: 6mm; }
+h2 { font-size: 16pt; line-height: 1.2; font-weight: 700; letter-spacing: -0.01em; margin: 8mm 0 3mm; }
+h3 { font-size: 12pt; line-height: 1.4; font-weight: 650; margin: 6mm 0 2mm; }
+h2, h3 { break-after: avoid; }
+
+p, ul, ol { margin: 0 0 3mm; }
+li { margin-bottom: 1mm; }
+a { color: var(--link); }
+strong { font-weight: 650; }
+hr { border: 0; border-top: 0.5pt solid var(--border); margin: 6mm 0; }
+img { display: block; width: 100%; margin: 2mm 0 5mm; break-inside: avoid; }
+
+code {
+  font: 8.5pt ui-monospace, 'JetBrains Mono', monospace;
+  background: var(--blue-soft);
+  border-radius: 3pt;
+  padding: 0 2pt;
+}
+/* Blok kodu granatowy jak w guidelines (sekcja Tokeny). */
+pre {
+  background: var(--text);
+  color: #ffffff;
+  border-radius: 6pt;
+  padding: 4mm;
+  white-space: pre-wrap;
+  break-inside: avoid;
+}
+pre code { background: none; padding: 0; color: inherit; }
+
+/* Notatka jako karta, akcent błękitem w obrysie, nie w tekście. */
+blockquote {
+  margin: 0 0 3mm;
+  padding: 3mm 4mm;
+  border: 0.5pt solid var(--border);
+  border-left: 3pt solid var(--blue);
+  border-radius: 6pt;
+  break-inside: avoid;
+}
+blockquote > :last-child { margin-bottom: 0; }
+
+/* Tabela jak słownik w guidelines: nagłówek wersalikami, linie między wierszami. */
+table { width: 100%; border-collapse: collapse; margin: 0 0 4mm; }
+thead { display: table-header-group; }
+th {
+  text-align: left;
+  font-size: 7.5pt;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 2mm 3mm;
+  border-bottom: 0.5pt solid var(--border);
+}
+td { padding: 2mm 3mm; border-bottom: 0.5pt solid var(--border); vertical-align: top; font-variant-numeric: tabular-nums; }
+tr { break-inside: avoid; }

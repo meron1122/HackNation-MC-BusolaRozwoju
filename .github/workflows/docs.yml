@@ -1,0 +1,42 @@
+# Składa Markdown z docs/ do PDF (docs/build.py) i publikuje je jako artefakt busola-docs.
+# GitHub pakuje artefakt w ZIP przy pobieraniu, więc do pobrania jest busola-docs.zip z PDF-ami.
+name: Dokumentacja PDF
+
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**', 'src/frontend/public/logo/**', '.github/workflows/docs.yml']
+  pull_request:
+    paths: ['docs/**', 'src/frontend/public/logo/**', '.github/workflows/docs.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pdf:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      # Pango dla WeasyPrint, Inter jako font aplikacji (bez niego PDF dostaje font zastępczy).
+      - name: Biblioteki systemowe i font
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 fonts-inter
+
+      - name: Zależności
+        run: pip install -r docs/requirements.txt
+
+      - name: Budowanie PDF
+        run: python docs/build.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: busola-docs
+          path: docs/pdf/*.pdf
+          if-no-files-found: error

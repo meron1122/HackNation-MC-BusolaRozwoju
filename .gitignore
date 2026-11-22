@@ -485,3 +485,7 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Dokumentacja: środowisko i wygenerowane PDF
+docs/.venv/
+docs/pdf/

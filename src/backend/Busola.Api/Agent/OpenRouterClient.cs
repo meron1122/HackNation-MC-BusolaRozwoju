@@ -37,6 +37,7 @@ public sealed class OpenRouterClient(HttpClient http, IOptions<OpenRouterOptions
         var body = new JsonObject
         {
             ["model"] = o.Model,
+            ["temperature"] = 0, // najmniej „twórczości” = najmniej zmyślania
             ["messages"] = new JsonArray(messages.Select(ToJson).ToArray<JsonNode?>()),
         };
         if (tools.Count > 0)
@@ -59,7 +60,7 @@ public sealed class OpenRouterClient(HttpClient http, IOptions<OpenRouterOptions
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", o.ApiKey);
 
-        using var response = await http.SendAsync(request, ct);
+        using var response = await http.SendToProviderAsync(request, log, ct);
         var text = await response.Content.ReadAsStringAsync(ct);
 
         // OpenRouter potrafi zwrócić błąd także przy 200 (pole "error").

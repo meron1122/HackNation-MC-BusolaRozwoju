@@ -27,7 +27,7 @@ public interface IAgentTool
 
 /// <summary>Pętla agenta: model → wywołania narzędzi → wyniki → model, aż do odpowiedzi tekstowej.</summary>
 public sealed class AgentRunner(
-    ILlmClient llm, IEnumerable<IAgentTool> tools, IHttpContextAccessor httpContextAccessor, ILogger<AgentRunner> log)
+    ILlmClient llm, IEnumerable<IAgentTool> tools, IKnowledgeBase knowledge, IHttpContextAccessor httpContextAccessor, ILogger<AgentRunner> log)
 {
     private const int MaxSteps = 8;
 
@@ -36,7 +36,16 @@ public sealed class AgentRunner(
         var user = httpContextAccessor.HttpContext?.User ?? throw new InvalidOperationException("Brak kontekstu HTTP.");
         var available = tools.Where(t => t.RequiredPermission is null || user.HasPermission(t.RequiredPermission)).ToList();
 
-        List<LlmMessage> messages = [new("system", AgentPrompt.System(user.FindFirstValue(BusolaClaims.Name), screen)), .. conversation];
+        // Przepisy do pytania dobieramy zawsze, zanim model odpowie — nie polegamy na tym, że sam zechce sprawdzić.
+        var sources = AgentPrompt.Sources(await knowledge.SearchAsync(conversation[^1].Content ?? "", limit: 6, ct));
+        var evidence = new System.Text.StringBuilder(sources).AppendLine(screen);
+
+        List<LlmMessage> messages =
+        [
+            new("system", AgentPrompt.System(user.FindFirstValue(BusolaClaims.Name), screen)),
+            new("system", sources),
+            .. conversation,
+        ];
 
         for (var step = 0; step < MaxSteps; step++)
         {
@@ -44,12 +53,14 @@ public sealed class AgentRunner(
             messages.Add(reply);
             if (reply.ToolCalls is not { Count: > 0 })
             {
-                return reply.Content ?? "";
+                return AgentGuard.FlagUnverifiedCitations(AgentGuard.BlockLeak(reply.Content ?? ""), evidence.ToString());
             }
 
             foreach (var call in reply.ToolCalls)
             {
-                messages.Add(new LlmMessage("tool", await ExecuteAsync(call, available, ct), ToolCallId: call.Id));
+                var result = await ExecuteAsync(call, available, ct);
+                evidence.AppendLine(result);
+                messages.Add(new LlmMessage("tool", result, ToolCallId: call.Id));
             }
         }
 

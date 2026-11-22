@@ -38,7 +38,7 @@ public sealed class OpenRouterEmbeddingClient(HttpClient http, IOptions<OpenRout
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.Value.ApiKey);
 
-        using var response = await http.SendAsync(request, ct);
+        using var response = await http.SendToProviderAsync(request, log, ct);
         var text = await response.Content.ReadAsStringAsync(ct);
         JsonDocument? doc = null;
         try

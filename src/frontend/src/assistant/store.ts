@@ -11,7 +11,8 @@ export type Screen = { page: string; evaluationId: number | null; employeeId: nu
 export type StepRef = { id: string; title: string } | null
 /** 'rules' = pytanie o zasady: do modelu nie idzie oceniana osoba ani pracownik z ekranu. 'context' = z kontekstem ekranu. */
 export type Mode = 'rules' | 'context'
-export type Msg = { id: number; role: 'user' | 'assistant'; content: string; error?: boolean }
+/** signature: podpis serwera pod odpowiedzią asystenta; bez niego backend odrzuca historię rozmowy. */
+export type Msg = { id: number; role: 'user' | 'assistant'; content: string; error?: boolean; signature?: string }
 
 type State = {
   msgs: Msg[]
@@ -61,11 +62,11 @@ export async function ask(question: string, mode: Mode) {
   const history = [...state.msgs.filter((m) => !m.error), { id: ++seq, role: 'user' as const, content: q }]
   set({ msgs: [...state.msgs, history[history.length - 1]], busy: true })
   try {
-    const r = await api<{ reply: string; contextLabel: string }>('agent/chat', 'POST', {
-      messages: history.slice(-20).map(({ role, content }) => ({ role, content })),
+    const r = await api<{ reply: string; contextLabel: string; signature: string }>('agent/chat', 'POST', {
+      messages: history.slice(-19).map(({ role, content, signature }) => ({ role, content, signature })),
       context: contextFor(mode),
     })
-    set({ msgs: [...state.msgs, { id: ++seq, role: 'assistant', content: r.reply }] })
+    set({ msgs: [...state.msgs, { id: ++seq, role: 'assistant', content: r.reply, signature: r.signature }] })
   } catch (e) {
     set({ msgs: [...state.msgs, { id: ++seq, role: 'assistant', content: (e as Error).message, error: true }] })
   } finally {
