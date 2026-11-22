@@ -1,6 +1,6 @@
 # Poradnik KPRM: Pierwsza ocena w służbie cywilnej (2016)
 
-Źródło: plik zespołu „Pierwsza ocena w służbie cywilnej - poradnik z 2016 r. (1).pdf”.
+Źródło: plik zespołu „poradnik-kprm-pierwsza-ocena.pdf”.
 
 ## s. 1
 

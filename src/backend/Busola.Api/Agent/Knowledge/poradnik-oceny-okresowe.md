@@ -1,6 +1,6 @@
 # Poradnik KPRM: Oceny okresowe w służbie cywilnej (2016)
 
-Źródło: plik zespołu „Poradnik - oceny okresowe w służbie cywilnej (2).pdf”.
+Źródło: plik zespołu „poradnik-kprm-oceny-okresowe.pdf”.
 
 ## s. 1
 
