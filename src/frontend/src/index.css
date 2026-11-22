@@ -74,7 +74,19 @@ input, select, textarea {
   accent-color: var(--accent);
 }
 [aria-invalid="true"] { border-color: var(--danger); }
-.field { display: grid; gap: 0.3rem; min-width: 0; }
+/* Pole daty dd.mm.rrrr (DateInput): przycisk kalendarza w polu, natywny wybierak niewidoczny pod przyciskiem. */
+.date-input { position: relative; display: inline-flex; align-items: center; min-width: 0; }
+.date-input > input[type="text"] { width: 100%; min-width: 9.5rem; padding-right: 2.6rem; }
+.date-input > .date-input-button {
+  position: absolute; right: 0.3rem; display: inline-flex; padding: 0.35rem; border: 0; border-radius: 6px;
+  background: transparent; color: var(--muted);
+}
+.date-input > .date-input-button:hover { color: var(--text); }
+.date-input > .date-input-picker { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+/* align-content: pole z podpowiedzią w tym samym wierszu nie rozciąga kontrolek sąsiadów; min-width: długie opcje
+   selecta (np. stanowisko ze służbą) nie wychodzą poza kolumnę. */
+.field { display: grid; gap: 0.3rem; min-width: 0; align-content: start; }
+.field > select { min-width: 0; }
 .field > label { font-size: 0.875rem; font-weight: 600; color: var(--text); }
 .hint { font-size: 0.85rem; color: var(--muted); }
 .field-error { font-size: 0.85rem; color: var(--danger); }

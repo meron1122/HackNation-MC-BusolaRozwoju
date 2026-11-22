@@ -22,6 +22,12 @@ const ICONS = {
       <path d="M5.4 7.2V5.2a2.6 2.6 0 0 1 5.2 0v2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </>
   ),
+  calendar: (
+    <>
+      <rect x="2.4" y="3.4" width="11.2" height="10.4" rx="1.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M2.4 6.8h11.2M5.4 2v2.8M10.6 2v2.8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </>
+  ),
   clock: (
     <>
       <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.8" />

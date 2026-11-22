@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { api } from './api'
 import { Avatar } from './Avatar'
 import { ConfirmButton } from './ConfirmButton'
+import { DateInput } from './DateInput'
 import { EmptyState } from './EmptyState'
 import { fmtDate } from './evaluation/types'
 import { OrgChart } from './Org'
@@ -336,6 +337,8 @@ function Inputs({ fields, values, disabled, hr }: { fields: readonly FieldDef[];
                   return <option key={v} value={v}>{l}</option>
                 })}
               </select>
+            ) : f.type === 'date' ? (
+              <DateInput name={f.name} defaultValue={String(value)} disabled={off} required={f.required} />
             ) : (
               <input name={f.name} type={f.type ?? 'text'} defaultValue={String(value)} disabled={off} required={f.required} />
             )}
@@ -413,6 +416,7 @@ function ListSection({ title, fields, items, editable, onSave }: {
 
   const label = (f: FieldDef, value: Values[string]) => {
     if (value == null || value === '') return '—'
+    if (f.type === 'date') return fmtDate(String(value))
     const option = f.options?.find((o) => (Array.isArray(o) ? o[0] : o) === value)
     return Array.isArray(option) ? option[1] : String(value)
   }

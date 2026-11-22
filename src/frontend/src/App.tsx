@@ -8,6 +8,7 @@ import { DepartmentHead } from './DepartmentHead'
 import { DeadlinesPage } from './Deadlines'
 import { DevPage } from './Dev'
 import { EvaluationsPage } from './Evaluations'
+import { fmtDate } from './evaluation/types'
 import { HrPanel } from './HrPanel'
 import { MyEvaluationPage } from './MyEvaluation'
 import { EmptyState } from './EmptyState'
@@ -26,6 +27,13 @@ const employeeFields: Field[] = [
   { name: 'dateOfBirth', label: 'Data urodzenia', type: 'date' },
   { name: 'hireDate', label: 'Data zatrudnienia', type: 'date' },
   { name: 'departmentId', label: 'Wydział', options: { path: 'departments', label: (d) => `${d.name} (${d.locationName})` } },
+  {
+    name: 'positionId',
+    label: 'Stanowisko',
+    optional: true,
+    note: 'Ze słownika służby wydziału; trafia do arkusza oceny.',
+    options: { path: 'positions', label: (p) => `${p.name} (${p.serviceName})` },
+  },
   {
     name: 'supervisorId',
     label: 'Przełożony',
@@ -82,8 +90,8 @@ const employeeColumns = (nav: Nav): Column[] => [
   ['Nazwisko i imię', (e) => <button className="link person-link" onClick={() => nav.showProfile(e.id)}>{e.lastName} {e.firstName}</button>],
   ['Stanowisko', (e) => e.positionName ?? '—'],
   ['E-mail', (e) => e.email ?? '—'],
-  ['Urodzony', (e) => e.dateOfBirth],
-  ['Zatrudniony', (e) => e.hireDate],
+  ['Urodzony', (e) => fmtDate(e.dateOfBirth)],
+  ['Zatrudniony', (e) => fmtDate(e.hireDate)],
   ['Pierwsza ocena', (e) => (e.subjectToFirstEvaluation ? 'tak' : '—')],
   ['Wydział', (e) => e.departmentName],
   ['Lokalizacja', (e) => e.locationName],

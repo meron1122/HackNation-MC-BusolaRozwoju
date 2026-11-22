@@ -2,9 +2,10 @@ import { useState, type ReactNode } from 'react'
 import { api } from '../api'
 import { SheetForm } from '../Evaluations'
 import { Auto, CompleteStage, DuePill, IssueList, NextButton, PdfButton, Pill, TopicList, type StepProps } from './common'
-import { useApi, useWorkContext, withoutAutoFilled } from './data'
+import { initialValues, useApi, useWorkContext, withoutAutoFilled } from './data'
 import {
-  daysUntil, criteriaFieldOf, criteriaOf, fmtDate, isFirstTemplate, scoresFieldOf, sheetLetter, stageOf, type Detail, type Field, type PositiveRule, type Schema,
+  daysUntil, criteriaFieldOf, criteriaOf, fmtDate, isFirstTemplate, keyOf, scoresFieldOf, sheetLetter, stageOf,
+  type Answer, type Detail, type Field, type PositiveRule, type Schema,
 } from './types'
 
 const allFields = (schema: Schema) => schema.sections.flatMap((s) => s.fields)
@@ -36,6 +37,21 @@ function stageDue(detail: Detail, key: string): string {
   if (s.dueFrom && s.dueTo) return `${fmtDate(s.dueFrom)} – ${fmtDate(s.dueTo)}`
   if (s.dueTo) return `do ${fmtDate(s.dueTo)}`
   return 'po poprzednim etapie'
+}
+
+/**
+ * Termin etapu, jaki ustali zamknięcie bieżącego etapu: z pola arkusza z prefill "stage:x" w podanych sekcjach
+ * (wartość z formularza, też jeszcze niezapisana — backend przy zamknięciu przepisuje ją na termin etapu),
+ * a bez wpisu — termin etapu z serwera.
+ */
+function plannedDue(detail: Detail, values: Record<string, Answer>, sections: string[], stageKey: string): string {
+  const stage = stageOf(detail, stageKey)
+  const field = detail.schema.sections.filter((s) => sections.includes(s.key)).flatMap((s) => s.fields)
+    .find((f) => f.prefill === `stage:${stageKey}`)
+  const value = field && values[keyOf(field.key, null)]
+  if (!field || stage?.status !== 'Pending' || !value?.valueDate) return stageDue(detail, stageKey)
+  if (field.type === 'dateRange') return value.valueDateTo ? `${fmtDate(value.valueDate)} – ${fmtDate(value.valueDateTo)}` : `od ${fmtDate(value.valueDate)}`
+  return `do ${fmtDate(value.valueDate)}`
 }
 
 /** Krótko, kogo dotyczy arkusz (pełny opis: appliesTo w szablonie). */
@@ -369,6 +385,9 @@ export function PartOneStep({ detail, check, steps, go, reload, sections }: Step
     .filter((s) => schema.sections.some((x) => sections.includes(x.key) && x.fields.some((f) => f.key === s.fieldKey)))
     .map((s) => s.signedOn).sort()
   const closed = firstStage?.status !== 'Pending'
+  // Terminy w podsumowaniu i ramce liczone na żywo z formularza (np. po zmianie terminu sprawozdania).
+  const [values, setValues] = useState(() => initialValues(detail))
+  const due = (stageKey: string) => plannedDue(detail, values, sections, stageKey)
 
   return (
     <div className="step">
@@ -388,14 +407,15 @@ export function PartOneStep({ detail, check, steps, go, reload, sections }: Step
           ) : (
             <><dt>Elementy oceny</dt><dd>{criteria.map((c) => c.label).join(', ')}</dd></>
           )}
-          {report && <><dt>Sprawozdanie</dt><dd>{stageDue(detail, report.key)}</dd></>}
-          {evaluation && <><dt>{first ? 'Okres pierwszej oceny' : 'Termin sporządzenia oceny'}</dt><dd><strong>{stageDue(detail, evaluation.key)}</strong> <Auto /></dd></>}
+          {report && <><dt>Sprawozdanie</dt><dd>{due(report.key)}</dd></>}
+          {evaluation && <><dt>{first ? 'Okres pierwszej oceny' : 'Termin sporządzenia oceny'}</dt><dd><strong>{due(evaluation.key)}</strong> <Auto /></dd></>}
           <dt>Opisy zachowań dla wybranych kryteriów</dt>
           <dd>{criteria.length} {first ? 'elementów' : 'kryteriów'}{examples > 0 && ` · ${examples} przykładów z pracy wydziału`}</dd>
         </dl>
       </div>
       <SheetForm key={JSON.stringify(detail.answers)} detail={detail} onSaved={reload} sectionKeys={sections} showStage={false}
-        fieldFilter={(f: Field) => f.type !== 'criteriaSelection' && !(f.type === 'date' && f.prefill?.startsWith('stage:'))} />
+        fieldFilter={(f: Field) => f.type !== 'criteriaSelection' && !(f.type === 'date' && f.prefill?.startsWith('stage:'))}
+        onValuesChange={setValues} />
       {!closed && <IssueList issues={stageIssues} steps={steps} go={go} />}
       {closed ? (
         <div className="callout">Etap zamknięty {fmtDate(firstStage?.completedOn)} — część I jest zablokowana.</div>
@@ -404,8 +424,8 @@ export function PartOneStep({ detail, check, steps, go, reload, sections }: Step
           label={first ? 'Zapisz i zamknij rozmowę wstępną →' : 'Zapisz i rozpocznij obserwację →'} onDone={async () => { await reload(); go('notes') }}>
           <p className="callout info">
             {first
-              ? <>Po zapisie rozmowa wstępna zostanie zablokowana. Sprawozdanie: {report ? stageDue(detail, report.key) : '—'}, pierwsza ocena: {evaluation ? stageDue(detail, evaluation.key) : '—'}.</>
-              : <>Po zapisie część I zostanie zablokowana, okres obserwacji potrwa do {fmtDate(evaluation?.dueTo)}.</>}
+              ? <>Po zapisie rozmowa wstępna zostanie zablokowana. Sprawozdanie: {report ? due(report.key) : '—'}, pierwsza ocena: {evaluation ? due(evaluation.key) : '—'}.</>
+              : <>Po zapisie część I zostanie zablokowana, okres obserwacji potrwa {evaluation ? due(evaluation.key) : '—'}.</>}
           </p>
         </CompleteStage>
       )}

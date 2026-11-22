@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { api, ApiError, fieldKey } from './api'
 import { ConfirmButton } from './ConfirmButton'
 import { EmptyState } from './EmptyState'
+import { DateInput } from './DateInput'
 import { Field as FormField } from './Field'
 
 // Wiersze to DTO z API, kształt zależy od strony.
@@ -209,6 +210,8 @@ function EntityForm({ fields, row, onSave, onCancel }: {
               <option value="">{f.optional ? '— brak —' : '— wybierz —'}</option>
               {options[f.name].map((o) => <option key={o.id} value={o.id}>{f.options!.label(o)}</option>)}
             </select>
+          ) : f.type === 'date' ? (
+            <DateInput name={f.name} defaultValue={row?.[f.name] ?? ''} required={!f.optional} />
           ) : (
             <input name={f.name} type={f.type ?? 'text'} defaultValue={row?.[f.name] ?? ''} required={!f.optional} />
           )}

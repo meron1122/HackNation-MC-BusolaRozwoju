@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api, apiBlobUrl } from './api'
 import { Avatar } from './Avatar'
+import { DateInput } from './DateInput'
 import { EmptyState } from './EmptyState'
 import { Icon } from './Icon'
 import type { Row } from './Crud'
@@ -115,7 +116,7 @@ function CreateForm({ onCancel, onCreated }: { onCancel: () => void; onCreated: 
         </select>
       </label>
       <label>Początek (puste = data zatrudnienia / dziś)
-        <input name="startDate" type="date" />
+        <DateInput name="startDate" />
       </label>
       <p className="muted">Pierwsza ocena: od daty zatrudnienia. Okresowa: od sporządzenia poprzedniej oceny albo zatrudnienia na czas nieokreślony.</p>
       {error && <p role="alert" className="error">{error}</p>}
@@ -217,7 +218,7 @@ export function Stages({ detail, onChange }: { detail: Detail; onChange: () => v
                 <td className="actions">
                   {s.status === 'Pending' && canChange(s) && !closedByEvaluated(s) && (
                     <form className="inline" onSubmit={(e) => complete(e, s)}>
-                      <input name="completedOn" type="date" defaultValue={today()} required aria-label="Data wykonania" />
+                      <DateInput name="completedOn" defaultValue={today()} required aria-label="Data wykonania" />
                       <button type="submit" className="link">Zamknij etap</button>
                       {s.optional && (
                         <button type="button" className="link" onClick={() => run(() => api(`evaluations/${detail.id}/stages/${s.key}/skip`, 'POST'))}>
@@ -244,14 +245,17 @@ const fromPrevious = (f: Field) => typeof f.prefill === 'string' && f.prefill.st
  * Formularz sekcji arkusza. Bez `sectionKeys` — cały arkusz; kreator ocen podaje sekcje swojego kroku
  * (i ewentualnie `fieldFilter`). Pola liczone (computed) i sekcje zamkniętych etapów są tylko do odczytu.
  */
-export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage = true }: {
+export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage = true, onValuesChange }: {
   detail: Detail
   onSaved: () => void
   sectionKeys?: string[]
   fieldFilter?: (f: Field) => boolean
   showStage?: boolean
+  /** Bieżące wartości formularza, też niezapisane (np. terminy w podsumowaniu obok, liczone na żywo). */
+  onValuesChange?: (values: Record<string, Answer>) => void
 }) {
   const [values, setValues] = useState(() => initialValues(detail))
+  useEffect(() => onValuesChange?.(values), [values, onValuesChange])
   const [status, setStatus] = useState<Record<string, string>>({})
   const schema = detail.schema
   const allFields = schema.sections.flatMap((s) => s.fields)
@@ -384,15 +388,15 @@ export function SheetForm({ detail, onSaved, sectionKeys, fieldFilter, showStage
       case 'longText':
         return <label key={f.key} className="wide">{label}<textarea rows={4} value={a?.valueText ?? ''} disabled={disabled} onChange={(e) => set(f.key, null, { valueText: e.target.value })} /></label>
       case 'date':
-        return <label key={f.key}>{label}<input type="date" value={a?.valueDate ?? ''} disabled={disabled} onChange={(e) => set(f.key, null, { valueDate: e.target.value || null })} /></label>
+        return <label key={f.key}>{label}<DateInput value={a?.valueDate ?? ''} disabled={disabled} onChange={(v) => set(f.key, null, { valueDate: v || null })} /></label>
       case 'year':
         return <label key={f.key}>{label}<input type="number" min={1990} max={2100} value={a?.valueNumber ?? ''} disabled={disabled} onChange={(e) => set(f.key, null, { valueNumber: e.target.value ? Number(e.target.value) : null })} /></label>
       case 'dateRange':
         return (
           <fieldset key={f.key}>
             <legend>{label}</legend>
-            <label className="check">od <input type="date" value={a?.valueDate ?? ''} disabled={disabled} onChange={(e) => set(f.key, null, { valueDate: e.target.value || null })} /></label>
-            <label className="check">do <input type="date" value={a?.valueDateTo ?? ''} disabled={disabled} onChange={(e) => set(f.key, null, { valueDateTo: e.target.value || null })} /></label>
+            <label className="check">od <DateInput value={a?.valueDate ?? ''} disabled={disabled} onChange={(v) => set(f.key, null, { valueDate: v || null })} /></label>
+            <label className="check">do <DateInput value={a?.valueDateTo ?? ''} disabled={disabled} onChange={(v) => set(f.key, null, { valueDateTo: v || null })} /></label>
           </fieldset>
         )
       case 'choice': {
@@ -703,7 +707,7 @@ export function SignatureField({ field, detail, onSigned, locked = false, blocke
         <form onSubmit={sign} className="form">
           <div className="inline">
             {/* Data podpisu: nie z przyszłości i nie przed początkiem okna etapu (backend odrzuca takie daty). */}
-            <label className="check">Data <input name="signedOn" type="date" defaultValue={today()} required max={today()} min={stage?.dueFrom ?? undefined} /></label>
+            <label className="check">Data <DateInput name="signedOn" defaultValue={today()} required max={today()} min={stage?.dueFrom ?? undefined} /></label>
             <label className="check">Miejscowość <input name="place" /></label>
           </div>
           <SignaturePad onChange={setImage} />

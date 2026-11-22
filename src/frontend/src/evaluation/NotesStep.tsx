@@ -1,6 +1,7 @@
 import { Fragment, useState, type FormEvent } from 'react'
 import { api } from '../api'
 import { ConfirmButton } from '../ConfirmButton'
+import { DateInput } from '../DateInput'
 import { CompleteStage, DuePill, IssueList, PdfButton, Pill, type StepProps } from './common'
 import { useApi } from './data'
 import {
@@ -207,7 +208,7 @@ function NoteForm({ title, options, initial, defaultIndicator = null, onSubmit, 
         <label>Rezultat<textarea name="result" rows={3} defaultValue={initial?.result ?? ''} /></label>
       </div>
       <div className="inline gap">
-        <label className="check">Data <input type="date" name="observedOn" required defaultValue={initial?.observedOn ?? today()} /></label>
+        <label className="check">Data <DateInput name="observedOn" required defaultValue={initial?.observedOn ?? today()} /></label>
         <label className="check">Wskaźnik
           <select name="indicatorKey" defaultValue={initial ? initial.indicatorKey ?? '' : defaultIndicator ?? ''}>
             <option value="">— bez wskaźnika —</option>
