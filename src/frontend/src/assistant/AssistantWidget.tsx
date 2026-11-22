@@ -18,7 +18,8 @@ const useStep = () => useSyncExternalStore((cb) => (listeners.add(cb), () => lis
 /** Na co patrzy użytkownik. Backend dociąga dane encji sam, w zakresie uprawnień użytkownika. */
 export type Screen = { page: string; evaluationId: number | null; employeeId: number | null }
 
-type Msg = { role: 'user' | 'assistant'; content: string; error?: boolean }
+/** signature: podpis serwera pod odpowiedzią asystenta — bez niego backend odrzuca historię (ochrona przed podrabianiem rozmowy). */
+type Msg = { role: 'user' | 'assistant'; content: string; error?: boolean; signature?: string }
 
 const STEP_CHIPS: Record<string, string[]> = {
   start: ['Który arkusz wybrać dla tej osoby?', 'Kto podlega ocenie okresowej i kto ją przeprowadza?'],
@@ -112,12 +113,12 @@ export function AssistantWidget({ screen }: { screen: Screen }) {
     setDraft('')
     setBusy(true)
     try {
-      const r = await api<{ reply: string; contextLabel: string }>('agent/chat', 'POST', {
-        messages: history.slice(-20).map(({ role, content }) => ({ role, content })),
+      const r = await api<{ reply: string; contextLabel: string; signature: string }>('agent/chat', 'POST', {
+        messages: history.slice(-19).map(({ role, content, signature }) => ({ role, content, signature })),
         context,
       })
       setLabel(r.contextLabel)
-      setMsgs((m) => [...m, { role: 'assistant', content: r.reply }])
+      setMsgs((m) => [...m, { role: 'assistant', content: r.reply, signature: r.signature }])
     } catch (e) {
       setMsgs((m) => [...m, { role: 'assistant', content: (e as Error).message, error: true }])
     } finally {

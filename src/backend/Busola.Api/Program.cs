@@ -85,6 +85,7 @@ app.UseHttpsRedirection();
 app.UseStaticFiles(); // zbudowany frontend w wwwroot (wrzuca go Dockerfile)
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapControllers();
 app.MapFallback("api/{**path}", () => Results.NotFound()).AllowAnonymous();
 app.MapFallbackToFile("index.html").AllowAnonymous();

@@ -37,6 +37,7 @@ public sealed class OpenRouterClient(HttpClient http, IOptions<OpenRouterOptions
         var body = new JsonObject
         {
             ["model"] = o.Model,
+            ["temperature"] = 0, // najmniej „twórczości” = najmniej zmyślania
             ["messages"] = new JsonArray(messages.Select(ToJson).ToArray<JsonNode?>()),
         };
         if (tools.Count > 0)
