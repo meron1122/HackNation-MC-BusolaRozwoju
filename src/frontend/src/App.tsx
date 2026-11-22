@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AccountPage } from './Account'
 import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
 import { AssistantWidget } from './assistant/AssistantWidget'
+import { resetSession } from './assistant/store'
 import { Person } from './Person'
 import { CrudPage, ServiceName, type Column, type Field, type Row } from './Crud'
 import { TeamDashboard, TeamPage } from './Dashboard'
@@ -371,6 +372,7 @@ export default function App() {
   }
 
   function logout() {
+    resetSession()
     setToken(null)
     setTokenState(null)
     history.replaceState(START_VIEW, '')

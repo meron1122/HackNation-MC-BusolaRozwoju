@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { api } from '../api'
+import { api, LOGOUT_EVENT } from '../api'
 
 /**
  * Jedna rozmowa z asystentem dla całej aplikacji: okno w rogu, zakładka „✦ Asystent” w kreatorze i strona „Asystent”
@@ -47,6 +47,14 @@ export function dock() {
 }
 export const resetChat = () => set({ msgs: [] })
 
+// Sesja: po wylogowaniu rozmowa znika, a odpowiedzi z poprzedniej sesji, które dotrą później, są ignorowane.
+let session = 0
+export function resetSession() {
+  session++
+  set({ msgs: [], busy: false, userName: '' })
+}
+if (typeof window !== 'undefined') window.addEventListener(LOGOUT_EVENT, resetSession)
+
 export function contextFor(mode: Mode) {
   const { screen, step } = state
   return mode === 'rules'
@@ -61,15 +69,18 @@ export async function ask(question: string, mode: Mode) {
   if (!q || state.busy) return
   const history = [...state.msgs.filter((m) => !m.error), { id: ++seq, role: 'user' as const, content: q }]
   set({ msgs: [...state.msgs, history[history.length - 1]], busy: true })
+  const mine = session
   try {
     const r = await api<{ reply: string; contextLabel: string; signature: string }>('agent/chat', 'POST', {
       messages: history.slice(-19).map(({ role, content, signature }) => ({ role, content, signature })),
       context: contextFor(mode),
     })
+    if (mine !== session) return
     set({ msgs: [...state.msgs, { id: ++seq, role: 'assistant', content: r.reply, signature: r.signature }] })
   } catch (e) {
+    if (mine !== session) return
     set({ msgs: [...state.msgs, { id: ++seq, role: 'assistant', content: (e as Error).message, error: true }] })
   } finally {
-    set({ busy: false })
+    if (mine === session) set({ busy: false })
   }
 }
