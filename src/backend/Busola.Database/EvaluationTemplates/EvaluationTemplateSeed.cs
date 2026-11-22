@@ -18,9 +18,15 @@ internal static class EvaluationTemplateSeed
         Load(3, "periodic-c", 1, EvaluationKind.Periodic, active: false),
 
         // v2: model kompetencji — wskaźniki behawioralne z opisami poziomów.
-        Load(4, "first", 2, EvaluationKind.First, active: true),
-        Load(5, "periodic-b", 2, EvaluationKind.Periodic, active: true),
-        Load(6, "periodic-c", 2, EvaluationKind.Periodic, active: true),
+        Load(4, "first", 2, EvaluationKind.First, active: false),
+        Load(5, "periodic-b", 2, EvaluationKind.Periodic, active: false),
+        Load(6, "periodic-c", 2, EvaluationKind.Periodic, active: false),
+
+        // v3: fazy etapów, etap samooceny, odwołania do przepisów (§), pola liczone przez backend,
+        // uzasadnienie wymagane przy ocenie negatywnej, wnioski rozwojowe pierwszej oceny tylko przy pozytywnej.
+        Load(7, "first", 3, EvaluationKind.First, active: true),
+        Load(8, "periodic-b", 3, EvaluationKind.Periodic, active: true),
+        Load(9, "periodic-c", 3, EvaluationKind.Periodic, active: true),
     ];
 
     private static EvaluationTemplate Load(int id, string code, int version, EvaluationKind kind, bool active)

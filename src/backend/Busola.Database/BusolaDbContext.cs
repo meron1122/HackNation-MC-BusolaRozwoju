@@ -25,6 +25,11 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
     public DbSet<EvaluationSignature> EvaluationSignatures => Set<EvaluationSignature>();
     public DbSet<SignatureRequest> SignatureRequests => Set<SignatureRequest>();
     public DbSet<EmployeeProfile> EmployeeProfiles => Set<EmployeeProfile>();
+    public DbSet<EvaluationSelfAssessment> EvaluationSelfAssessments => Set<EvaluationSelfAssessment>();
+    public DbSet<EvaluationReminder> EvaluationReminders => Set<EvaluationReminder>();
+    public DbSet<EvaluationNote> EvaluationNotes => Set<EvaluationNote>();
+    public DbSet<EvaluationIndicatorContext> EvaluationIndicatorContexts => Set<EvaluationIndicatorContext>();
+    public DbSet<EvaluationCriterionContext> EvaluationCriterionContexts => Set<EvaluationCriterionContext>();
 
     // Tu, a nie w AddDbContext, żeby snake_case obowiązywał zawsze — schemat i aplikacja nie mogą się rozjechać.
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) =>
@@ -176,6 +181,90 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<EvaluationSelfAssessment>(b =>
+        {
+            b.HasKey(s => s.EvaluationId);
+            b.Property(s => s.DevelopmentNeeds).HasMaxLength(4000);
+
+            b.HasOne(s => s.Evaluation)
+                .WithOne(e => e.SelfAssessment)
+                .HasForeignKey<EvaluationSelfAssessment>(s => s.EvaluationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Pozycje zawsze czytane i zapisywane razem z samooceną.
+            b.OwnsMany(s => s.Criteria, o => o.ToJson());
+        });
+
+        modelBuilder.Entity<EvaluationNote>(b =>
+        {
+            foreach (var name in new[] { "Situation", "Action", "Result" })
+            {
+                b.Property<string?>(name).HasMaxLength(2000);
+            }
+
+            b.Property(n => n.IndicatorKey).HasMaxLength(100);
+            b.Property(n => n.CriterionKey).HasMaxLength(100);
+            b.HasIndex(n => new { n.EvaluationId, n.ObservedOn });
+
+            b.HasOne(n => n.Evaluation)
+                .WithMany()
+                .HasForeignKey(n => n.EvaluationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(n => n.Author)
+                .WithMany()
+                .HasForeignKey(n => n.AuthorId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EvaluationIndicatorContext>(b =>
+        {
+            b.HasKey(c => new { c.EvaluationId, c.IndicatorKey });
+            b.Property(c => c.IndicatorKey).HasMaxLength(100);
+            b.Property(c => c.Expectation).HasMaxLength(2000);
+            b.Property(c => c.Frequency).HasMaxLength(20);
+            b.Property(c => c.Complexity).HasMaxLength(20);
+
+            b.HasOne(c => c.Evaluation)
+                .WithMany()
+                .HasForeignKey(c => c.EvaluationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EvaluationCriterionContext>(b =>
+        {
+            b.HasKey(c => new { c.EvaluationId, c.CriterionKey });
+            b.Property(c => c.CriterionKey).HasMaxLength(100);
+            b.Property(c => c.ScoreReason).HasMaxLength(2000);
+
+            b.HasOne(c => c.Evaluation)
+                .WithMany()
+                .HasForeignKey(c => c.EvaluationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EvaluationReminder>(b =>
+        {
+            b.Property(r => r.StageKey).HasMaxLength(50);
+            b.Property(r => r.Message).HasMaxLength(1000);
+            b.HasIndex(r => new { r.EvaluationId, r.SentAt });
+
+            b.HasOne(r => r.Evaluation)
+                .WithMany(e => e.Reminders)
+                .HasForeignKey(r => r.EvaluationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasOne(r => r.Recipient)
+                .WithMany()
+                .HasForeignKey(r => r.RecipientId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            b.HasOne(r => r.SentBy)
+                .WithMany()
+                .HasForeignKey(r => r.SentById)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<EmployeeProfile>(b =>
         {
             b.HasKey(p => p.EmployeeId);
@@ -291,6 +380,12 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
                 .WithMany(l => l.Departments)
                 .HasForeignKey(d => d.LocationId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Usunięcie kierującego zostawia wydział bez kierującego.
+            b.HasOne(d => d.Head)
+                .WithMany()
+                .HasForeignKey(d => d.HeadId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Employee>(b =>

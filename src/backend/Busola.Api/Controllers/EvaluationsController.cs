@@ -4,6 +4,7 @@ using System.Text.Json;
 using Busola.Api.Authorization;
 using Busola.Api.Evaluations;
 using Busola.Api.Models;
+using Busola.Api.Pdf;
 using Busola.Database;
 using Busola.Database.Authorization;
 using Busola.Database.Entities;
@@ -40,37 +41,60 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
     public async Task<IReadOnlyList<EvaluationListItemDto>> GetAll(int? employeeId, CancellationToken ct)
     {
         var scope = await access.ResolveAsync(Permissions.ReadEvaluations, ct);
-        var rows = await InScope(scope)
+        var query = InScope(scope)
             .Where(e => employeeId == null || e.EmployeeId == employeeId)
-            .OrderByDescending(e => e.Id)
-            .Select(e => new
-            {
-                e.Id,
-                e.EmployeeId,
-                EmployeeName = e.Employee.LastName + " " + e.Employee.FirstName,
-                e.TemplateId,
-                e.Template.Title,
-                e.Status,
-                e.StartDate,
-                Next = e.Stages
-                    .Where(s => s.Status == StageStatus.Pending && s.DueTo != null)
-                    .OrderBy(s => s.DueTo)
-                    .Select(s => new { s.StageKey, s.DueTo })
-                    .FirstOrDefault(),
-            })
-            .ToListAsync(ct);
+            .OrderByDescending(e => e.Id);
+        var rows = await EvaluationProgress.LoadAsync(db, query, Today, ct);
 
         var schemas = await EvaluationWorkflow.LoadSchemasAsync(db, rows.Select(r => r.TemplateId), ct);
         return rows.Select(r =>
         {
-            var schema = schemas[r.TemplateId];
-            var isFinal = EvaluationWorkflow.IsFinal(schema, r.Status);
+            var p = r.Progress;
             return new EvaluationListItemDto(
-                r.Id, r.EmployeeId, r.EmployeeName, r.Title, r.Status, EvaluationWorkflow.StatusLabel(schema, r.Status), isFinal,
-                r.StartDate,
-                isFinal || r.Next is null ? null : EvaluationWorkflow.StageTitle(schema, r.Next.StageKey),
-                isFinal ? null : r.Next?.DueTo);
+                r.EvaluationId, r.EmployeeId, r.EmployeeName, r.TemplateTitle, r.Status,
+                EvaluationWorkflow.StatusLabel(schemas[r.TemplateId], r.Status), p.IsFinal, r.StartDate,
+                p.StageTitle, p.DueTo, p.TemplateCode, p.Phase);
         }).ToList();
+    }
+
+    /// <summary>
+    /// Sprawdzenie przed zamknięciem etapu / podpisem (W11): braki per sekcja i per etap z odwołaniem do przepisu,
+    /// blokady sekcji zamkniętych etapów, „ptaszki” kroków (sekcja Complete).
+    /// </summary>
+    [HttpGet("{id:int}/check")]
+    [Authorize(Policy = Permissions.ReadEvaluations)]
+    public async Task<ActionResult<EvaluationCheckDto>> Check(int id, CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.ReadEvaluations, ct);
+        var evaluation = await InScope(scope)
+            .AsNoTracking()
+            .Include(e => e.Template)
+            .Include(e => e.Stages)
+            .Include(e => e.Answers)
+            .SingleOrDefaultAsync(e => e.Id == id, ct);
+
+        if (evaluation is null)
+        {
+            return NotFound();
+        }
+
+        var schema = TemplateSchema.Parse(evaluation.Template.Schema);
+        var check = await RunCheckAsync(evaluation, schema, ct);
+        var draft = evaluation.EmployeeId == await MyEmployeeIdAsync(ct)
+            ? EvaluationWorkflow.DraftSections(schema, evaluation.Stages.Select(s => (s.StageKey, s.Status)))
+            : new HashSet<string>();
+        if (draft.Count == 0)
+        {
+            return check;
+        }
+
+        // Ocenianemu nie pokazujemy braków roboczej oceny — zdradzałyby wpisane punkty.
+        var draftStages = schema.Sections.Where(s => draft.Contains(s.Key)).Select(s => s.Stage).ToHashSet();
+        return check with
+        {
+            Sections = check.Sections.Select(s => draft.Contains(s.Key) ? s with { Complete = false, Issues = [] } : s).ToList(),
+            Stages = check.Stages.Select(s => draftStages.Contains(s.Key) ? s with { Issues = [] } : s).ToList(),
+        };
     }
 
     [HttpPost]
@@ -138,6 +162,18 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             return Problem(statusCode: StatusCodes.Status400BadRequest, detail: $"Szablon nie ma pól: {string.Join(", ", unknown)}.");
         }
 
+        // Po zamknięciu etapu jego sekcje są zablokowane (np. część I po podpisach, uzasadnienie po sporządzeniu oceny).
+        var locked = request.Answers
+            .Select(a => schema.SectionOf(a.FieldKey)!)
+            .DistinctBy(s => s.Key)
+            .Where(s => evaluation.Stages.SingleOrDefault(st => st.StageKey == s.Stage)?.Status is not (null or StageStatus.Pending))
+            .ToList();
+        if (locked.Count > 0)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict,
+                detail: $"Etap jest już zamknięty, więc tych sekcji nie można zmieniać: {string.Join(", ", locked.Select(s => s.Title))}.");
+        }
+
         var now = DateTimeOffset.UtcNow;
         foreach (var answer in request.Answers)
         {
@@ -181,19 +217,174 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
     [Authorize(Policy = Permissions.EditEvaluation)]
     public async Task<IActionResult> CompleteStage(int id, string stageKey, CompleteStageRequest request, CancellationToken ct)
     {
-        var result = await ChangeStageAsync(id, stageKey, ct, (schema, evaluation, stage) =>
+        var (evaluation, schema, error) = await LoadForEditAsync(id, ct, includeAnswers: true);
+        if (error is not null)
         {
-            EvaluationWorkflow.Complete(schema, evaluation, stage, request.CompletedOn);
-            return null;
-        });
+            return error;
+        }
 
-        if (result is NoContentResult && stageKey == "evaluation")
+        var stage = evaluation!.Stages.SingleOrDefault(s => s.StageKey == stageKey);
+        if (stage is null)
+        {
+            return NotFound();
+        }
+
+        if (stage.Status != StageStatus.Pending)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, detail: "Etap jest już zamknięty.");
+        }
+
+        var definition = schema!.Stages.Single(s => s.Key == stageKey);
+        if (EvaluationWorkflow.IsFinal(schema, evaluation.Status) && !definition.Optional)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, detail: "Ocena jest zamknięta.");
+        }
+
+        // Te same reguły co „Sprawdź przed podpisaniem”: braki blokujące nie pozwalają zamknąć etapu.
+        var blocking = (await RunCheckAsync(evaluation, schema, ct)).Stages
+            .Single(s => s.Key == stageKey).Issues.Where(i => i.Blocking).ToList();
+        if (blocking.Count > 0)
+        {
+            var problem = ProblemDetailsFactory.CreateProblemDetails(HttpContext, StatusCodes.Status400BadRequest,
+                detail: "Nie można zamknąć etapu: " + string.Join("; ", blocking.Select(i => i.LegalRef is null ? i.Message : $"{i.Message} ({i.LegalRef})")) + ".");
+            problem.Extensions["issues"] = blocking;
+            return new ObjectResult(problem) { StatusCode = problem.Status };
+        }
+
+        // Sporządzenie oceny: średnia, poziom i wynik liczy backend z ocen cząstkowych, dane poprzedniej oceny
+        // z ostatniej sporządzonej — zapisane, żeby dokument się nie zmienił.
+        if (EvaluationScoring.ScoresField(schema) is { } scores && schema.SectionOf(scores.Key)?.Stage == stageKey)
+        {
+            var current = new AnswerSet(evaluation.Answers.Select(ToDto));
+            foreach (var computed in EvaluationScoring.ComputedAnswers(schema, EvaluationScoring.Compute(schema, current)))
+            {
+                Upsert(evaluation, computed);
+            }
+
+            var previous = await LoadPreviousAsync(evaluation, ct);
+            foreach (var field in schema.Sections.SelectMany(s => s.Fields))
+            {
+                var value = field.ExtraString("prefill") switch
+                {
+                    "previous.result" => new AnswerDto(field.Key, ValueText: previous?.Result),
+                    "previous.level" => new AnswerDto(field.Key, ValueText: previous?.Level),
+                    "previous.date" => new AnswerDto(field.Key, ValueDate: previous?.Date),
+                    _ => null,
+                };
+
+                if (value is not null && current.Get(field.Key) is null)
+                {
+                    Upsert(evaluation, value);
+                }
+            }
+        }
+
+        EvaluationWorkflow.Complete(schema, evaluation, stage, request.CompletedOn);
+        EvaluationWorkflow.ApplyDeadlinesFromAnswers(schema, evaluation, stageKey, new AnswerSet(evaluation.Answers.Select(ToDto)));
+        await db.SaveChangesAsync(ct);
+
+        if (stageKey == "evaluation")
         {
             await StartNextPeriodicCycleAsync(id, request.CompletedOn, ct);
         }
 
-        return result;
+        return NoContent();
     }
+
+    private static AnswerDto ToDto(EvaluationAnswer a) => new(a.FieldKey, a.ItemKey, a.ValueText, a.ValueNumber, a.ValueDate, a.ValueDateTo);
+
+    /// <summary>Zapis wartości pola na załadowanej ocenie; same nulle = usunięcie wpisu.</summary>
+    private void Upsert(Evaluation evaluation, AnswerDto value)
+    {
+        var existing = evaluation.Answers.FirstOrDefault(a => a.FieldKey == value.FieldKey && a.ItemKey == value.ItemKey);
+        if (value.ValueText is null && value.ValueNumber is null && value.ValueDate is null)
+        {
+            if (existing is not null)
+            {
+                db.EvaluationAnswers.Remove(existing);
+                evaluation.Answers.Remove(existing);
+            }
+
+            return;
+        }
+
+        if (existing is null)
+        {
+            existing = new EvaluationAnswer { EvaluationId = evaluation.Id, FieldKey = value.FieldKey, ItemKey = value.ItemKey, UpdatedById = UserId };
+            evaluation.Answers.Add(existing);
+        }
+
+        existing.ValueText = value.ValueText;
+        existing.ValueNumber = value.ValueNumber;
+        existing.ValueDate = value.ValueDate;
+        existing.ValueDateTo = value.ValueDateTo;
+        existing.UpdatedById = UserId;
+        existing.UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    private async Task<EvaluationCheckDto> RunCheckAsync(Evaluation evaluation, TemplateSchema schema, CancellationToken ct)
+    {
+        var signed = (await db.EvaluationSignatures
+            .Where(s => s.EvaluationId == evaluation.Id)
+            .Select(s => s.FieldKey)
+            .ToListAsync(ct)).ToHashSet();
+        var submitted = await db.EvaluationSelfAssessments.AnyAsync(s => s.EvaluationId == evaluation.Id && s.SubmittedAt != null, ct);
+
+        return EvaluationCheck.Run(
+            schema,
+            evaluation.Stages.Select(s => new StageState(s.StageKey, s.Status, s.DueFrom, s.DueTo)).ToList(),
+            evaluation.Answers.Select(ToDto),
+            signed,
+            EvaluationWorkflow.IsFinal(schema, evaluation.Status),
+            submitted);
+    }
+
+    /// <summary>
+    /// Ostatnia sporządzona ocena tego samego rodzaju (okresowa → poprzednia okresowa), sporządzona nie później niż
+    /// start bieżącej. Data = zamknięcie etapu, w którym są oceny cząstkowe; wynik i poziom z jej zapisanych pól.
+    /// </summary>
+    private async Task<PreviousEvaluationDto?> LoadPreviousAsync(Evaluation evaluation, CancellationToken ct)
+    {
+        var kind = evaluation.Template?.Kind ?? await db.EvaluationTemplates.Where(t => t.Id == evaluation.TemplateId).Select(t => t.Kind).SingleAsync(ct);
+        var candidates = await db.Evaluations
+            .AsNoTracking()
+            .Where(e => e.EmployeeId == evaluation.EmployeeId && e.Id != evaluation.Id && e.Template.Kind == kind)
+            .Select(e => new
+            {
+                e.Id,
+                e.Template.Title,
+                e.Template.Schema,
+                Stages = e.Stages.Where(s => s.Status == StageStatus.Completed).Select(s => new { s.StageKey, s.CompletedOn }).ToList(),
+                Answers = e.Answers.Select(a => new AnswerDto(a.FieldKey, a.ItemKey, a.ValueText, a.ValueNumber, a.ValueDate, a.ValueDateTo)).ToList(),
+            })
+            .ToListAsync(ct);
+
+        return candidates
+            .Select(c =>
+            {
+                var schema = TemplateSchema.Parse(c.Schema);
+                var scoringStage = EvaluationScoring.ScoresField(schema) is { } scores ? schema.SectionOf(scores.Key)?.Stage : null;
+                var date = c.Stages.FirstOrDefault(s => s.StageKey == scoringStage)?.CompletedOn;
+                if (date is null || date > evaluation.StartDate)
+                {
+                    return null;
+                }
+
+                var rules = EvaluationScoring.Rules(schema);
+                var answers = new AnswerSet(c.Answers);
+                var level = rules?.Level is { } levelKey ? answers.Text(levelKey) : null;
+                return new PreviousEvaluationDto(
+                    c.Id, c.Title, date.Value,
+                    rules?.Result is { } resultKey ? answers.Text(resultKey) : null,
+                    level,
+                    rules?.Levels?.FirstOrDefault(l => l.Key == level)?.Label,
+                    rules?.Average is { } averageKey ? answers.Get(averageKey)?.ValueNumber : null);
+            })
+            .Where(p => p is not null)
+            .MaxBy(p => p!.Date);
+    }
+
+    private static DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
 
     /// <summary>
     /// Sporządzenie oceny okresowej na piśmie otwiera kolejny 24-miesięczny cykl (od tego dnia),
@@ -240,7 +431,7 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
     [HttpPost("{id:int}/signatures")]
     public async Task<ActionResult<SignatureDto>> Sign(int id, SignRequest request, CancellationToken ct)
     {
-        var evaluation = await db.Evaluations.Include(e => e.Template).SingleOrDefaultAsync(e => e.Id == id, ct);
+        var evaluation = await db.Evaluations.Include(e => e.Template).Include(e => e.Stages).SingleOrDefaultAsync(e => e.Id == id, ct);
         if (evaluation is null)
         {
             return NotFound();
@@ -248,10 +439,15 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
 
         var schema = TemplateSchema.Parse(evaluation.Template.Schema);
         var field = schema.Sections.SelectMany(s => s.Fields).SingleOrDefault(f => f.Key == request.FieldKey && f.Type == "signature");
-        if (field?.Extra?.GetValueOrDefault("role").GetString() is not { } roleName
-            || !Enum.TryParse<SignatureRole>(roleName, ignoreCase: true, out var role))
+        if (field?.SignatureRole() is not { } role)
         {
             return Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Szablon nie ma takiego pola podpisu.");
+        }
+
+        var sectionStage = schema.SectionOf(field.Key)!.Stage;
+        if (evaluation.Stages.SingleOrDefault(s => s.StageKey == sectionStage)?.Status is not (null or StageStatus.Pending))
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, detail: "Etap tego podpisu jest już zamknięty.");
         }
 
         var me = await db.Users
@@ -282,6 +478,14 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             if (me.EmployeeId == evaluation.EmployeeId)
             {
                 return Problem(statusCode: StatusCodes.Status403Forbidden, detail: "Nie możesz podpisywać własnej oceny za oceniającego.");
+            }
+
+            // Gdy wydział ma wskazanego kierującego komórką, jego pole podpisuje tylko on.
+            if (role == SignatureRole.UnitHead
+                && await db.Employees.Where(e => e.Id == evaluation.EmployeeId).Select(e => e.Department.HeadId).SingleAsync(ct) is { } headId
+                && headId != me.EmployeeId)
+            {
+                return Problem(statusCode: StatusCodes.Status403Forbidden, detail: "To pole podpisuje kierujący komórką organizacyjną.");
             }
         }
 
@@ -319,6 +523,103 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
 
         return new SignatureDto(signature.Id, signature.FieldKey, role.ToString(), signature.SignerName, signature.SignedOn,
             signature.Place, signature.ImageContent is not null);
+    }
+
+    /// <summary>
+    /// Zmiana ścieżki / arkusza (W02: okresowa B/C albo pierwsza) — tylko zanim ocena się zaczęła: bez wpisów, podpisów,
+    /// samooceny, notatek i kontekstu. Etapy i terminy liczą się od nowa według aktywnej wersji wybranego szablonu,
+    /// od StartDate z żądania albo dotychczasowego. Danych kadrowych pracownika (SubjectToFirstEvaluation) nie zmienia.
+    /// </summary>
+    [HttpPut("{id:int}/template")]
+    [Authorize(Policy = Permissions.EditEvaluation)]
+    public async Task<ActionResult<EvaluationDetailDto>> ChangeTemplate(int id, ChangeTemplateRequest request, CancellationToken ct)
+    {
+        var (evaluation, schema, error) = await LoadForEditAsync(id, ct, includeAnswers: true);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        if (EvaluationWorkflow.IsFinal(schema!, evaluation!.Status))
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict, detail: "Ocena jest zamknięta.");
+        }
+
+        var template = await db.EvaluationTemplates.SingleOrDefaultAsync(t => t.Code == request.TemplateCode && t.IsActive, ct);
+        if (template is null)
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Nie ma takiego szablonu.");
+        }
+
+        var started = evaluation.Answers.Count > 0
+            || evaluation.Stages.Any(s => s.Status != StageStatus.Pending)
+            || await db.EvaluationSignatures.AnyAsync(s => s.EvaluationId == id, ct)
+            || await db.EvaluationSelfAssessments.AnyAsync(s => s.EvaluationId == id, ct)
+            || await db.EvaluationNotes.AnyAsync(n => n.EvaluationId == id, ct)
+            || await db.EvaluationIndicatorContexts.AnyAsync(c => c.EvaluationId == id, ct)
+            || await db.EvaluationCriterionContexts.AnyAsync(c => c.EvaluationId == id, ct);
+        if (started)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict,
+                detail: "Ścieżkę można zmienić tylko przed rozpoczęciem oceny — są już wpisy, podpisy albo notatki.");
+        }
+
+        if (template.Id != evaluation.TemplateId || request.StartDate is not null)
+        {
+            var start = request.StartDate ?? evaluation.StartDate;
+            var newSchema = TemplateSchema.Parse(template.Schema);
+
+            // Dwa zapisy w transakcji: unikalny (ocena, etap) nie może zderzyć starych etapów z nowymi.
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            db.EvaluationStages.RemoveRange(evaluation.Stages);
+            await db.SaveChangesAsync(ct);
+
+            evaluation.TemplateId = template.Id;
+            evaluation.Template = template;
+            evaluation.Status = newSchema.InitialStatus;
+            evaluation.StartDate = start;
+            evaluation.Stages = EvaluationWorkflow.CreateStages(newSchema, start);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }
+
+        var scope = await access.ResolveAsync(Permissions.ReadEvaluations, ct);
+        return (await LoadDetailAsync(id, scope, ct))!;
+    }
+
+    /// <summary>Arkusz oceny jako PDF (do pobrania i do akt) — według szablonu oceny i bieżących wartości.</summary>
+    [HttpGet("{id:int}/pdf")]
+    [Authorize(Policy = Permissions.ReadEvaluations)]
+    public async Task<IActionResult> GetPdf(int id, CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.ReadEvaluations, ct);
+        var evaluation = await InScope(scope)
+            .AsNoTracking()
+            .Include(e => e.Template)
+            .Include(e => e.Employee)
+            .Include(e => e.Answers)
+            .SingleOrDefaultAsync(e => e.Id == id, ct);
+        if (evaluation is null)
+        {
+            return NotFound();
+        }
+
+        var signatures = await db.EvaluationSignatures
+            .Where(s => s.EvaluationId == id)
+            .Select(s => new SheetSignature(s.FieldKey, s.SignerName, s.SignedOn, s.Place, s.ImageContent))
+            .ToListAsync(ct);
+
+        var schema = TemplateSchema.Parse(evaluation.Template.Schema);
+        var stages = await db.EvaluationStages.Where(s => s.EvaluationId == id).Select(s => new { s.StageKey, s.Status }).ToListAsync(ct);
+        var draft = evaluation.EmployeeId == await MyEmployeeIdAsync(ct)
+            ? EvaluationWorkflow.DraftSections(schema, stages.Select(s => (s.StageKey, s.Status)))
+            : new HashSet<string>();
+
+        var pdf = EvaluationSheetPdf.Render(schema, evaluation.Template.Code,
+            EvaluationWorkflow.WithoutDraft(schema, draft, evaluation.Answers.Select(ToDto), a => a.FieldKey),
+            EvaluationWorkflow.WithoutDraft(schema, draft, signatures, s => s.FieldKey).ToList());
+
+        return File(pdf, "application/pdf", $"ocena-{evaluation.Employee.LastName}-{evaluation.Employee.FirstName}-{id}.pdf");
     }
 
     [HttpGet("{id:int}/signatures/{signatureId:int}/image")]
@@ -449,6 +750,24 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
                 x.stage.Status == StageStatus.Pending && x.stage.DueTo < today && !isFinal))
             .ToList();
 
+        // Oceniany nie widzi roboczej oceny (punkty, wynik, uzasadnienie), dopóki nie jest sporządzona.
+        var draft = isOwn ? EvaluationWorkflow.DraftSections(schema, evaluation.Stages.Select(s => (s.StageKey, s.Status))) : new HashSet<string>();
+        var visibleAnswers = EvaluationWorkflow.WithoutDraft(schema, draft, evaluation.Answers.Select(ToDto), a => a.FieldKey).ToList();
+        var answers = new AnswerSet(visibleAnswers);
+        var current = isFinal ? null : EvaluationWorkflow.CurrentStage(schema, evaluation.Stages.Select(s => (s.StageKey, s.Status)));
+        var lockedSections = schema.Sections
+            .Where(s => isFinal || evaluation.Stages.SingleOrDefault(st => st.StageKey == s.Stage)?.Status is not (null or StageStatus.Pending))
+            .Select(s => s.Key)
+            .ToList();
+        var selfStage = schema.Stages.FirstOrDefault(s => s.SelfAssessment);
+        var canEditSelfAssessment = isOwn && !isFinal && selfStage is not null
+            && evaluation.Stages.SingleOrDefault(s => s.StageKey == selfStage.Key)?.Status == StageStatus.Pending
+            && !await db.EvaluationSelfAssessments.AnyAsync(s => s.EvaluationId == id && s.SubmittedAt != null, ct);
+        var unitHead = await db.Employees
+            .Where(e => e.Id == evaluation.EmployeeId && e.Department.Head != null)
+            .Select(e => e.Department.Head!.FirstName + " " + e.Department.Head.LastName)
+            .SingleOrDefaultAsync(ct);
+
         return new EvaluationDetailDto(
             evaluation.Id,
             evaluation.EmployeeId,
@@ -461,12 +780,18 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             evaluation.StartDate,
             JsonDocument.Parse(evaluation.Template.Schema).RootElement.Clone(),
             stages,
-            evaluation.Answers
-                .Select(a => new AnswerDto(a.FieldKey, a.ItemKey, a.ValueText, a.ValueNumber, a.ValueDate, a.ValueDateTo))
-                .ToList(),
+            visibleAnswers,
             signatures,
             canEdit && !isFinal,
-            isOwn);
+            isOwn,
+            evaluation.Template.Code,
+            EvaluationWorkflow.Phase(schema, evaluation.Status, current, evaluation.Answers.Count > 0 || signatures.Count > 0),
+            current?.Key,
+            lockedSections,
+            draft.Count > 0 ? null : EvaluationScoring.Compute(schema, answers),
+            await LoadPreviousAsync(evaluation, ct),
+            unitHead,
+            canEditSelfAssessment);
     }
 
     private static bool TryDecodeImage(string value, out byte[] bytes, out string contentType, out string problem)

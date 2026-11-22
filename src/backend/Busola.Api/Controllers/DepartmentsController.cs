@@ -85,6 +85,33 @@ public sealed class DepartmentsController(BusolaDbContext db, AccessScopeService
         return await LoadDtoAsync(id, ct);
     }
 
+    /// <summary>
+    /// Kierujący komórką organizacyjną (null = brak). Osobno od edycji wydziału, żeby formularz bez tego pola go nie kasował.
+    /// Kierujący widzi i współtworzy oceny pracowników wydziału oraz podpisuje swoje pola arkusza pierwszej oceny.
+    /// </summary>
+    [HttpPut("{id:int}/head")]
+    [Authorize(Policy = Permissions.EditDepartment)]
+    public async Task<ActionResult<DepartmentDto>> SetHead(int id, DepartmentHeadRequest request, CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.EditDepartment, ct);
+        var department = await db.Departments.InScope(scope).Include(d => d.Location).SingleOrDefaultAsync(d => d.Id == id, ct);
+        if (department is null)
+        {
+            return NotFound();
+        }
+
+        if (request.EmployeeId is { } employeeId
+            && !await db.Employees.AnyAsync(e => e.Id == employeeId && e.Department.Location.ServiceId == department.Location.ServiceId, ct))
+        {
+            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Kierujący musi być pracownikiem tej samej służby.");
+        }
+
+        department.HeadId = request.EmployeeId;
+        await db.SaveChangesAsync(ct);
+
+        return await LoadDtoAsync(id, ct);
+    }
+
     [HttpDelete("{id:int}")]
     [Authorize(Policy = Permissions.DeleteDepartment)]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)

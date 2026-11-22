@@ -17,7 +17,9 @@ public sealed class TokenService(BusolaDbContext db, UserManager<User> userManag
         if (user.EmployeeId is { } employeeId)
         {
             roles.Add(RoleNames.Employee);
-            if (await db.Employees.AnyAsync(e => e.SupervisorId == employeeId, ct))
+            // Przełożony: ma podwładnych albo kieruje komórką organizacyjną.
+            if (await db.Employees.AnyAsync(e => e.SupervisorId == employeeId, ct)
+                || await db.Departments.AnyAsync(d => d.HeadId == employeeId, ct))
             {
                 roles.Add(RoleNames.Supervisor);
             }

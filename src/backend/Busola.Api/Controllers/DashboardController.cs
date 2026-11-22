@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Busola.Api.Authorization;
 using Busola.Api.Evaluations;
 using Busola.Api.Models;
@@ -41,6 +42,114 @@ public sealed class DashboardController(BusolaDbContext db, AccessScopeService a
 
         return employees.Where(e => !withOpen.Contains(e.EmployeeId)).ToList();
     }
+
+    /// <summary>
+    /// Pulpit przełożonego (W01): bezpośredni podwładni z fazą oceny, terminem etapu w toku, „wymaga uwagi”
+    /// (po terminie / termin w ciągu `days` dni / zapoznanie do zrobienia niezwłocznie) i ostatnim przypomnieniem HR.
+    /// </summary>
+    [HttpGet("team")]
+    [Authorize(Policy = Permissions.ReadEvaluations)]
+    public async Task<ActionResult<TeamDashboardDto>> Team(int days = 14, CancellationToken ct = default)
+    {
+        var userId = User.FindFirstValue(BusolaClaims.UserId);
+        var me = await db.Users
+            .Where(u => u.Id == userId && u.Employee != null)
+            .Select(u => new { u.Employee!.Id, DepartmentName = u.Employee.Department.Name })
+            .SingleOrDefaultAsync(ct);
+        if (me is null)
+        {
+            return new TeamDashboardDto(null, 0, []);
+        }
+
+        var members = await db.Employees
+            .Where(e => e.SupervisorId == me.Id)
+            .OrderBy(e => e.LastName).ThenBy(e => e.FirstName)
+            .Select(e => new { e.Id, e.FirstName, e.LastName })
+            .ToListAsync(ct);
+        var ids = members.Select(m => m.Id).ToList();
+
+        // Otwarta ocena, a gdy jej brak — ostatnia (np. zamknięta bez nowego cyklu).
+        var rows = await EvaluationProgress.LoadAsync(db, db.Evaluations.Where(e => ids.Contains(e.EmployeeId)), Today, ct);
+        var byEmployee = rows
+            .GroupBy(r => r.EmployeeId)
+            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.Progress.IsFinal).ThenByDescending(r => r.EvaluationId).First().Progress);
+
+        var result = members.Select(m =>
+        {
+            var progress = byEmployee.GetValueOrDefault(m.Id);
+            return new TeamMemberDto(m.Id, m.FirstName, m.LastName,
+                progress is not null && EvaluationProgress.NeedsAttention(progress, days), progress);
+        }).ToList();
+
+        return new TeamDashboardDto(me.DepartmentName, result.Count, result);
+    }
+
+    /// <summary>
+    /// Panel HR (W14): otwarte oceny w zakresie (HR — służba) z oceniającym, wydziałem, ścieżką i etapem w toku,
+    /// plus liczniki: po terminie, termin w 7 dni, w toku, zamknięte w roku `year` (domyślnie bieżący).
+    /// Filtry (ścieżka, etap, wydział, tylko zagrożone) robi front na wierszach.
+    /// </summary>
+    [HttpGet("hr")]
+    [Authorize(Policy = Permissions.ReadEvaluations)]
+    public async Task<HrDashboardDto> Hr(int? year, CancellationToken ct)
+    {
+        var scope = await access.ResolveAsync(Permissions.ReadEvaluations, ct);
+        var today = Today;
+        var reportYear = year ?? today.Year;
+
+        var evaluations = db.Evaluations.AsQueryable();
+        if (!scope.All)
+        {
+            var employeeIds = db.Employees.InScope(scope).Select(e => e.Id);
+            evaluations = evaluations.Where(e => employeeIds.Contains(e.EmployeeId));
+        }
+
+        var rows = await EvaluationProgress.LoadAsync(db, evaluations, today, ct);
+        var open = rows.Where(r => !r.Progress.IsFinal).ToList();
+
+        var openIds = open.Select(r => r.EvaluationId).ToList();
+        var people = await db.Evaluations
+            .Where(e => openIds.Contains(e.Id))
+            .Select(e => new
+            {
+                e.Id,
+                EvaluatorName = e.Evaluator != null
+                    ? e.Evaluator.FirstName + " " + e.Evaluator.LastName
+                    : e.Employee.Supervisor != null ? e.Employee.Supervisor.FirstName + " " + e.Employee.Supervisor.LastName : null,
+                e.Employee.DepartmentId,
+                DepartmentName = e.Employee.Department.Name,
+            })
+            .ToDictionaryAsync(e => e.Id, ct);
+
+        // Zamknięte w roku: ocena w statusie końcowym (bez anulowanych), data = ostatnie zamknięcie etapu.
+        var closedIds = rows.Where(r => r.Progress.IsFinal && r.Status != "cancelled").Select(r => r.EvaluationId).ToList();
+        var closedInYear = await db.EvaluationStages
+            .Where(s => closedIds.Contains(s.EvaluationId) && s.CompletedOn != null)
+            .GroupBy(s => s.EvaluationId)
+            .CountAsync(g => g.Max(s => s.CompletedOn)!.Value.Year == reportYear, ct);
+
+        var result = open
+            .Select(r =>
+            {
+                var p = r.Progress;
+                var person = people[r.EvaluationId];
+                return new HrEvaluationRowDto(r.EmployeeId, r.EmployeeName, person.EvaluatorName, person.DepartmentId, person.DepartmentName,
+                    p.Overdue || p.DaysLeft <= 7, p);
+            })
+            .OrderBy(r => r.Evaluation.DueTo ?? DateOnly.MaxValue)
+            .ToList();
+
+        return new HrDashboardDto(
+            new HrCountersDto(
+                result.Count(r => r.Evaluation.Overdue),
+                result.Count(r => r.Evaluation.DaysLeft is >= 0 and <= 7),
+                result.Count,
+                closedInYear,
+                reportYear),
+            result);
+    }
+
+    private static DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
 
     /// <summary>Otwarte etapy ocen w zakresie użytkownika z terminem w ciągu `days` dni albo już po terminie.</summary>
     [HttpGet("deadlines")]

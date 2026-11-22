@@ -204,12 +204,19 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
     {
         var evaluation = await db.Evaluations
             .Where(e => e.Id == target.EvaluationId)
-            .Select(e => new { e.EmployeeId, e.Status, e.Template.Schema })
+            .Select(e => new
+            {
+                e.EmployeeId,
+                e.Status,
+                e.Template.Schema,
+                Stages = e.Stages.Select(s => new { s.StageKey, s.Status }).ToList(),
+            })
             .SingleOrDefaultAsync(ct)
             ?? throw new SignatureTargetException(StatusCodes.Status400BadRequest, "Nie ma takiej oceny.");
         var schemaJson = evaluation.Schema;
+        var schema = TemplateSchema.Parse(schemaJson);
 
-        if (EvaluationWorkflow.IsFinal(TemplateSchema.Parse(schemaJson), evaluation.Status))
+        if (EvaluationWorkflow.IsFinal(schema, evaluation.Status))
         {
             throw new SignatureTargetException(StatusCodes.Status409Conflict, "Ocena jest zamknięta.");
         }
@@ -218,6 +225,12 @@ public sealed class SignatureService(BusolaDbContext db, TimeProvider clock)
         if (match is not { } role)
         {
             throw new SignatureTargetException(StatusCodes.Status400BadRequest, "Szablon tej oceny nie ma takiego pola podpisu.");
+        }
+
+        var sectionStage = schema.SectionOf(target.FieldKey)!.Stage;
+        if (evaluation.Stages.SingleOrDefault(s => s.StageKey == sectionStage)?.Status is not (null or StageStatus.Pending))
+        {
+            throw new SignatureTargetException(StatusCodes.Status409Conflict, "Etap tego podpisu jest już zamknięty.");
         }
 
         if (await db.EvaluationSignatures.AnyAsync(s => s.EvaluationId == target.EvaluationId && s.FieldKey == target.FieldKey, ct))

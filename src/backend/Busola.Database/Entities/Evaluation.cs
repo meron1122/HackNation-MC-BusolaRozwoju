@@ -30,4 +30,6 @@ public class Evaluation
     public ICollection<EvaluationStage> Stages { get; set; } = [];
     public ICollection<EvaluationAnswer> Answers { get; set; } = [];
     public ICollection<EvaluationSignature> Signatures { get; set; } = [];
+    public ICollection<EvaluationReminder> Reminders { get; set; } = [];
+    public EvaluationSelfAssessment? SelfAssessment { get; set; }
 }

@@ -66,6 +66,86 @@ public static class EvaluationWorkflow
         }
     }
 
+    /// <summary>
+    /// Pola z prefill "stage:x" wypełnione w zamykanym etapie (np. termin sporządzenia oceny w cz. I, termin sprawozdania
+    /// na rozmowie wstępnej) ustalają termin etapu x — śledzimy termin wpisany do arkusza, a nie tylko wyliczony.
+    /// </summary>
+    public static void ApplyDeadlinesFromAnswers(TemplateSchema schema, Evaluation evaluation, string completedStageKey, AnswerSet answers)
+    {
+        var fields = schema.Sections.Where(s => s.Stage == completedStageKey).SelectMany(s => s.Fields);
+        foreach (var field in fields)
+        {
+            if (field.ExtraString("prefill") is not { } prefill || !prefill.StartsWith(DeadlineRule.StageAnchorPrefix)
+                || answers.Get(field.Key) is not { ValueDate: { } from } answer)
+            {
+                continue;
+            }
+
+            var target = evaluation.Stages.SingleOrDefault(s => s.StageKey == prefill[DeadlineRule.StageAnchorPrefix.Length..]);
+            if (target is not { Status: StageStatus.Pending })
+            {
+                continue;
+            }
+
+            if (field.Type == "dateRange" && answer.ValueDateTo is { } to)
+            {
+                target.DueFrom = from;
+                target.DueTo = to;
+            }
+            else if (field.Type == "date")
+            {
+                target.DueTo = from;
+                if (target.DueFrom > from)
+                {
+                    target.DueFrom = null;
+                }
+            }
+        }
+    }
+
+    /// <summary>Etap w toku: pierwszy otwarty etap obowiązkowy w kolejności szablonu (null, gdy wszystkie zamknięte).</summary>
+    public static StageDefinition? CurrentStage(TemplateSchema schema, IEnumerable<(string Key, StageStatus Status)> stages)
+    {
+        var pending = stages.Where(s => s.Status == StageStatus.Pending).Select(s => s.Key).ToHashSet();
+        return schema.Stages.FirstOrDefault(s => !s.Optional && pending.Contains(s.Key));
+    }
+
+    /// <summary>
+    /// Sekcje roboczej oceny ukryte przed ocenianym (W09): sekcje etapu z ocenami cząstkowymi, dopóki nie jest zamknięty
+    /// (ocena sporządzona). Oceniany widzi część I, swoje podpisy i samoocenę, ale nie punktów, wyniku ani uzasadnienia w trakcie.
+    /// </summary>
+    public static IReadOnlySet<string> DraftSections(TemplateSchema schema, IEnumerable<(string Key, StageStatus Status)> stages)
+    {
+        var scores = EvaluationScoring.ScoresField(schema);
+        var stageKey = scores is null ? null : schema.SectionOf(scores.Key)?.Stage;
+        if (stageKey is null || stages.Any(s => s.Key == stageKey && s.Status == StageStatus.Completed))
+        {
+            return new HashSet<string>();
+        }
+
+        return schema.Sections.Where(s => s.Stage == stageKey).Select(s => s.Key).ToHashSet();
+    }
+
+    /// <summary>Odpowiedzi bez pól z sekcji roboczych (dla ocenianego).</summary>
+    public static IEnumerable<T> WithoutDraft<T>(TemplateSchema schema, IReadOnlySet<string> draftSections, IEnumerable<T> answers, Func<T, string> fieldKey) =>
+        draftSections.Count == 0 ? answers : answers.Where(a => schema.SectionOf(fieldKey(a)) is not { } s || !draftSections.Contains(s.Key));
+
+    public const string NotStartedPhase = "Oczekuje na start";
+
+    /// <summary>
+    /// Krótka nazwa fazy na listy: status końcowy, „Oczekuje na start” (pierwszy etap bez żadnych wpisów — też nowy cykl
+    /// po zamkniętej ocenie), albo phase etapu w toku z szablonu (starsze wersje: tytuł etapu).
+    /// </summary>
+    public static string Phase(TemplateSchema schema, string status, StageDefinition? current, bool hasProgress)
+    {
+        if (IsFinal(schema, status) || current is null)
+        {
+            return StatusLabel(schema, status);
+        }
+
+        return current.Key == schema.Stages[0].Key && !hasProgress ? NotStartedPhase : current.Phase ?? current.Title;
+    }
+
     public static bool IsFinal(TemplateSchema schema, string status) =>
         schema.Statuses.FirstOrDefault(s => s.Key == status)?.Final ?? false;
 

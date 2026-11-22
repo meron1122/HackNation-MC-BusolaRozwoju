@@ -58,6 +58,13 @@ Reguły w bazie:
 | `evaluation_stages` | etap oceny: `stage_key`, `status` (`Pending`/`Completed`/`Skipped`), `due_from`/`due_to` (policzone z szablonu, można przesunąć indywidualnie), `completed_on` |
 | `evaluation_answers` | wartości pól arkusza, jeden wiersz na wartość: `field_key` (klucz pola ze szablonu), `item_key` (pozycja w polu, opis niżej), wartość w `value_text` / `value_number` / `value_date` (+ `value_date_to` dla zakresu dat), kto i kiedy zmienił |
 | `evaluation_signatures` | potwierdzenia z pól `signature`: `field_key`, rola, konto, które podpisało, imię i nazwisko z chwili podpisu, data, miejscowość oraz opcjonalny obraz podpisu (`image_content`, `image_content_type`, `image_sha256`) |
+| `evaluation_self_assessments` | samoocena ocenianego (1:1 z oceną): pozycje per kryterium w jsonb (`criterion_key`, `level` = klucz stopnia skali, `comment`), potrzeby rozwojowe, `submitted_at` (po przekazaniu tylko do odczytu; przełożony widzi treść dopiero wtedy) |
+| `evaluation_notes` | notatki oceniającego z obserwacji: data zdarzenia, sytuacja / działanie / rezultat, opcjonalnie wskaźnik i jego kryterium, prywatna (tylko autor), omówiona z pracownikiem; oceniany ich nie widzi |
+| `evaluation_indicator_contexts` | per wskaźnik: przykład oczekiwania z rozmowy rozpoczynającej (widzi go oceniany), jak często (`once`/`sometimes`/`regularly`), złożoność (`typical`/`high`) |
+| `evaluation_criterion_contexts` | per kryterium: dlaczego ocena cząstkowa różni się od sugestii ze wskaźników |
+| `evaluation_reminders` | przypomnienia HR o etapie w toku: etap, adresat (oceniający), treść, kto i kiedy |
+
+Notatki, samoocena, kontekst i przypomnienia to materiał roboczy poza arkuszem, więc mają własne tabele i nie wymuszają nowych wersji szablonu. Wydział ma opcjonalnego kierującego komórką (`departments.head_id`): dostaje rolę `Supervisor` i zakres obejmujący pracowników wydziału, a pola podpisu z rolą `unitHead` podpisuje tylko on.
 
 Obraz podpisu jest opcjonalny; bez niego podpis to samo potwierdzenie w systemie. Jeśli jest, to w komplecie: tylko PNG albo WebP (bez SVG, bo może zawierać skrypt), do 512 KB, z SHA-256 treści, który pozwala wykryć późniejszą podmianę obrazu. Przy listach podpisów warto pomijać kolumny `image_*`, żeby nie ciągnąć bajtów.
 
@@ -87,6 +94,17 @@ Szablon (`Busola.Database/EvaluationTemplates/<kod>.v<wersja>.json`, kontrakt i 
   - **Zapis:** wskaźniki trafiają do pola `indicatorScores` (np. `elementsIndicators` / `scoresIndicators`, `item_key` = klucz wskaźnika, np. `reliability_1`), jako punkty albo `value_text = 'n/a'` przy braku podstaw do oceny.
   - **Ocena cząstkowa kryterium** zostaje decyzją oceniającego; formularz podpowiada średnią wskaźników zaokrągloną do najbliższego stopnia skali.
   - **Walidacja:** każde kryterium musi mieć kompetencję, a każdy wskaźnik opis dla każdego stopnia skali arkusza.
+- Od v3: etap ma `phase` (krótka nazwa fazy na listy, np. „Obserwacja”), `selfAssessment` (w tym etapie oceniany wypełnia samoocenę: okresowa — `evaluation`, pierwsza — `report`) i `legalRef`; pole ma `legalRef` (paragraf pokazywany przy brakach) i `computed` (średnia, poziom, wynik). `prefill: "previous.result|level|date"` bierze dane z ostatniej sporządzonej oceny tego samego rodzaju. Uzasadnienie jest wymagane przy ocenie negatywnej (§ 11 ust. 3 / § 10 ust. 4), a wnioski rozwojowe pierwszej oceny są tylko przy pozytywnej (§ 10 ust. 6). Etap może mieć `topics`: zagadnienia rozmowy z przepisu (§ 5 ust. 1, § 10; przy pierwszej ocenie § 3 i § 2/§ 7 pkt 1), z `optional` dla „jeżeli dotyczy” — lista kontrolna na froncie, bez zapisu. `deadline.note` wyjaśnia termin, który nie wynika wprost z przepisu: zapoznanie z oceną ma termin organizacyjny 7 dni od sporządzenia, bo przepis mówi tylko „niezwłocznie” (§ 12 ust. 1 / § 11 ust. 1).
+
+Przebieg oceny (`EvaluationsController`, `EvaluationCheck`, `EvaluationScoring`):
+
+- **Sprawdzenie** (`GET /api/evaluations/{id}/check`): braki per sekcja i etap (pola wymagane i `requiredWhen`, oceny cząstkowe, podpisy, kolejność etapów) z `legalRef`, blokujące albo ostrzeżenia. Zamknięcie etapu z brakami blokującymi zwraca 400 z listą `issues`.
+- **Blokada:** sekcje etapu zamkniętego (i podpisy w nich) są tylko do odczytu, np. część I po podpisach.
+- **Liczenie:** sugestia oceny cząstkowej = średnia ocenionych wskaźników zaokrąglona do najbliższego stopnia skali; ocenę cząstkową wpisuje oceniający. Średnią, poziom i wynik (`positiveWhen`) liczy backend i zapisuje przy zamknięciu etapu z ocenami cząstkowymi.
+- **Terminy z arkusza:** pole z `prefill: "stage:x"` wypełnione w zamykanym etapie ustala termin etapu `x` (termin sporządzenia oceny z części I, termin sprawozdania i okres pierwszej oceny z rozmowy wstępnej).
+- **Faza** na listach i pulpitach: status końcowy, „Oczekuje na start” (pierwszy etap bez żadnych wpisów, też nowy cykl) albo `phase` etapu w toku.
+- **Robocza ocena:** oceniany nie widzi sekcji etapu z ocenami cząstkowymi (punkty, wynik, uzasadnienie, wnioski), dopóki ocena nie jest sporządzona — ani w szczegółach, ani w sprawdzeniu, ani w PDF.
+- **PDF** (`GET /api/evaluations/{id}/pdf`, `Pdf/EvaluationSheetPdf.cs`): układ urzędowych wzorów — arkusz B/C (zał. nr 3 i 4 do rozporządzenia z 2016 r.) i arkusz pierwszej oceny (zał. nr 2 do rozporządzenia z 2015 r.): te same części i tabele, „X” w polach wyboru, bloki podpisów (miejscowość, data, podpis albo „podpisano w systemie”), pouczenie i przypisy. Część III tylko przy wniosku o kolejny stopień. Wskaźniki, notatki, samoocena i kontekst nie trafiają do PDF.
 
 Terminy:
 

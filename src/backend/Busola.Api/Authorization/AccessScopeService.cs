@@ -62,10 +62,14 @@ public sealed class AccessScopeService(BusolaDbContext db, IHttpContextAccessor 
     }
 
     // UNION (nie UNION ALL) — zapętlona hierarchia przełożonych nie zawiesi zapytania.
+    // Kierujący komórką obejmuje też pracowników wydziałów, którymi kieruje (i ich podwładnych), oprócz siebie.
     private async Task<IReadOnlyList<int>> GetSubordinateIdsAsync(int employeeId, CancellationToken ct) =>
         await db.Database.SqlQuery<int>($"""
             WITH RECURSIVE subordinates AS (
                 SELECT id FROM employees WHERE supervisor_id = {employeeId}
+                UNION
+                SELECT e.id FROM employees e JOIN departments d ON e.department_id = d.id
+                    WHERE d.head_id = {employeeId} AND e.id <> {employeeId}
                 UNION
                 SELECT e.id FROM employees e JOIN subordinates s ON e.supervisor_id = s.id
             )

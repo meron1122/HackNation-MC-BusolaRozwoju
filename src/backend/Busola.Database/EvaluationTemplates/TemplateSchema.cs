@@ -76,6 +76,11 @@ public sealed record TemplateSchema(
             stageKeys.Add(stage.Key);
         }
 
+        if (Stages.Count(s => s.SelfAssessment) > 1)
+        {
+            errors.Add("Samoocena (selfAssessment) może być tylko w jednym etapie.");
+        }
+
         foreach (var section in Sections)
         {
             if (!stageKeys.Contains(section.Stage))
@@ -216,19 +221,31 @@ public sealed record TemplateSchema(
 /// <summary>Status oceny. Final = ocena zamknięta (nie liczy się do terminów).</summary>
 public sealed record StatusDefinition(string Key, string Label, bool Final = false);
 
-/// <summary>Etap procesu. Po jego wykonaniu ocena przechodzi w status CompletesTo.</summary>
+/// <summary>
+/// Etap procesu. Po jego wykonaniu ocena przechodzi w status CompletesTo.
+/// Phase: krótka nazwa etapu w toku na listach (np. „Obserwacja”), SelfAssessment: w tym etapie oceniany
+/// wypełnia samoocenę, LegalRef: przepis, z którego wynika etap lub jego termin, Topics: zagadnienia rozmowy (od v3).
+/// </summary>
 public sealed record StageDefinition(
     string Key,
     string Title,
     string CompletesTo,
     DeadlineRule? Deadline = null,
-    bool Optional = false);
+    bool Optional = false,
+    string? Phase = null,
+    bool SelfAssessment = false,
+    string? LegalRef = null,
+    IReadOnlyList<StageTopic>? Topics = null);
+
+/// <summary>Zagadnienie do omówienia na rozmowie w etapie (lista kontrolna z przepisu); Optional = „jeżeli dotyczy”.</summary>
+public sealed record StageTopic(string Text, string? LegalRef = null, bool Optional = false);
 
 /// <summary>
 /// Termin etapu liczony od Anchor: "start" (evaluations.start_date, np. data zatrudnienia) albo
 /// "stage:&lt;klucz&gt;" (data wykonania wcześniejszego etapu). Earliest/Latest = okno „nie wcześniej / nie później”.
+/// Note: wyjaśnienie, gdy termin nie wynika wprost z przepisu (np. „niezwłocznie” → termin organizacyjny).
 /// </summary>
-public sealed record DeadlineRule(string Anchor, Offset? Earliest = null, Offset? Latest = null)
+public sealed record DeadlineRule(string Anchor, Offset? Earliest = null, Offset? Latest = null, string? Note = null)
 {
     public const string StartAnchor = "start";
     public const string StageAnchorPrefix = "stage:";
@@ -248,14 +265,18 @@ public sealed record SectionDefinition(
     string? Part = null,
     Condition? VisibleWhen = null);
 
-/// <summary>Pole formularza. Właściwości zależne od typu (options, scale, items, role…) trafiają do Extra.</summary>
+/// <summary>
+/// Pole formularza. Właściwości zależne od typu (options, scale, items, role, prefill, computed…) trafiają do Extra.
+/// LegalRef: przepis, który wymaga pola — pokazywany przy brakach przed zamknięciem etapu (od v3).
+/// </summary>
 public sealed record FieldDefinition(
     string Key,
     string Type,
     string? Label = null,
     bool Required = false,
     Condition? VisibleWhen = null,
-    Condition? RequiredWhen = null)
+    Condition? RequiredWhen = null,
+    string? LegalRef = null)
 {
     [JsonExtensionData]
     public Dictionary<string, JsonElement>? Extra { get; init; }
