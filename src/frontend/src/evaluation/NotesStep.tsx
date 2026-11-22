@@ -264,10 +264,7 @@ function NoteForm({ id, title, options, initial, defaultIndicator = null, onSubm
         ))}
       </div>
       {hint && (
-        <div className="ai-proposal notes-hint" role="status">
-          <span className="ai-tag">✦ Podpowiedź</span>
-          <span>{hint}</span>
-        </div>
+        <p className="notes-hint" role="status"><strong>Wskazówka:</strong> {hint}</p>
       )}
       <div className="notes-form-foot">
         <label className="check"><input type="checkbox" name="isPrivate" defaultChecked={initial?.isPrivate} /> Prywatna</label>
