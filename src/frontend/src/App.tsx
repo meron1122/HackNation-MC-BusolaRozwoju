@@ -85,6 +85,36 @@ const employeeCreatedNotice = (created: { email: string; temporaryPassword: stri
   </p>
 )
 
+const absenceFields: Field[] = [
+  {
+    name: 'employeeId',
+    label: 'Pracownik',
+    options: { path: `employees?${EMPLOYEES_QUERY}`, label: (e) => `${e.lastName} ${e.firstName}` },
+  },
+  { name: 'startDate', label: 'Od', type: 'date' },
+  { name: 'endDate', label: 'Do', type: 'date', optional: true, note: 'Puste — nieobecność trwa.' },
+  { name: 'reasonId', label: 'Powód', options: { path: 'absence-reasons', label: (r) => r.name } },
+]
+
+const ABSENCE_KINDS: Record<string, string> = {
+  Justified: 'usprawiedliwiona',
+  OfficialDuty: 'obowiązki poza miejscem pracy',
+  Unjustified: 'nieusprawiedliwiona',
+}
+
+/** Dni od–do włącznie; dla trwającej — do dziś. */
+const absenceDays = (a: Row) =>
+  Math.max(0, Math.floor(((a.endDate ? Date.parse(a.endDate) : Date.now()) - Date.parse(a.startDate)) / 86_400_000) + 1)
+
+const absenceColumns = (nav: Nav): Column[] => [
+  ['Pracownik', (a) => <button className="link person-link" onClick={() => nav.showProfile(a.employeeId)}>{a.employeeName}</button>],
+  ['Od', (a) => fmtDate(a.startDate)],
+  ['Do', (a) => (a.endDate ? fmtDate(a.endDate) : <strong>trwa</strong>)],
+  ['Dni', (a) => absenceDays(a)],
+  ['Powód', (a) => a.reasonName],
+  ['Rodzaj', (a) => <span className="muted small">{ABSENCE_KINDS[a.kind] ?? a.kind}</span>],
+]
+
 const employeeColumns = (nav: Nav): Column[] => [
   ['Zdjęcie', (e) => (
     <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={`${e.firstName} ${e.lastName}`} size={28} />
@@ -201,13 +231,24 @@ const PAGES: Page[] = [
     render: (s, nav) => <EvaluationsPage canAdd={can(s, 'add_evaluation')} openId={nav.openEvaluation} onOpen={nav.showEvaluation} />,
   },
   {
+    // Kartoteka dla kadr; przełożonemu wystarczy „Mój zespół”, pracownikowi własny profil.
     key: 'employees',
     label: 'Pracownicy',
-    visible: (s) => can(s, 'read_employees'),
+    visible: (s) => can(s, 'add_employee') || can(s, 'edit_employee'),
     render: (s, nav) => (
       <CrudPage title="Pracownicy" path="employees" query={EMPLOYEES_QUERY} fields={employeeFields} columns={employeeColumns(nav)}
         canAdd={can(s, 'add_employee')} canEdit={can(s, 'edit_employee')} canDelete={can(s, 'delete_employee')}
         createdNotice={employeeCreatedNotice} />
+    ),
+  },
+  {
+    // Nieobecności wszystkich pracowników w zakresie kadr; własne każdy widzi w profilu.
+    key: 'absences',
+    label: 'Nieobecności',
+    visible: (s) => can(s, 'edit_employee'),
+    render: (s, nav) => (
+      <CrudPage title="Nieobecności" path="absences" fields={absenceFields} columns={absenceColumns(nav)}
+        canAdd={can(s, 'edit_employee')} canEdit={can(s, 'edit_employee')} canDelete={can(s, 'edit_employee')} />
     ),
   },
   {

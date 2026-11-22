@@ -8,6 +8,13 @@ public sealed record AbsenceDto(int Id, DateOnly StartDate, DateOnly? EndDate, i
 
 public sealed record AbsenceRequest(DateOnly StartDate, DateOnly? EndDate, int ReasonId);
 
+/// <summary>Wiersz listy nieobecności wszystkich pracowników w zakresie (strona „Nieobecności”).</summary>
+public sealed record AbsenceListItemDto(
+    int Id, int EmployeeId, string EmployeeName, DateOnly StartDate, DateOnly? EndDate, int ReasonId, string ReasonName, string Kind);
+
+/// <summary>Nieobecność ze strony „Nieobecności”: pracownik wybierany w formularzu.</summary>
+public sealed record AbsenceEntryRequest(int EmployeeId, DateOnly StartDate, int ReasonId, DateOnly? EndDate = null);
+
 /// <summary>Zmiana terminu z decyzji (historia oceny). HasNotice: jest PDF zawiadomienia (§ 5 ust. 4 / § 8 rozporządzeń).</summary>
 public sealed record TermChangeDto(
     int Id,
