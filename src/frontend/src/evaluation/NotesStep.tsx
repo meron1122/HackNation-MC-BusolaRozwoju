@@ -2,7 +2,7 @@ import { Fragment, useEffect, useState, type FormEvent } from 'react'
 import { api } from '../api'
 import { ConfirmButton } from '../ConfirmButton'
 import { DateInput } from '../DateInput'
-import { AiFrame, Info } from '../v2'
+import { Info } from '../v2'
 import { CompleteStage, DuePill, IssueList, PdfButton, Pill, type StepProps } from './common'
 import { useApi } from './data'
 import { TermPanel } from './TermPanel'
@@ -248,12 +248,11 @@ function NoteForm({ id, title, employee, options, initial, indicator, onIndicato
         </label>
       ))}
       {hint && dismissed !== hint && (
-        <AiFrame compact label={null} className="nv2-hint" live>
-          <p className="nv2-hint-row">
-            <span className="grow">{hint}</span>
-            <button type="button" className="nv2-x" aria-label="Zamknij uwagę asystenta" onClick={() => setDismissed(hint)}>×</button>
-          </p>
-        </AiFrame>
+        <p className="nv2-hint nv2-hint-row notes-hint" role="status">
+          <Info label="Wskazówka z reguły, nie AI">Busola sprawdza słowa-opinie i brak opisu działania. To zasada Busoli, nie model AI.</Info>
+          <span className="grow"><strong>Wskazówka:</strong> {hint}</span>
+          <button type="button" className="nv2-x" aria-label="Zamknij wskazówkę" onClick={() => setDismissed(hint)}>×</button>
+        </p>
       )}
       <div className="nv2-form-foot">
         <label className="check"><input type="checkbox" name="discussedWithEmployee" defaultChecked={initial?.discussedWithEmployee} /> Omówiono z {nameCase(employee, 'inst')}</label>

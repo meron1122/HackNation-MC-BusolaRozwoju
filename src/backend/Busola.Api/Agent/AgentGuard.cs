@@ -40,18 +40,20 @@ public sealed partial class AgentGuard(JwtOptions jwt)
     /// Paragraf, którego nie było w materiale, to typowa halucynacja — oznaczamy go zamiast puszczać jako pewnik.
     /// shortcut: dopasowanie po numerze, bez aktu (§ 7 jest w obu rozporządzeniach); wystarcza do wyłapania zmyślonych numerów.
     /// </summary>
-    public static string FlagUnverifiedCitations(string reply, string evidence)
+    /// <returns>Odwołania z odpowiedzi, których nie było w materiale — front pokazuje je jako ostrzeżenie, osobno od źródeł.</returns>
+    public static IReadOnlyList<string> UnverifiedCitations(string reply, string evidence)
     {
         var known = Citations(evidence).ToHashSet();
-        var unverified = Citations(reply).Where(c => !known.Contains(c)).Distinct().ToList();
-        return unverified.Count == 0
-            ? reply
-            : $"{reply}\n\n⚠ Nie znalazłem w pobranych przepisach: {string.Join(", ", unverified)}. Sprawdź te odwołania w tekście aktu, zanim na nich oprzesz decyzję.";
+        return Citations(reply).Where(c => !known.Contains(c)).Distinct().ToList();
     }
 
+    // § 7, art. 81 i strony poradników („Poradnik …, s. 21” / nagłówek fragmentu „s. 21”).
     private static IEnumerable<string> Citations(string text) =>
-        Citation().Matches(text).Select(m => (m.Groups[1].Value.StartsWith('§') ? "§ " : "art. ") + m.Groups[2].Value.ToLowerInvariant());
+        Citation().Matches(text).Select(m =>
+            m.Groups[1].Value.StartsWith('§') ? $"§ {m.Groups[2].Value.ToLowerInvariant()}"
+            : m.Groups[1].Value.StartsWith('s') ? $"s. {m.Groups[2].Value}"
+            : $"art. {m.Groups[2].Value.ToLowerInvariant()}");
 
-    [GeneratedRegex(@"(§|[Aa]rt\.)\s*(\d+[a-z]?)")]
+    [GeneratedRegex(@"(§|[Aa]rt\.|(?<=[Pp]oradnik[^()\n]{0,80}?|^#*\s*|—\s)s\.)\s*(\d+[a-z]?)", RegexOptions.Multiline)]
     private static partial Regex Citation();
 }

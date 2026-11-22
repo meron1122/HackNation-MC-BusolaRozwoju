@@ -173,6 +173,12 @@ function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
   if (msg.error) return <Warn title="Asystent jest chwilowo niedostępny"><p>{msg.content}</p></Warn>
   const p = parseReply(msg.content)
   const pick = (n: number) => onPick(active === n ? null : n)
+  // Odwołania spoza materiału (sprawdza backend) — osobno od źródeł, żeby nie wyglądały na potwierdzone.
+  const unverified = msg.unverified?.length ? (
+    <Warn title="Tych odwołań nie potwierdziłem w bazie wiedzy">
+      <p>{msg.unverified.join(', ')}. Sprawdź je w tekście przepisu, zanim oprzesz na nich decyzję.</p>
+    </Warn>
+  ) : null
   const avg = p.kind === 'answer' ? msg.content.match(/(?:średni\p{L}*|wynik\p{L}*)\s+(?:wynosi\s+|to\s+)?(\d)[,.](\d{1,2})/u) : null
 
   if (p.kind === 'notFound' || p.kind === 'unresolved') {
@@ -222,6 +228,7 @@ function Answer({ msg, last, mode, active, onPick, inlinePreview }: {
       )}
       <Rich text={p.text} onFn={pick} active={active} />
       <SourceChips sources={p.sources} active={active} onPick={pick} />
+      {unverified}
       {inlinePreview && active && <SourcePreview parsed={p} n={active} mode={mode} onPick={onPick} onClose={() => onPick(null)} />}
     </AiFrame>
   )
@@ -243,20 +250,20 @@ function Composer({ mode, setMode, big = false, autoFocus = false, contextLabel 
     <form className={big ? 'asst-ask big' : 'asst-ask'} onSubmit={(e) => { e.preventDefault(); submit() }}>
       <label className="sr-only" htmlFor={`asst-q-${big ? 'big' : 'small'}`}>Pytanie do asystenta</label>
       <input id={`asst-q-${big ? 'big' : 'small'}`} ref={input} value={draft} onChange={(e) => setDraft(e.target.value)}
-        placeholder="Zapytaj o zasady oceny…" autoComplete="off" />
+        placeholder={mode === 'context' && hasEntity(screen) ? 'Zapytaj o to, co widzisz, albo o zasady…' : 'Zapytaj o zasady oceny…'} autoComplete="off" />
       {mode === 'context' && hasEntity(screen) ? (
         <span className="asst-ctx">
           <span className="asst-ctx-label">{contextLabel || 'Ten ekran'}</span>
           <Info label="Co trafia do modelu" align="end">Do modelu trafia to, co widzisz w tej ocenie, w zakresie Twoich uprawnień.</Info>
           <button type="button" className="asst-x" aria-label="Pytaj bez kontekstu ekranu" onClick={() => setMode('rules')}>×</button>
         </span>
-      ) : (
+      ) : hasEntity(screen) && (
         <span className="asst-shield">
           <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
             <path d="M8 1.6l5 2v4.1c0 3.1-2.1 5.4-5 6.7-2.9-1.3-5-3.6-5-6.7V3.6z M5.6 8l1.7 1.7 3.2-3.4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
-          bez nazwisk
-          <Info label="Prywatność pytania" align="end">Pytanie idzie do modelu bez danych osób z ekranu.</Info>
+          bez danych z ekranu
+          <Info label="Prywatność pytania" align="end">Pytanie idzie do modelu bez danych osoby i oceny, które masz na ekranie.</Info>
         </span>
       )}
       <button type="submit" className="asst-send" aria-label="Wyślij" disabled={!draft.trim() || busy}>
@@ -304,7 +311,7 @@ export function AssistantChat({ variant, autoFocus = false }: { variant: Variant
   const toggle = entity && (
     <div className="asst-mode" role="group" aria-label="Tryb pytania">
       <button type="button" aria-pressed={effectiveMode === 'rules'} onClick={() => setMode('rules')}>Zasady</button>
-      <button type="button" aria-pressed={effectiveMode === 'context'} onClick={() => setMode('context')}>Rozmowa</button>
+      <button type="button" aria-pressed={effectiveMode === 'context'} onClick={() => setMode('context')}>Ten ekran</button>
     </div>
   )
 
@@ -349,7 +356,7 @@ export function AssistantChat({ variant, autoFocus = false }: { variant: Variant
               <Compass size={56} state="settle" />
               <p className="asst-start-title">W czym pomóc{hello ? `, ${hello}` : ''}?</p>
               <div className="asst-chips">
-                {chips.map((c) => <button key={c} type="button" className="asst-chip" onClick={() => ask(c, effectiveMode)}>{c}</button>)}
+                {chips.map((c) => <button key={c} type="button" className="asst-chip" onClick={() => { if (entity) setMode('context'); void ask(c, entity ? 'context' : effectiveMode) }}>{c}</button>)}
               </div>
             </div>
           )}

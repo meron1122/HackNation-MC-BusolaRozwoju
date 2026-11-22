@@ -1,7 +1,6 @@
 import { useEffect, useId, useState, type CSSProperties } from 'react'
 import { api } from './api'
 import { EmptyState } from './EmptyState'
-import { openAssistant } from './assistant/AssistantWidget'
 import { DashTimeline, type TimelineRow } from './dash-timeline'
 import { MiniStepper } from './dash-parts'
 import { cycleEnd, shortAction, stageLabel, stageRef, stageWindow, taskOf, termWord } from './dash-model'
@@ -70,8 +69,7 @@ const longToday = () => new Date().toLocaleDateString('pl-PL', { weekday: 'long'
 
 const QUESTIONS = ['Co omówić na rozmowie?', 'Średnia 4,0: pozytywna?']
 function ask(q: string) {
-  openAssistant()
-  askAssistant(q)
+  askAssistant(q) // otwiera okno asystenta i wysyła pytanie
 }
 
 /** H01 v2: pulpit przełożonej — następny krok, kolejka, asystent i oś cykli zespołu. */

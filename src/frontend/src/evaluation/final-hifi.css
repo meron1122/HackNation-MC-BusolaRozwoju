@@ -26,7 +26,7 @@
 .notes-hifi .notes-form-row select { width: 100%; min-width: 0; }
 .notes-hifi .notes-sar-inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .notes-hifi .notes-sar-inputs textarea { font-weight: 400; resize: vertical; }
-.notes-hifi .notes-hint { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; padding: 12px 16px; }
+.notes-hifi .notes-hint { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; padding: 12px 16px; margin: 0; background: var(--blue-soft); border-radius: 12px; }
 .notes-hifi .notes-form-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; }
 .notes-hifi .notes-form-foot label.check { margin: 0; }
 

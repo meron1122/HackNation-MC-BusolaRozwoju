@@ -31,7 +31,8 @@ public sealed class AgentRunner(
 {
     private const int MaxSteps = 8;
 
-    public async Task<string> RunAsync(IReadOnlyList<LlmMessage> conversation, string screen, CancellationToken ct)
+    /// <returns>Odpowiedź i odwołania (§ / art. / strony), których model nie miał w materiale.</returns>
+    public async Task<(string Reply, IReadOnlyList<string> Unverified)> RunAsync(IReadOnlyList<LlmMessage> conversation, string screen, CancellationToken ct)
     {
         var user = httpContextAccessor.HttpContext?.User ?? throw new InvalidOperationException("Brak kontekstu HTTP.");
         var available = tools.Where(t => t.RequiredPermission is null || user.HasPermission(t.RequiredPermission)).ToList();
@@ -53,7 +54,8 @@ public sealed class AgentRunner(
             messages.Add(reply);
             if (reply.ToolCalls is not { Count: > 0 })
             {
-                return AgentGuard.FlagUnverifiedCitations(AgentGuard.BlockLeak(reply.Content ?? ""), evidence.ToString());
+                var text = AgentGuard.BlockLeak(reply.Content ?? "");
+                return (text, AgentGuard.UnverifiedCitations(text, evidence.ToString()));
             }
 
             foreach (var call in reply.ToolCalls)
@@ -64,7 +66,7 @@ public sealed class AgentRunner(
             }
         }
 
-        return "Nie udało się ułożyć odpowiedzi w limicie kroków. Spróbuj zadać węższe pytanie.";
+        return ("Nie udało się ułożyć odpowiedzi w limicie kroków. Spróbuj zadać węższe pytanie.", []);
     }
 
     // Błędy wracają do modelu jako tekst, żeby mógł poprawić wywołanie; szczegóły tylko w logach.
