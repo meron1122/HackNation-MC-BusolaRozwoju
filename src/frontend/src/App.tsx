@@ -9,6 +9,7 @@ import { DeadlinesPage } from './Deadlines'
 import { DevPage } from './Dev'
 import { EvaluationsPage } from './Evaluations'
 import { HrPanel } from './HrPanel'
+import { MyEvaluationPage } from './MyEvaluation'
 import { Login } from './Login'
 import { ProfilePage, type ProfileTab } from './Profile'
 import { UserMenu } from './UserMenu'
@@ -147,9 +148,17 @@ const PAGES: Page[] = [
     render: (s, nav) => <HrPanel canRemind={can(s, 'remind_evaluations')} onOpenEvaluation={nav.showEvaluation} />,
   },
   {
+    // Strona startowa ocenianego: jego zadania w ocenie (rola Employee = konto powiązane z pracownikiem).
+    key: 'my',
+    label: 'Moja ocena',
+    visible: (s) => s.roles.includes('Employee') && can(s, 'read_evaluations'),
+    render: (_, nav) => <MyEvaluationPage onOpen={nav.showEvaluation} />,
+  },
+  {
+    // Terminy etapów to zadania prowadzących ocenę (przełożony, HR), nie ocenianego.
     key: 'deadlines',
     label: 'Terminy',
-    visible: (s) => can(s, 'read_evaluations'),
+    visible: (s) => can(s, 'edit_evaluation'),
     render: (_, nav) => <DeadlinesPage onOpen={(id) => nav.showEvaluation(id)} />,
   },
   {

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { api, apiBlobUrl } from './api'
 import { Avatar } from './Avatar'
 import type { Row } from './Crud'
-import { initialValues } from './evaluation/data'
+import { initialValues, signatureState } from './evaluation/data'
 import { EvaluationWizard } from './evaluation/Wizard'
 import {
   NO_BASIS, RESULT_LABELS, emptyAnswer, fmtDate, keyOf, pathLabel, today,
@@ -189,6 +189,8 @@ export function Stages({ detail, onChange }: { detail: Detail; onChange: () => v
   }
 
   const canChange = (s: Stage) => detail.canEdit || (s.optional && !detail.isOwn && detail.isFinal)
+  // Etap zamykany przez ocenianego (sprawozdanie) przełożony tylko pomija po terminie — w kroku „Sprawozdanie” kreatora.
+  const closedByEvaluated = (s: Stage) => detail.schema.stages?.find((d) => d.key === s.key)?.completedBy === 'evaluated'
 
   return (
     <div className="card panel">
@@ -206,7 +208,7 @@ export function Stages({ detail, onChange }: { detail: Detail; onChange: () => v
                 </td>
                 <td>{s.status === 'Completed' ? `wykonany ${s.completedOn}` : s.status === 'Skipped' ? 'pominięty' : 'otwarty'}</td>
                 <td className="actions">
-                  {s.status === 'Pending' && canChange(s) && (
+                  {s.status === 'Pending' && canChange(s) && !closedByEvaluated(s) && (
                     <form className="inline" onSubmit={(e) => complete(e, s)}>
                       <input name="completedOn" type="date" defaultValue={today()} required aria-label="Data wykonania" />
                       <button type="submit" className="link">Zamknij etap</button>
@@ -635,14 +637,14 @@ export function SignatureField({ field, detail, onSigned, locked = false, blocke
   const [busy, setBusy] = useState(false)
   const [link, setLink] = useState<{ id: string; token: string } | null>(null)
   const mine = field.role === 'evaluated'
-  // Podpis etapu, który jeszcze nie nadszedł (np. zapoznanie przed sporządzeniem oceny), czeka na swoją kolej.
+  // Kolejność: etap, który jeszcze nie nadszedł, czeka; oceniany podpisuje po podpisie przełożonego w tej samej części.
+  const state = locked ? 'closed' : signatureState(detail, field)
   const stageKey = detail.schema.sections.find((s) => s.fields.some((f) => f.key === field.key))?.stage
-  const stageIndex = detail.stages.findIndex((s) => s.key === stageKey)
-  const currentIndex = detail.stages.findIndex((s) => s.key === detail.currentStageKey)
-  const notYet = currentIndex >= 0 && stageIndex > currentIndex ? detail.stages[stageIndex] : undefined
-  const open = !signature && !detail.isFinal && !locked && !notYet
+  const notYet = state === 'laterStage' ? detail.stages.find((s) => s.key === stageKey) : undefined
+  const open = state === 'open'
   const canSign = open && (mine ? detail.isOwn : detail.canEdit)
   const waitsForEvaluated = open && mine && !detail.isOwn && detail.canEdit
+  const waitsForEvaluator = state === 'waitingForEvaluator'
 
   // Podpis odręczny na telefonie/tablecie przez link z kodem QR; po podpisaniu trafia do tego pola oceny.
   async function requestLink() {
@@ -710,7 +712,7 @@ export function SignatureField({ field, detail, onSigned, locked = false, blocke
           {error && <p role="alert" className="error">{error}</p>}
           <div className="buttons">
             <button type="submit" disabled={busy || !!blockedReason}>{busy ? 'Zapisywanie…' : submitLabel}</button>
-            {!link && !afterSign && <button type="button" className="secondary" onClick={requestLink}>Podpisz na telefonie lub tablecie</button>}
+            {!link && !afterSign && !blockedReason && <button type="button" className="secondary" onClick={requestLink}>Podpisz na telefonie lub tablecie</button>}
           </div>
           {linkPanel}
         </form>
@@ -723,6 +725,12 @@ export function SignatureField({ field, detail, onSigned, locked = false, blocke
             odręcznie na telefonie lub tablecie przez kod QR. Datę podpisu zapisuje system w chwili złożenia podpisu.
           </p>
         </div>
+      ) : waitsForEvaluator ? (
+        <p className="muted">
+          {detail.isOwn
+            ? 'Podpiszesz po rozmowie, gdy podpisze przełożony (oceniający) — potwierdzasz rozmowę, która już się odbyła.'
+            : 'Oceniany podpisze po podpisie przełożonego (oceniającego) w tej części.'}
+        </p>
       ) : (
         <p className="muted">
           {notYet ? `Podpis w etapie „${notYet.title}”.` : locked || detail.isFinal ? 'Niepodpisane (etap zamknięty).' : 'Niepodpisane.'}

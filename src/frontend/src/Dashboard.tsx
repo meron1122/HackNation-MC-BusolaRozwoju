@@ -60,7 +60,8 @@ export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
     <section className="dashboard">
       <div className="toolbar">
         <div>
-          <h2>Dzień dobry, {userName.split(' ')[0]}</h2>
+          {/* Nazwa w tokenie bywa e-mailem konta — wtedy bez imienia. */}
+          <h2>Dzień dobry{userName.includes('@') ? '' : `, ${userName.split(' ')[0]}`}</h2>
           <p className="muted small">{team.departmentName ?? 'Brak przypisanego wydziału'} · {team.count} {plural(team.count, 'osoba', 'osoby', 'osób')} w zespole</p>
         </div>
       </div>

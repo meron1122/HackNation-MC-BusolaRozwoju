@@ -19,6 +19,8 @@ export type StageDef = {
   key: string; title: string; phase?: string; optional?: boolean; selfAssessment?: boolean; legalRef?: string
   /** note: np. „7 dni to termin organizacyjny” przy zapoznaniu (przepis mówi „niezwłocznie”). */
   deadline?: { note?: string }
+  /** Kto zamyka etap: "evaluated" = oceniany (np. sprawozdanie zamyka przekazanie samooceny), przełożony nie. */
+  completedBy?: 'evaluated'
   topics?: Topic[]
 }
 export type PositiveRule = { rule: string; field?: string; values?: string[]; score?: number; count?: number; value?: number }
@@ -46,10 +48,16 @@ export type Detail = {
   stages: Stage[]; answers: Answer[]; signatures: Signature[]; canEdit: boolean; isOwn: boolean
   templateCode: string; phase: string; currentStageKey: string | null; lockedSections: string[]
   scoring: Scoring | null; previous: Previous | null; unitHeadName: string | null; canEditSelfAssessment: boolean
+  /**
+   * Podpowiedzi z kartoteki dla pól bez zapisu (osoby: imię, nazwisko, wydział, stanowisko; nazwa urzędu; data zatrudnienia).
+   * Backend traktuje je w /check jako wypełnione i zapisuje przy zamknięciu etapu. Brak pola = starsze API.
+   */
+  prefill?: Answer[]
 }
 
 export type CheckIssue = { stageKey: string; sectionKey: string | null; fieldKey: string | null; message: string; legalRef: string | null; blocking: boolean }
-export type StageCheck = { key: string; title: string; status: string; canComplete: boolean; issues: CheckIssue[] }
+/** canSkip: etap opcjonalny albo sprawozdanie po terminie (oznaczenie jako niezłożone). */
+export type StageCheck = { key: string; title: string; status: string; canComplete: boolean; canSkip?: boolean; issues: CheckIssue[] }
 export type SectionCheck = { key: string; title: string; part: string | null; stageKey: string; visible: boolean; locked: boolean; complete: boolean; issues: CheckIssue[] }
 export type Check = { stages: StageCheck[]; sections: SectionCheck[] }
 
@@ -99,7 +107,15 @@ export function fmtDate(iso: string | null | undefined): string {
   return d ? `${d}.${m}.${y}` : iso
 }
 
-const days = (n: number) => `${n} ${n === 1 ? 'dzień' : 'dni'}`
+/** 5 → „5 dni”, 75 → „2 mies.”, 800 → „2 lata” (długie okresy w panelu HR i na pulpicie). */
+function days(n: number): string {
+  if (n >= 730) {
+    const years = Math.floor(n / 365)
+    return `${years} ${plural(years, 'rok', 'lata', 'lat')}`
+  }
+  if (n >= 60) return `${Math.floor(n / 30)} mies.`
+  return `${n} ${n === 1 ? 'dzień' : 'dni'}`
+}
 
 /** Odmiana przez liczbę: plural(3, 'notatka', 'notatki', 'notatek') → „notatki”. */
 export function plural(n: number, one: string, few: string, many: string): string {

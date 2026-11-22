@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api } from '../api'
 import {
-  emptyAnswer, keyOf, type Answer, type CheckIssue, type Cond, type Detail, type IndicatorContext, type WorkContext,
+  emptyAnswer, keyOf, type Answer, type CheckIssue, type Cond, type Detail, type Field, type IndicatorContext, type WorkContext,
 } from './types'
 
 /** GET z API; `error` = endpoint nie odpowiada (np. backend jeszcze go nie ma) albo brak dostępu. */
@@ -65,27 +65,21 @@ export type WorkContextApi = ReturnType<typeof useWorkContext>
 
 export const saveAnswers = (evaluationId: number, answers: Answer[]) => api(`evaluations/${evaluationId}/answers`, 'PUT', { answers })
 
-/** Wartości startowe: zapisane odpowiedzi, a dla pustych pól podpowiedzi (prefill) z danych oceny. */
+/**
+ * Wartości startowe: zapisane odpowiedzi, pod nimi podpowiedzi z kartoteki (`detail.prefill`: osoby, urząd, data
+ * zatrudnienia — per pozycja, np. sam wydział, gdy imię jest już zapisane), a dla terminów (`prefill: stage:*`) daty etapów.
+ */
 export function initialValues(detail: Detail): Record<string, Answer> {
   const values: Record<string, Answer> = {}
+  for (const a of detail.prefill ?? []) values[keyOf(a.fieldKey, a.itemKey ?? null)] = { ...emptyAnswer(a.fieldKey, a.itemKey ?? null), ...a, itemKey: a.itemKey ?? null }
   for (const a of detail.answers) values[keyOf(a.fieldKey, a.itemKey)] = a
   const has = (fieldKey: string) => detail.answers.some((a) => a.fieldKey === fieldKey)
   const stage = (prefill?: string) => detail.stages.find((s) => prefill === `stage:${s.key}`)
-  const [first, ...rest] = detail.employeeName.split(' ')
-  const [evFirst, ...evRest] = (detail.evaluatorName ?? '').split(' ')
-  const [headFirst, ...headRest] = (detail.unitHeadName ?? '').split(' ')
 
   for (const field of detail.schema.sections.flatMap((s) => s.fields)) {
     if (has(field.key)) continue
-    const personName = field.role === 'evaluated' ? [first, rest.join(' ')]
-      : (field.role === 'evaluator' || field.role === 'supervisor') && detail.evaluatorName ? [evFirst, evRest.join(' ')]
-      : field.role === 'unitHead' && detail.unitHeadName ? [headFirst, headRest.join(' ')]
-      : null
-    if (field.type === 'person' && personName) {
-      values[keyOf(field.key, 'firstName')] = { ...emptyAnswer(field.key, 'firstName'), valueText: personName[0] }
-      values[keyOf(field.key, 'lastName')] = { ...emptyAnswer(field.key, 'lastName'), valueText: personName[1] }
-    } else if (field.prefill === 'employee.hireDate') {
-      values[keyOf(field.key, null)] = { ...emptyAnswer(field.key, null), valueDate: detail.startDate }
+    if (!detail.prefill && (field.type === 'person' || field.prefill === 'employee.hireDate')) {
+      legacyPrefill(detail, field, values)
     } else if (stage(field.prefill)?.dueTo) {
       const s = stage(field.prefill)!
       values[keyOf(field.key, null)] = field.type === 'dateRange'
@@ -96,9 +90,24 @@ export function initialValues(detail: Detail): Record<string, Answer> {
   return values
 }
 
+/** Starsze API bez `prefill`: imię i nazwisko z nazw w ocenie, data zatrudnienia = początek oceny. */
+function legacyPrefill(detail: Detail, field: Field, values: Record<string, Answer>) {
+  if (field.prefill === 'employee.hireDate') {
+    values[keyOf(field.key, null)] = { ...emptyAnswer(field.key, null), valueDate: detail.startDate }
+    return
+  }
+  const name = field.role === 'evaluated' ? detail.employeeName
+    : field.role === 'evaluator' || field.role === 'supervisor' ? detail.evaluatorName
+    : field.role === 'unitHead' ? detail.unitHeadName : null
+  if (!name) return
+  const [first, ...rest] = name.split(' ')
+  values[keyOf(field.key, 'firstName')] = { ...emptyAnswer(field.key, 'firstName'), valueText: first }
+  values[keyOf(field.key, 'lastName')] = { ...emptyAnswer(field.key, 'lastName'), valueText: rest.join(' ') }
+}
+
 /**
- * Pola z podpowiedzią (termin etapu, data zatrudnienia, imię i nazwisko osoby), których nikt jeszcze nie zapisał —
- * do zapisu przed zamknięciem etapu. Sekcje ukryte warunkiem (visibleWhen) pomijamy.
+ * Podpowiedzi, które przed zamknięciem etapu zapisuje front: terminy etapów (`prefill: stage:*`). Dane z kartoteki
+ * (`detail.prefill`) zapisuje przy zamknięciu backend — chyba że to starsze API bez `prefill`. Sekcje ukryte pomijamy.
  */
 export function unsavedPrefills(detail: Detail, stageKey: string): Answer[] {
   const values = initialValues(detail)
@@ -107,9 +116,12 @@ export function unsavedPrefills(detail: Detail, stageKey: string): Answer[] {
     .filter((s) => s.stage === stageKey && !detail.lockedSections?.includes(s.key) && visible(s.visibleWhen))
     .flatMap((s) => s.fields)
     .filter((f) => visible(f.visibleWhen) && !detail.answers.some((a) => a.fieldKey === f.key))
-    .flatMap((f) => f.type === 'person'
-      ? [values[keyOf(f.key, 'firstName')], values[keyOf(f.key, 'lastName')]]
-      : f.prefill && !f.prefill.startsWith('previous.') ? [values[keyOf(f.key, null)]] : [])
+    .flatMap((f) => {
+      if (f.prefill?.startsWith('stage:')) return [values[keyOf(f.key, null)]]
+      if (detail.prefill) return []
+      if (f.type === 'person') return [values[keyOf(f.key, 'firstName')], values[keyOf(f.key, 'lastName')]]
+      return f.prefill === 'employee.hireDate' ? [values[keyOf(f.key, null)]] : []
+    })
     .filter((a): a is Answer => !!a)
 }
 
@@ -118,6 +130,23 @@ export async function completeStage(detail: Detail, stageKey: string, completedO
   const prefills = unsavedPrefills(detail, stageKey)
   if (prefills.length) await saveAnswers(detail.id, prefills)
   await api(`evaluations/${detail.id}/stages/${stageKey}/complete`, 'POST', { completedOn })
+}
+
+/**
+ * Kolejność podpisów: pole etapu, który jeszcze nie nadszedł, czeka (`laterStage`); pole ocenianego czeka też na podpis
+ * przełożonego/oceniającego w tej samej części (`waitingForEvaluator`) — oceniany potwierdza rozmowę, która już się odbyła.
+ */
+export type SignatureState = 'signed' | 'open' | 'waitingForEvaluator' | 'laterStage' | 'closed'
+export function signatureState(detail: Detail, field: Field): SignatureState {
+  if (detail.signatures.some((s) => s.fieldKey === field.key)) return 'signed'
+  const section = detail.schema.sections.find((s) => s.fields.some((f) => f.key === field.key))
+  if (!section || detail.isFinal || detail.lockedSections?.includes(section.key)) return 'closed'
+  const stageIndex = detail.stages.findIndex((s) => s.key === section.stage)
+  const currentIndex = detail.stages.findIndex((s) => s.key === detail.currentStageKey)
+  if (currentIndex >= 0 && stageIndex > currentIndex) return 'laterStage'
+  const evaluatorUnsigned = section.fields.some((f) =>
+    f.type === 'signature' && f.role !== 'evaluated' && !detail.signatures.some((s) => s.fieldKey === f.key))
+  return field.role === 'evaluated' && evaluatorUnsigned ? 'waitingForEvaluator' : 'open'
 }
 
 /** Braki blokujące, które uzupełni samo zamknięcie etapu (podpowiedzi), nie blokują przycisku. */

@@ -60,6 +60,8 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
   const stage = detail.stages.find((s) => s.key === data.stageKey)
+  // Sprawozdanie (pierwsza ocena) zamyka przekazanie — oceniany składa je, a nie tylko pokazuje przełożonemu.
+  const closesStage = detail.schema.stages?.find((s) => s.key === data.stageKey)?.completedBy === 'evaluated'
   const editable = data.canEdit
 
   const body = () => ({
@@ -78,7 +80,9 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
     }
   }
   async function submit() {
-    if (!confirm('Przekazać samoocenę przełożonemu? Potem nie będzie można jej zmienić.')) return
+    if (!confirm(closesStage
+      ? 'Złożyć sprawozdanie? To zamyka etap sprawozdania — potem nie będzie można go zmienić.'
+      : 'Przekazać samoocenę przełożonemu? Potem nie będzie można jej zmienić.')) return
     setBusy(true)
     try {
       await api(`evaluations/${detail.id}/self-assessment`, 'PUT', body())
@@ -97,7 +101,7 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
     <div className="step">
       <div className="step-head">
         <h2>{detail.schema.stages?.find((s) => s.key === data.stageKey)?.phase === 'Sprawozdanie' ? 'Sprawozdanie i samoocena' : 'Samoocena'}</h2>
-        {data.submitted ? <Pill tone="ok">przekazana {fmtDate(data.submittedAt)}</Pill> : stage?.dueTo && <Pill tone="warn">do {fmtDate(stage.dueTo)}</Pill>}
+        {data.submitted ? <Pill tone="ok">{closesStage ? 'złożone' : 'przekazana'} {fmtDate(data.submittedAt)}</Pill> : stage?.dueTo && <Pill tone="warn">do {fmtDate(stage.dueTo)}</Pill>}
       </div>
       {!data.stageOpen && !data.submitted && <p className="callout info">Samoocena będzie dostępna w etapie „{stage?.title ?? data.stageKey}”.</p>}
       <p className="muted small">Oceń, jak w tym okresie wyglądała Twoja praca w każdym kryterium. Przełożony zobaczy samoocenę dopiero po jej przekazaniu i omówi ją na rozmowie oceniającej.</p>
@@ -127,7 +131,7 @@ function SelfAssessmentForm({ detail, reload, data, reloadSelf }: StepProps & { 
         <div className="step-actions">
           <button type="button" className="secondary" onClick={save} disabled={busy}>Zapisz roboczo</button>
           <span className="grow" />
-          <button type="button" onClick={submit} disabled={busy}>Przekaż przełożonemu</button>
+          <button type="button" onClick={submit} disabled={busy}>{closesStage ? 'Złóż sprawozdanie' : 'Przekaż przełożonemu'}</button>
         </div>
       )}
     </div>

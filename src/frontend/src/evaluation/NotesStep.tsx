@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { Fragment, useState, type FormEvent } from 'react'
 import { api } from '../api'
-import { CompleteStage, IssueList, Pill, type StepProps } from './common'
+import { CompleteStage, DuePill, IssueList, Pill, type StepProps } from './common'
 import { useApi } from './data'
 import {
   daysUntil, criteriaOf, fmtDate, plural, today, type Detail, type Note, type NoteRequest, type Notes, type SelfAssessment,
@@ -231,11 +231,13 @@ function NoteForm({ title, options, initial, defaultIndicator = null, onSubmit, 
 }
 
 /** Etap bez własnych sekcji (np. sprawozdanie w pierwszej ocenie): status samooceny, braki i zamknięcie etapu. */
-export function StageStep({ detail, check, steps, go, reload, stageKey }: StepProps & { stepId: string; stageKey: string }) {
+export function StageStep(props: StepProps & { stepId: string; stageKey: string }) {
+  const { detail, check, steps, go, reload, stageKey } = props
   const stage = detail.stages.find((s) => s.key === stageKey)
   const def = detail.schema.stages?.find((s) => s.key === stageKey)
   const issues = check?.stages.find((s) => s.key === stageKey)?.issues ?? []
   if (!stage) return null
+  if (def?.completedBy === 'evaluated') return <EvaluatedStageStep {...props} />
   return (
     <div className="step">
       <div className="step-head">
@@ -256,6 +258,80 @@ export function StageStep({ detail, check, steps, go, reload, stageKey }: StepPr
         </>
       ) : (
         <p className="callout ok">{stage.status === 'Skipped' ? 'Etap pominięty.' : `Etap zamknięty ${fmtDate(stage.completedOn)}.`}</p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Etap zamykany przez ocenianego (sprawozdanie w pierwszej ocenie): przełożony go nie zamyka — widzi status, po złożeniu
+ * treść (tylko odczyt), a po terminie może oznaczyć sprawozdanie jako niezłożone (skip; backend zwraca canSkip).
+ */
+function EvaluatedStageStep({ detail, check, reload, stageKey }: StepProps & { stageKey: string }) {
+  const stage = detail.stages.find((s) => s.key === stageKey)!
+  const def = detail.schema.stages?.find((s) => s.key === stageKey)
+  const stageCheck = check?.stages.find((s) => s.key === stageKey)
+  const { data: self } = useApi<SelfAssessment>(`evaluations/${detail.id}/self-assessment`)
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const name = def?.phase === 'Sprawozdanie' ? 'sprawozdanie' : 'samoocenę'
+  const firstName = detail.employeeName.split(' ')[0]
+
+  async function skip() {
+    if (!confirm(`Oznaczyć ${name} jako niezłożone? Ocena przejdzie do rozmowy oceniającej.`)) return
+    setBusy(true)
+    try {
+      await api(`evaluations/${detail.id}/stages/${stageKey}/skip`, 'POST')
+      setError('')
+      await reload()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="step">
+      <div className="step-head">
+        <h2>{def?.phase ?? stage.title}</h2>
+        {stage.status === 'Pending' && stage.dueTo && <DuePill dueTo={stage.dueTo} daysLeft={daysUntil(stage.dueTo)} overdue={stage.overdue} />}
+      </div>
+      <p>{stage.title}{def?.legalRef && <span className="muted"> · {def.legalRef}</span>}</p>
+      {stage.status === 'Pending' && (
+        <div className="callout info">
+          <strong>Czeka na {name} ocenianego{stage.dueTo ? ` do ${fmtDate(stage.dueTo)}` : ''}.</strong>
+          <p className="small">
+            {firstName} składa {name} ze swojego konta — przekazanie zamyka ten etap. Ty go nie zamykasz.
+          </p>
+          {stageCheck?.issues.filter((i) => i.message).map((i) => <p key={i.message} className="muted small">{i.message}{i.legalRef && ` · ${i.legalRef}`}</p>)}
+        </div>
+      )}
+      {stage.status === 'Pending' && detail.canEdit && stageCheck?.canSkip && (
+        <div className="step-footer">
+          <p className="grow small">Termin minął, a {name} nie wpłynęło. Możesz oznaczyć je jako niezłożone — ocena przejdzie do rozmowy oceniającej (§ 8 ust. 1).</p>
+          <button type="button" className="secondary" disabled={busy} onClick={skip}>Oznacz jako niezłożone</button>
+        </div>
+      )}
+      {stage.status === 'Skipped' && <p className="callout warn">{name[0].toUpperCase() + name.slice(1)} oznaczone jako niezłożone w terminie.</p>}
+      {stage.status === 'Completed' && <p className="callout ok"><strong>Złożone {fmtDate(stage.completedOn)}.</strong></p>}
+      {error && <p role="alert" className="error">{error}</p>}
+      {self?.submitted && (
+        <div className="card">
+          <h3>{name[0].toUpperCase() + name.slice(1)} ocenianego (tylko do odczytu)</h3>
+          <dl className="summary">
+            {self.criteria.map((c) => (
+              <Fragment key={c.key}>
+                <dt>{c.label}</dt>
+                <dd>
+                  {self.scale.find((o) => o.key === c.level)?.label ?? <span className="muted">bez oceny</span>}
+                  {c.comment && <><br /><span className="small pre-line">{c.comment}</span></>}
+                </dd>
+              </Fragment>
+            ))}
+            <dt>Potrzeby rozwojowe</dt><dd className="pre-line">{self.developmentNeeds || <span className="muted">nie zgłoszono</span>}</dd>
+          </dl>
+        </div>
       )}
     </div>
   )
