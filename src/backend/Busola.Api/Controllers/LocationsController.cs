@@ -86,9 +86,16 @@ public sealed class LocationsController(BusolaDbContext db, AccessScopeService a
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
         var scope = await access.ResolveAsync(Permissions.DeleteLocation, ct);
-        var deleted = await db.Locations.InScope(scope).Where(l => l.Id == id).ExecuteDeleteAsync(ct);
+        // Remove zamiast ExecuteDelete: usunięcie trafia do dziennika audytu (AuditInterceptor).
+        var location = await db.Locations.InScope(scope).SingleOrDefaultAsync(l => l.Id == id, ct);
+        if (location is null)
+        {
+            return NotFound();
+        }
 
-        return deleted == 0 ? NotFound() : NoContent();
+        db.Locations.Remove(location);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     private async Task<ActionResult?> ValidateServiceAsync(int serviceId, AccessScope scope, CancellationToken ct)

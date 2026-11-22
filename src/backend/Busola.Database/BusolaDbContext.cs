@@ -33,6 +33,7 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
     public DbSet<EvaluationCriterionContext> EvaluationCriterionContexts => Set<EvaluationCriterionContext>();
     public DbSet<EvaluationTermChange> EvaluationTermChanges => Set<EvaluationTermChange>();
     public DbSet<KnowledgeEmbedding> KnowledgeEmbeddings => Set<KnowledgeEmbedding>();
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     // Tu, a nie w AddDbContext, żeby snake_case obowiązywał zawsze — schemat i aplikacja nie mogą się rozjechać.
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) =>
@@ -289,6 +290,23 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
         });
 
         modelBuilder.Entity<KnowledgeEmbedding>(b => b.HasKey(e => new { e.Hash, e.Model }));
+
+        modelBuilder.Entity<AuditEntry>(b =>
+        {
+            b.Property(a => a.UserId).HasMaxLength(450);
+            b.Property(a => a.UserEmail).HasMaxLength(256);
+            b.Property(a => a.Action).HasMaxLength(50);
+            b.Property(a => a.EntityType).HasMaxLength(100);
+            b.Property(a => a.EntityId).HasMaxLength(100);
+            b.Property(a => a.Changes).HasColumnType("jsonb");
+            b.Property(a => a.Ip).HasMaxLength(64);
+            b.Property(a => a.UserAgent).HasMaxLength(512);
+            b.Property(a => a.Method).HasMaxLength(10);
+            b.Property(a => a.Path).HasMaxLength(512);
+            b.HasIndex(a => a.At);
+            b.HasIndex(a => new { a.UserId, a.At });
+            b.HasIndex(a => new { a.EntityType, a.EntityId });
+        });
 
         modelBuilder.Entity<EmployeeProfile>(b =>
         {

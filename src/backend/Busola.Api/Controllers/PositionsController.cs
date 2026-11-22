@@ -87,7 +87,8 @@ public sealed class PositionsController(BusolaDbContext db, AccessScopeService a
                 detail: $"Stanowisko jest przypisane pracownikom (liczba: {position.Used}) — najpierw zmień im stanowisko.");
         }
 
-        await db.Positions.Where(p => p.Id == id).ExecuteDeleteAsync(ct);
+        db.Positions.Remove(await db.Positions.SingleAsync(p => p.Id == id, ct));
+        await db.SaveChangesAsync(ct);
         return NoContent();
     }
 

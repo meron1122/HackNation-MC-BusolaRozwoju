@@ -1,3 +1,4 @@
+using Busola.Api.Audit;
 using Busola.Api.Authorization;
 using Busola.Api.Models;
 using Busola.Database.Entities;
@@ -21,6 +22,7 @@ public sealed class AuthController(UserManager<User> userManager, TokenService t
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken ct)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
+        AuditContext.SetActor(HttpContext, user?.Id, request.Email);
         if (user is null)
         {
             return Unauthorized();
@@ -42,6 +44,7 @@ public sealed class AuthController(UserManager<User> userManager, TokenService t
         {
             if (string.IsNullOrWhiteSpace(request.TwoFactorCode) && string.IsNullOrWhiteSpace(request.RecoveryCode))
             {
+                AuditMiddleware.SetAction(HttpContext, "login_2fa_required");
                 return new LoginResponse(Token: null, RequiresTwoFactor: true);
             }
 
@@ -59,4 +62,8 @@ public sealed class AuthController(UserManager<User> userManager, TokenService t
         await userManager.ResetAccessFailedCountAsync(user);
         return new LoginResponse(await tokens.CreateTokenAsync(user, ct));
     }
+
+    /// <summary>Token JWT jest bezstanowy, więc nic tu nie unieważniamy — endpoint istnieje dla dziennika audytu.</summary>
+    [HttpPost("logout")]
+    public NoContentResult Logout() => NoContent();
 }

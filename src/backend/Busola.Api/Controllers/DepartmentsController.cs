@@ -117,9 +117,16 @@ public sealed class DepartmentsController(BusolaDbContext db, AccessScopeService
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
         var scope = await access.ResolveAsync(Permissions.DeleteDepartment, ct);
-        var deleted = await db.Departments.InScope(scope).Where(d => d.Id == id).ExecuteDeleteAsync(ct);
+        // Remove zamiast ExecuteDelete: usunięcie trafia do dziennika audytu (AuditInterceptor).
+        var department = await db.Departments.InScope(scope).SingleOrDefaultAsync(d => d.Id == id, ct);
+        if (department is null)
+        {
+            return NotFound();
+        }
 
-        return deleted == 0 ? NotFound() : NoContent();
+        db.Departments.Remove(department);
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     private async Task<ActionResult?> ValidateLocationAsync(int locationId, AccessScope scope, CancellationToken ct)

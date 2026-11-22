@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="Busola.Api/Busola.Api.csproj" />
   <Project Path="Busola.Database/Busola.Database.csproj" />
+  <Project Path="Busola.Tests/Busola.Tests.csproj" />
 </Solution>

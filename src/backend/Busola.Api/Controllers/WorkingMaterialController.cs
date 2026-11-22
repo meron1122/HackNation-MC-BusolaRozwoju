@@ -139,10 +139,16 @@ public sealed class WorkingMaterialController(BusolaDbContext db, AccessScopeSer
             return error;
         }
 
-        var deleted = await db.EvaluationNotes
-            .Where(n => n.Id == noteId && n.EvaluationId == id && n.AuthorId == UserId)
-            .ExecuteDeleteAsync(ct);
-        return deleted == 0 ? NotFound() : NoContent();
+        var note = await db.EvaluationNotes
+            .SingleOrDefaultAsync(n => n.Id == noteId && n.EvaluationId == id && n.AuthorId == UserId, ct);
+        if (note is null)
+        {
+            return NotFound();
+        }
+
+        db.EvaluationNotes.Remove(note); // nie ExecuteDelete: usunięcie trafia do dziennika audytu
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
 
     // ---------- Kontekst per wskaźnik / kryterium ----------

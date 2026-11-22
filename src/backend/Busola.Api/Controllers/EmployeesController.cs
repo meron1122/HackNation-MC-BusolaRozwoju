@@ -166,12 +166,12 @@ public sealed class EmployeesController(BusolaDbContext db, AccessScopeService a
             return Problem(statusCode: StatusCodes.Status403Forbidden, detail: "Nie możesz usunąć samego siebie.");
         }
 
-        // Konto i pracownik razem. Gdy coś na nie wskazuje (oceny, wypełnione pola, podpisy), baza
-        // odrzuci usunięcie (409), transakcja się wycofa i oba zostaną.
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        await db.Users.Where(u => u.EmployeeId == id).ExecuteDeleteAsync(ct);
-        await db.Employees.Where(e => e.Id == id).ExecuteDeleteAsync(ct);
-        await transaction.CommitAsync(ct);
+        // Konto i pracownik razem, jednym SaveChanges (jedna transakcja). Gdy coś na nie wskazuje (oceny,
+        // wypełnione pola, podpisy), baza odrzuci usunięcie (409) i oba zostaną. Remove zamiast ExecuteDelete,
+        // żeby usunięcie trafiło do dziennika audytu.
+        db.Users.RemoveRange(await db.Users.Where(u => u.EmployeeId == id).ToListAsync(ct));
+        db.Employees.Remove(await db.Employees.SingleAsync(e => e.Id == id, ct));
+        await db.SaveChangesAsync(ct);
 
         return NoContent();
     }

@@ -1,4 +1,5 @@
 using Busola.Api.Agent;
+using Busola.Api.Audit;
 using Busola.Api.Authorization;
 using Busola.Api.Infrastructure;
 using Busola.Api.Seeders;
@@ -22,7 +23,10 @@ var connectionString = builder.Configuration.GetConnectionString("Busola")
 connectionString = NormalizeConnectionString(connectionString);
 var jwt = JwtOptions.Load(builder.Configuration);
 
-builder.Services.AddDbContext<BusolaDbContext>(options => options.UseNpgsql(connectionString));
+builder.Services.AddSingleton<AuditContext>();
+builder.Services.AddSingleton<AuditInterceptor>();
+builder.Services.AddDbContext<BusolaDbContext>((sp, options) =>
+    options.UseNpgsql(connectionString).AddInterceptors(sp.GetRequiredService<AuditInterceptor>()));
 
 builder.Services
     .AddIdentityCore<User>(options => options.User.RequireUniqueEmail = true)
@@ -80,6 +84,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi().AllowAnonymous();
 }
 
+app.UseMiddleware<AuditMiddleware>(); // przed UseExceptionHandler: widzi ostateczny status
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
 app.UseStaticFiles(); // zbudowany frontend w wwwroot (wrzuca go Dockerfile)

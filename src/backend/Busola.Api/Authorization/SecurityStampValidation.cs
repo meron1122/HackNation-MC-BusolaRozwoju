@@ -18,14 +18,20 @@ public static class SecurityStampValidation
         var stamp = context.Principal?.FindFirstValue(BusolaClaims.SecurityStamp);
         var db = context.HttpContext.RequestServices.GetRequiredService<BusolaDbContext>();
 
-        var currentStamp = await db.Users
+        var current = await db.Users
             .Where(u => u.Id == userId)
-            .Select(u => u.SecurityStamp)
+            .Select(u => new { u.SecurityStamp, u.Email })
             .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
 
-        if (currentStamp is null || currentStamp != stamp)
+        if (current?.SecurityStamp is null || current.SecurityStamp != stamp)
         {
             context.Fail("Sesja wygasła, zaloguj się ponownie.");
+            return;
+        }
+
+        if (current.Email is not null && context.Principal!.Identity is ClaimsIdentity identity)
+        {
+            identity.AddClaim(new Claim(BusolaClaims.Email, current.Email));
         }
     }
 }

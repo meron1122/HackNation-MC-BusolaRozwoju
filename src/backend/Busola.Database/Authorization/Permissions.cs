@@ -27,5 +27,8 @@ public static class Permissions
 
     public const string ManagePositions = "manage_positions";
 
+    /// <summary>Dziennik audytu obejmuje wszystkie służby, więc ma go tylko SuperAdmin (z urzędu).</summary>
+    public const string ReadAuditLog = "read_audit_log";
+
     public static IReadOnlyList<string> All { get; } = PermissionSeed.Permissions.Select(p => p.Key).ToArray();
 }

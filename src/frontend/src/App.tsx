@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { AccountPage } from './Account'
-import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
+import { AuditPage } from './Audit'
+import { LOGOUT_EVENT, api, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
 import { AssistantWidget } from './assistant/AssistantWidget'
 import { resetSession } from './assistant/store'
 import { Person } from './Person'
@@ -299,6 +300,12 @@ const PAGES: Page[] = [
     render: (s) => <UsersPage superAdmin={isSuperAdmin(s)} />,
   },
   {
+    key: 'audit',
+    label: 'Dziennik audytu',
+    visible: (s) => can(s, 'read_audit_log'),
+    render: () => <AuditPage />,
+  },
+  {
     key: 'dev',
     label: 'Dev',
     visible: isSuperAdmin,
@@ -382,6 +389,8 @@ export default function App() {
   }
 
   function logout() {
+    // Tylko do dziennika audytu (JWT jest bezstanowy). Token dokleja się jeszcze przed setToken(null).
+    api('auth/logout', 'POST').catch(() => {})
     resetSession()
     setToken(null)
     setTokenState(null)

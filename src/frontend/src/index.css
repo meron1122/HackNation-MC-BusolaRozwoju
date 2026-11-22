@@ -86,7 +86,7 @@ input, select, textarea {
 /* align-content: pole z podpowiedzią w tym samym wierszu nie rozciąga kontrolek sąsiadów; min-width: długie opcje
    selecta (np. stanowisko ze służbą) nie wychodzą poza kolumnę. */
 .field { display: grid; gap: 0.3rem; min-width: 0; align-content: start; }
-.field > select { min-width: 0; }
+.field > select, .card > label, .card > label > select { min-width: 0; }
 .field > label { font-size: 0.875rem; font-weight: 600; color: var(--text); }
 .hint { font-size: 0.875rem; color: var(--muted); }
 .field-error { font-size: 0.875rem; color: var(--danger); }
