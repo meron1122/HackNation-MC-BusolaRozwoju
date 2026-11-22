@@ -26,7 +26,6 @@ const ACTIONS: Record<string, string> = {
   create: 'Utworzenie',
   update: 'Zmiana',
   delete: 'Usunięcie',
-  read: 'Odczyt',
   write: 'Zapis przez API',
   login_success: 'Logowanie udane',
   login_failed: 'Logowanie nieudane',
@@ -38,7 +37,6 @@ const ACTIONS: Record<string, string> = {
   two_factor_reset: 'Reset 2FA przez administratora',
   user_create: 'Założenie konta',
   role_change: 'Zmiana ról',
-  sign_link_open: 'Otwarcie linku podpisu',
   sign: 'Złożenie podpisu',
   sign_decline: 'Odmowa podpisu',
   agent_query: 'Pytanie do asystenta',
@@ -107,7 +105,7 @@ export function AuditPage() {
         <button className="secondary" onClick={exportCsv}>Eksportuj CSV</button>
       </div>
       <p className="muted">
-        Zmiany danych i dostęp do API: kto, kiedy, skąd i z jakim wynikiem. Wpisów nie da się zmienić ani usunąć.
+        Zmiany danych i operacje w API (logowania, zapisy, usunięcia; bez odczytów): kto, kiedy, skąd i z jakim wynikiem. Wpisów nie da się zmienić ani usunąć.
         Eksport obejmuje bieżące filtry (najwyżej 50 000 najnowszych wpisów).
       </p>
       <form onSubmit={search} className="form card">

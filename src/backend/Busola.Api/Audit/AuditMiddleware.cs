@@ -6,14 +6,14 @@ using Microsoft.AspNetCore.Mvc.Controllers;
 namespace Busola.Api.Audit;
 
 /// <summary>
-/// Dziennik dostępu: każde żądanie do /api (kto, skąd, co, z jakim wynikiem), bez treści i query stringa.
+/// Dziennik dostępu: każde żądanie do /api poza odczytami (GET/HEAD) — kto, skąd, co, z jakim wynikiem; bez treści i query stringa.
 /// Stoi przed UseExceptionHandler, żeby widzieć ostateczny status (np. 409 z DbExceptionHandler).
 /// </summary>
 public sealed class AuditMiddleware(RequestDelegate next, ILogger<AuditMiddleware> logger)
 {
     private const string ActionKey = "audit.action";
 
-    // Reszta to „read” (GET) albo „write”. Klucz: kontroler.akcja.
+    // Reszta to „write”. Klucz: kontroler.akcja.
     private static readonly Dictionary<string, string> NamedActions = new()
     {
         ["Auth.Logout"] = "logout",
@@ -23,7 +23,6 @@ public sealed class AuditMiddleware(RequestDelegate next, ILogger<AuditMiddlewar
         ["Users.Create"] = "user_create",
         ["Users.UpdateRoles"] = "role_change",
         ["Users.ResetTwoFactor"] = "two_factor_reset",
-        ["Sign.Get"] = "sign_link_open",
         ["Sign.Sign"] = "sign",
         ["Sign.Decline"] = "sign_decline",
         ["Agent.Chat"] = "agent_query",
@@ -34,7 +33,9 @@ public sealed class AuditMiddleware(RequestDelegate next, ILogger<AuditMiddlewar
 
     public async Task InvokeAsync(HttpContext context, AuditContext audit, IServiceScopeFactory scopes)
     {
-        if (!context.Request.Path.StartsWithSegments("/api") || HttpMethods.IsOptions(context.Request.Method))
+        var method = context.Request.Method;
+        if (!context.Request.Path.StartsWithSegments("/api")
+            || HttpMethods.IsGet(method) || HttpMethods.IsHead(method) || HttpMethods.IsOptions(method))
         {
             await next(context);
             return;
@@ -96,8 +97,6 @@ public sealed class AuditMiddleware(RequestDelegate next, ILogger<AuditMiddlewar
             return status is >= 200 and < 300 ? "login_success" : "login_failed";
         }
 
-        return NamedActions.TryGetValue(key, out var named) ? named
-            : HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method) ? "read"
-            : "write";
+        return NamedActions.TryGetValue(key, out var named) ? named : "write";
     }
 }
