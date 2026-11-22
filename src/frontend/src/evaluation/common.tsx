@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { apiDownload } from '../api'
+import { DateInput } from '../DateInput'
 import { Icon, type IconName } from '../Icon'
 import { completeStage, withoutAutoFilled } from './data'
 import { daysLabel, fmtDate, plural, today, type Check, type CheckIssue, type Detail, type Topic } from './types'
@@ -154,7 +155,7 @@ export function CompleteStage({ detail, check, stageKey, label, defaultDate, onD
   return (
     <div className="step-footer">
       <div className="grow">{children}</div>
-      <label className="check">Data <input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
+      <label className="check">Data <DateInput value={date} onChange={setDate} /></label>
       <button type="button" onClick={run} disabled={disabled}>{busy ? 'Zapisywanie…' : label}</button>
       {error && <p role="alert" className="error wide">{error}</p>}
     </div>

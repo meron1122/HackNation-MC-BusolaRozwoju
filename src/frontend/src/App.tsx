@@ -9,6 +9,7 @@ import { DepartmentHead } from './DepartmentHead'
 import { DeadlinesPage } from './Deadlines'
 import { DevPage } from './Dev'
 import { EvaluationsPage } from './Evaluations'
+import { fmtDate } from './evaluation/types'
 import { HrPanel } from './HrPanel'
 import { MyEvaluationPage } from './MyEvaluation'
 import { EmptyState } from './EmptyState'
@@ -28,6 +29,13 @@ const employeeFields: Field[] = [
   { name: 'dateOfBirth', label: 'Data urodzenia', type: 'date' },
   { name: 'hireDate', label: 'Data zatrudnienia', type: 'date' },
   { name: 'departmentId', label: 'Wydział', options: { path: 'departments', label: (d) => `${d.name} (${d.locationName})` } },
+  {
+    name: 'positionId',
+    label: 'Stanowisko',
+    optional: true,
+    note: 'Ze słownika służby wydziału; trafia do arkusza oceny.',
+    options: { path: 'positions', label: (p) => `${p.name} (${p.serviceName})` },
+  },
   {
     name: 'supervisorId',
     label: 'Przełożony',
@@ -84,8 +92,8 @@ const employeeColumns = (nav: Nav): Column[] => [
   ['Nazwisko i imię', (e) => <button className="link person-link" onClick={() => nav.showProfile(e.id)}>{e.lastName} {e.firstName}</button>],
   ['Stanowisko', (e) => e.positionName ?? '—'],
   ['E-mail', (e) => e.email ?? '—'],
-  ['Urodzony', (e) => e.dateOfBirth],
-  ['Zatrudniony', (e) => e.hireDate],
+  ['Urodzony', (e) => fmtDate(e.dateOfBirth)],
+  ['Zatrudniony', (e) => fmtDate(e.hireDate)],
   ['Pierwsza ocena', (e) => (e.subjectToFirstEvaluation ? 'tak' : '—')],
   ['Wydział', (e) => e.departmentName],
   ['Lokalizacja', (e) => e.locationName],
@@ -254,37 +262,51 @@ const PAGES: Page[] = [
   },
 ]
 
+type View = { pageKey: string; openEvaluation: number | null; profileId: number | null; evaluationReturn: string | null; myProfileTab: ProfileTab }
+const START_VIEW: View = { pageKey: PAGES[0].key, openEvaluation: null, profileId: null, evaluationReturn: null, myProfileTab: 'personal' }
+
 export default function App() {
   const [token, setTokenState] = useState(getToken)
-  const [pageKey, setPageKey] = useState(PAGES[0].key)
   const [avatarVersion, setAvatarVersion] = useState(0)
-  const [openEvaluation, setOpenEvaluation] = useState<number | null>(null)
-  const [profileId, setProfileId] = useState<number | null>(null)
-  // Skąd otwarto ocenę (pulpit, panel HR, profil) — „Wróć” z oceny prowadzi tam.
-  const [evaluationReturn, setEvaluationReturn] = useState<string | null>(null)
-  const [myProfileTab, setMyProfileTab] = useState<ProfileTab>('personal')
+  // Stan nawigacji trzymany w historii przeglądarki, żeby „Wstecz”/„Dalej” działały w obrębie aplikacji.
+  const [view, setView] = useState<View>(() => (history.state?.pageKey ? history.state : START_VIEW))
+  const { pageKey, openEvaluation, profileId, evaluationReturn, myProfileTab } = view
+  const go = (next: Partial<View>) => {
+    const v = { ...view, ...next }
+    history.pushState(v, '')
+    setView(v)
+  }
   const session = token ? readSession(token) : null
   const nav: Nav = {
     openEvaluation,
     showEvaluation: (id) => {
       if (id === null && evaluationReturn) {
-        setOpenEvaluation(null)
-        setPageKey(evaluationReturn)
-        setEvaluationReturn(null)
+        go({ openEvaluation: null, pageKey: evaluationReturn, evaluationReturn: null })
         return
       }
-      if (id !== null && pageKey !== 'evaluations') setEvaluationReturn(pageKey)
-      setOpenEvaluation(id)
-      setPageKey('evaluations')
+      go({
+        openEvaluation: id,
+        pageKey: 'evaluations',
+        evaluationReturn: id !== null && pageKey !== 'evaluations' ? pageKey : evaluationReturn,
+      })
     },
-    showProfile: (id) => {
-      setProfileId(id)
-      setPageKey(PROFILE_PAGE)
-    },
+    showProfile: (id) => go({ profileId: id, pageKey: PROFILE_PAGE }),
   }
 
   useEffect(() => {
-    const show = (e: Event) => { setPageKey(String((e as CustomEvent).detail)); setOpenEvaluation(null); setEvaluationReturn(null) }
+    if (!history.state?.pageKey) history.replaceState(START_VIEW, '')
+    const pop = (e: PopStateEvent) => setView(e.state?.pageKey ? e.state : START_VIEW)
+    window.addEventListener('popstate', pop)
+    return () => window.removeEventListener('popstate', pop)
+  }, [])
+
+  // „Zapytaj asystenta” z pulpitu i „Mojej oceny”: przejście na stronę przez zdarzenie (wpis w historii jak przy go()).
+  useEffect(() => {
+    const show = (e: Event) => {
+      const v: View = { ...(history.state?.pageKey ? history.state : START_VIEW), pageKey: String((e as CustomEvent).detail), openEvaluation: null, evaluationReturn: null }
+      history.pushState(v, '')
+      setView(v)
+    }
     window.addEventListener(SHOW_PAGE_EVENT, show)
     return () => window.removeEventListener(SHOW_PAGE_EVENT, show)
   }, [])
@@ -301,13 +323,14 @@ export default function App() {
   }
 
   function openMyProfile(tab: ProfileTab) {
-    setMyProfileTab(tab)
-    setPageKey(MY_PROFILE_PAGE)
+    go({ myProfileTab: tab, pageKey: MY_PROFILE_PAGE })
   }
 
   function logout() {
     setToken(null)
     setTokenState(null)
+    history.replaceState(START_VIEW, '')
+    setView(START_VIEW)
   }
 
   if (!session) return <Login onLogin={login} />
@@ -324,7 +347,7 @@ export default function App() {
         <nav>
           {pages.map((p) => (
             <button key={p.key} className={p === page ? 'tab active' : 'tab'} aria-current={p === page ? 'page' : undefined}
-              onClick={() => { setPageKey(p.key); setOpenEvaluation(null); setEvaluationReturn(null) }}>
+              onClick={() => go({ pageKey: p.key, openEvaluation: null, evaluationReturn: null })}>
               {p.label}
             </button>
           ))}

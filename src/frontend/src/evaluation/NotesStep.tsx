@@ -1,6 +1,7 @@
 import { Fragment, useState, type FormEvent } from 'react'
 import { api } from '../api'
 import { ConfirmButton } from '../ConfirmButton'
+import { DateInput } from '../DateInput'
 import { Icon } from '../Icon'
 import { CompleteStage, DuePill, IssueList, PdfButton, Pill, type StepProps } from './common'
 import { useApi } from './data'
@@ -249,7 +250,7 @@ function NoteForm({ id, title, options, initial, defaultIndicator = null, onSubm
             ))}
           </select>
         </label>
-        <label>Data obserwacji <input type="date" name="observedOn" required defaultValue={initial?.observedOn ?? today()} /></label>
+        <label>Data obserwacji <DateInput name="observedOn" required defaultValue={initial?.observedOn ?? today()} /></label>
       </div>
       <div className="notes-sar-inputs">
         {SAR.map((f) => (

@@ -185,6 +185,7 @@ public sealed class EmployeesController(BusolaDbContext db, AccessScopeService a
         employee.DepartmentId = request.DepartmentId;
         employee.SupervisorId = request.SupervisorId;
         employee.SubjectToFirstEvaluation = request.SubjectToFirstEvaluation;
+        employee.PositionId = request.PositionId;
     }
 
     // Wydział sprawdzamy tylko przy zmianie — inaczej rola z zakresem Own/Subordinates nie mogłaby edytować nikogo.
@@ -220,6 +221,15 @@ public sealed class EmployeesController(BusolaDbContext db, AccessScopeService a
             {
                 return Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Nie ma takiego przełożonego.");
             }
+        }
+
+        // Stanowisko tylko ze słownika służby, do której należy wydział pracownika (jak w profilu → Zatrudnienie).
+        if (request.PositionId is { } positionId
+            && !await db.Positions.AnyAsync(p => p.Id == positionId
+                && db.Departments.Any(d => d.Id == request.DepartmentId && d.Location.ServiceId == p.ServiceId), ct))
+        {
+            ModelState.AddModelError(nameof(request.PositionId), "Wybierz stanowisko ze słownika służby, do której należy wydział.");
+            return ValidationProblem(ModelState);
         }
 
         return null;

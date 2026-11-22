@@ -3,9 +3,9 @@ import { api } from '../api'
 import { SheetForm } from '../Evaluations'
 import { Icon } from '../Icon'
 import { Auto, CompleteStage, DuePill, IssueList, NextButton, PdfButton, Pill, TopicList, type StepProps } from './common'
-import { saveAnswers, useApi, useWorkContext, withoutAutoFilled } from './data'
+import { initialValues, saveAnswers, useApi, useWorkContext, withoutAutoFilled } from './data'
 import {
-  daysLabel, daysUntil, criteriaFieldOf, criteriaOf, emptyAnswer, fmtDate, isFirstTemplate, plural, scoresFieldOf, sheetLetter, stageOf,
+  daysLabel, daysUntil, criteriaFieldOf, criteriaOf, emptyAnswer, fmtDate, isFirstTemplate, keyOf, plural, scoresFieldOf, sheetLetter, stageOf,
   type Answer, type Detail, type Field, type PositiveRule, type Schema, type Section,
 } from './types'
 import './start-hifi.css'
@@ -39,6 +39,21 @@ function stageDue(detail: Detail, key: string): string {
   if (s.dueFrom && s.dueTo) return `${fmtDate(s.dueFrom)} – ${fmtDate(s.dueTo)}`
   if (s.dueTo) return `do ${fmtDate(s.dueTo)}`
   return 'po poprzednim etapie'
+}
+
+/**
+ * Termin etapu, jaki ustali zamknięcie bieżącego etapu: z pola arkusza z prefill "stage:x" w podanych sekcjach
+ * (wartość z formularza, też jeszcze niezapisana — backend przy zamknięciu przepisuje ją na termin etapu),
+ * a bez wpisu — termin etapu z serwera.
+ */
+function plannedDue(detail: Detail, values: Record<string, Answer>, sections: string[], stageKey: string): string {
+  const stage = stageOf(detail, stageKey)
+  const field = detail.schema.sections.filter((s) => sections.includes(s.key)).flatMap((s) => s.fields)
+    .find((f) => f.prefill === `stage:${stageKey}`)
+  const value = field && values[keyOf(field.key, null)]
+  if (!field || stage?.status !== 'Pending' || !value?.valueDate) return stageDue(detail, stageKey)
+  if (field.type === 'dateRange') return value.valueDateTo ? `${fmtDate(value.valueDate)} – ${fmtDate(value.valueDateTo)}` : `od ${fmtDate(value.valueDate)}`
+  return `do ${fmtDate(value.valueDate)}`
 }
 
 /** Krótko, kogo dotyczy arkusz (pełny opis: appliesTo w szablonie). */
@@ -524,6 +539,9 @@ export function PartOneStep({ detail, check, steps, go, reload, sections }: Step
     .map((s) => s.signedOn).sort()
   const closed = firstStage?.status !== 'Pending'
   const criteriaStep = steps.find((s) => s.id === 'criteria')
+  // Terminy w podsumowaniu i ramce liczone na żywo z formularza (np. po zmianie terminu sprawozdania).
+  const [values, setValues] = useState(() => initialValues(detail))
+  const due = (stageKey: string) => plannedDue(detail, values, sections, stageKey)
 
   return (
     <div className="step start-hifi">
@@ -537,7 +555,7 @@ export function PartOneStep({ detail, check, steps, go, reload, sections }: Step
           <div className="grow">
             <span className="muted small">{first ? 'Okres pierwszej oceny' : 'Termin sporządzenia oceny'} · widoczny przed podpisem</span>
             <span>
-              <strong>{stageDue(detail, evaluation.key)}</strong>
+              <strong>{due(evaluation.key)}</strong>
               {evaluation.status === 'Pending' && evaluation.dueTo && <span className="small"> · {daysLabel(daysUntil(evaluation.dueTo), evaluation.overdue)}</span>}
             </span>
           </div>
@@ -563,14 +581,15 @@ export function PartOneStep({ detail, check, steps, go, reload, sections }: Step
           ) : (
             <><dt>Elementy oceny</dt><dd>{criteria.map((c) => c.label).join(', ')}</dd></>
           )}
-          {report && <><dt>Sprawozdanie</dt><dd>{stageDue(detail, report.key)}</dd></>}
-          {evaluation && <><dt>{first ? 'Okres pierwszej oceny' : 'Termin sporządzenia oceny'}</dt><dd><strong>{stageDue(detail, evaluation.key)}</strong> <Auto /></dd></>}
+          {report && <><dt>Sprawozdanie</dt><dd>{due(report.key)}</dd></>}
+          {evaluation && <><dt>{first ? 'Okres pierwszej oceny' : 'Termin sporządzenia oceny'}</dt><dd><strong>{due(evaluation.key)}</strong> <Auto /></dd></>}
           <dt>Oczekiwania dla pracownika</dt>
           <dd>opisy zachowań dla {criteria.length} {first ? plural(criteria.length, 'elementu', 'elementów', 'elementów') : plural(criteria.length, 'kryterium', 'kryteriów', 'kryteriów')}{examples > 0 && ` · ${examples} ${plural(examples, 'przykład', 'przykłady', 'przykładów')} z pracy wydziału`}</dd>
         </dl>
       </div>
       <SheetForm key={JSON.stringify(detail.answers)} detail={detail} onSaved={reload} sectionKeys={sections} showStage={false}
-        fieldFilter={(f: Field) => f.type !== 'criteriaSelection' && !(f.type === 'date' && f.prefill?.startsWith('stage:'))} />
+        fieldFilter={(f: Field) => f.type !== 'criteriaSelection' && !(f.type === 'date' && f.prefill?.startsWith('stage:'))}
+        onValuesChange={setValues} />
       {!closed && <IssueList issues={stageIssues} steps={steps} go={go} />}
       {closed ? (
         <div className="callout"><Icon name="lock" /> Etap zamknięty {fmtDate(firstStage?.completedOn)} — część I jest zablokowana.</div>
@@ -579,8 +598,8 @@ export function PartOneStep({ detail, check, steps, go, reload, sections }: Step
           label={first ? 'Zapisz i zamknij rozmowę wstępną →' : 'Zapisz i rozpocznij obserwację →'} onDone={async () => { await reload(); go('notes') }}>
           <p className="callout info">
             {first
-              ? <>Po zapisie rozmowa wstępna zostanie zablokowana. Sprawozdanie: {report ? stageDue(detail, report.key) : '—'}, pierwsza ocena: {evaluation ? stageDue(detail, evaluation.key) : '—'}.</>
-              : <>Po zapisie część I zostanie zablokowana, a okres obserwacji potrwa do <strong>{fmtDate(evaluation?.dueTo)}</strong>. Data podpisu pracownika to początek okresu oceny.</>}
+              ? <>Po zapisie rozmowa wstępna zostanie zablokowana. Sprawozdanie: {report ? due(report.key) : '—'}, pierwsza ocena: {evaluation ? due(evaluation.key) : '—'}.</>
+              : <>Po zapisie część I zostanie zablokowana, a okres obserwacji potrwa <strong>{evaluation ? due(evaluation.key) : '—'}</strong>. Data podpisu pracownika to początek okresu oceny.</>}
           </p>
         </CompleteStage>
       )}
