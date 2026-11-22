@@ -92,6 +92,22 @@ export async function apiUpload(path: string, file: File, method = 'PUT'): Promi
   if (!res.ok) throw new Error(await errorMessage(res))
 }
 
+/** Plik z API (np. PDF arkusza) zapisany przez przeglądarkę; nazwa z Content-Disposition albo podana. */
+export async function apiDownload(path: string, fileName: string): Promise<void> {
+  const res = await request(path)
+  if (!res.ok) throw new Error(await errorMessage(res))
+  const disposition = res.headers.get('content-disposition') ?? ''
+  const match = disposition.match(/filename\*=UTF-8''([^;]+)/i) ?? disposition.match(/filename="?([^";]+)"?/i)
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = match ? decodeURIComponent(match[1]) : fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 /** Obrazek jako blob URL (null = brak). Wywołujący zwalnia go przez URL.revokeObjectURL. */
 export async function apiBlobUrl(path: string): Promise<string | null> {
   const res = await request(path)

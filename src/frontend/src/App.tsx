@@ -3,9 +3,12 @@ import { AccountPage } from './Account'
 import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
 import { Avatar } from './Avatar'
 import { CrudPage, ServiceName, type Column, type Field } from './Crud'
+import { TeamDashboard, TeamPage } from './Dashboard'
+import { DepartmentHead } from './DepartmentHead'
 import { DeadlinesPage } from './Deadlines'
 import { DevPage } from './Dev'
 import { EvaluationsPage } from './Evaluations'
+import { HrPanel } from './HrPanel'
 import { Login } from './Login'
 import { ProfilePage, type ProfileTab } from './Profile'
 import { UserMenu } from './UserMenu'
@@ -96,9 +99,11 @@ const departmentFields: Field[] = [
   { name: 'name', label: 'Nazwa' },
   { name: 'locationId', label: 'Lokalizacja', options: { path: 'locations', label: (l) => `${l.name} (${l.serviceName})` } },
 ]
-const departmentColumns: Column[] = [
+const departmentColumns = (canEdit: boolean): Column[] => [
   ['Nazwa', (d) => d.name],
   ['Lokalizacja', (d) => d.locationName],
+  // key: po zapisie wydziału lista się przeładowuje i wiersz bierze nowego kierującego z API.
+  ['Kierujący komórką', (d) => <DepartmentHead key={`${d.id}-${d.headId ?? ''}`} department={d} canEdit={canEdit} />],
 ]
 
 const serviceFields: Field[] = [
@@ -120,7 +125,27 @@ const PROFILE_PAGE = 'profile'
 // Własny profil (z kontem: zdjęcie, hasło, 2FA): z menu pod loginem.
 const MY_PROFILE_PAGE = 'my-profile'
 
+const isSupervisor = (s: Session) => isSuperAdmin(s) || s.roles.includes('Supervisor')
+
 const PAGES: Page[] = [
+  {
+    key: 'dashboard',
+    label: 'Pulpit',
+    visible: (s) => isSupervisor(s) && can(s, 'read_evaluations'),
+    render: (s, nav) => <TeamDashboard userName={s.name} onOpenEvaluation={nav.showEvaluation} onOpenProfile={nav.showProfile} />,
+  },
+  {
+    key: 'team',
+    label: 'Mój zespół',
+    visible: (s) => isSupervisor(s) && can(s, 'read_evaluations'),
+    render: (_, nav) => <TeamPage onOpenEvaluation={nav.showEvaluation} onOpenProfile={nav.showProfile} />,
+  },
+  {
+    key: 'hr',
+    label: 'Panel HR',
+    visible: (s) => can(s, 'remind_evaluations'),
+    render: (s, nav) => <HrPanel canRemind={can(s, 'remind_evaluations')} onOpenEvaluation={nav.showEvaluation} />,
+  },
   {
     key: 'deadlines',
     label: 'Terminy',
@@ -148,7 +173,7 @@ const PAGES: Page[] = [
     label: 'Wydziały',
     visible: (s) => can(s, 'read_departments'),
     render: (s) => (
-      <CrudPage title="Wydziały" path="departments" fields={departmentFields} columns={departmentColumns}
+      <CrudPage title="Wydziały" path="departments" fields={departmentFields} columns={departmentColumns(can(s, 'edit_department'))}
         canAdd={can(s, 'add_department')} canEdit={can(s, 'edit_department')} canDelete={can(s, 'delete_department')} />
     ),
   },
@@ -190,11 +215,20 @@ export default function App() {
   const [avatarVersion, setAvatarVersion] = useState(0)
   const [openEvaluation, setOpenEvaluation] = useState<number | null>(null)
   const [profileId, setProfileId] = useState<number | null>(null)
+  // Skąd otwarto ocenę (pulpit, panel HR, profil) — „Wróć” z oceny prowadzi tam.
+  const [evaluationReturn, setEvaluationReturn] = useState<string | null>(null)
   const [myProfileTab, setMyProfileTab] = useState<ProfileTab>('personal')
   const session = token ? readSession(token) : null
   const nav: Nav = {
     openEvaluation,
     showEvaluation: (id) => {
+      if (id === null && evaluationReturn) {
+        setOpenEvaluation(null)
+        setPageKey(evaluationReturn)
+        setEvaluationReturn(null)
+        return
+      }
+      if (id !== null && pageKey !== 'evaluations') setEvaluationReturn(pageKey)
       setOpenEvaluation(id)
       setPageKey('evaluations')
     },
@@ -239,7 +273,7 @@ export default function App() {
         <nav>
           {pages.map((p) => (
             <button key={p.key} className={p === page ? 'tab active' : 'tab'} aria-current={p === page ? 'page' : undefined}
-              onClick={() => { setPageKey(p.key); setOpenEvaluation(null) }}>
+              onClick={() => { setPageKey(p.key); setOpenEvaluation(null); setEvaluationReturn(null) }}>
               {p.label}
             </button>
           ))}
