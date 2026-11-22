@@ -78,15 +78,6 @@
 .hifi-toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ---------- Asystent ---------- */
-.hifi-assistant { max-width: 880px; width: 100%; margin-inline: auto; gap: 18px; }
-.hifi-kb p { margin: 0; }
-.hifi-suggest { display: grid; gap: 10px; }
-.hifi-assistant .assistant-chip { font-size: 14.5px; padding: 8px 14px; }
-.hifi-feed { display: grid; gap: 12px; }
-.hifi-feed .bubble-a { background: var(--surface); }
-.hifi-ask-bar { position: sticky; bottom: 0; display: grid; gap: 6px; padding: 12px 0 16px; background: var(--bg); }
-.hifi-ask-bar .assistant-ask { background: var(--surface); }
-.hifi-ask-bar p { margin: 0; }
 
 /* ---------- Moja ocena ---------- */
 .hifi-my { max-width: 960px; }

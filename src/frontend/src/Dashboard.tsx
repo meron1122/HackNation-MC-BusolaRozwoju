@@ -1,7 +1,8 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { api } from './api'
 import { EmptyState } from './EmptyState'
-import { goToAssistant, progressReason } from './hifi-helpers'
+import { openAssistant } from './assistant/AssistantWidget'
+import { progressReason } from './hifi-helpers'
 import './hifi-pages.css'
 import { Icon } from './Icon'
 import { Person } from './Person'
@@ -100,7 +101,7 @@ export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
           <h1 className="hifi-hello">Dzień dobry{userName.includes('@') ? '' : `, ${userName.split(' ')[0]}`}</h1>
           <p className="hifi-sub">{team.departmentName ?? 'Brak przypisanego wydziału'} · {team.count} {plural(team.count, 'osoba', 'osoby', 'osób')} w zespole</p>
         </div>
-        <button type="button" className="secondary hifi-ask" onClick={goToAssistant}><span aria-hidden="true" className="hifi-spark">✦</span> Zapytaj asystenta</button>
+        <button type="button" className="secondary hifi-ask" onClick={openAssistant}><span aria-hidden="true" className="hifi-spark">✦</span> Zapytaj asystenta</button>
       </div>
       <div className="hifi-dash-grid">
         <section className="card hifi-card" aria-labelledby="dash-deadlines">

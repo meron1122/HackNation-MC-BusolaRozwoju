@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { api } from './api'
 import { DuePill, Pill } from './evaluation/common'
 import { Icon } from './Icon'
-import { goToAssistant } from './hifi-helpers'
+import { openAssistant } from './assistant/AssistantWidget'
 import './hifi-pages.css'
 import { signatureState, slotBlock } from './evaluation/data'
 import { daysUntil, fmtDate, kindLabel, type Detail, type SelfAssessment } from './evaluation/types'
@@ -91,7 +91,7 @@ export function MyEvaluationPage({ onOpen }: { onOpen: (id: number) => void }) {
           <h1>Moja ocena</h1>
           <p className="hifi-sub">Tu widzisz, co masz teraz zrobić w swojej ocenie i do kiedy.</p>
         </div>
-        <button type="button" className="secondary hifi-ask" onClick={goToAssistant}><span aria-hidden="true" className="hifi-spark">✦</span> Zapytaj asystenta</button>
+        <button type="button" className="secondary hifi-ask" onClick={openAssistant}><span aria-hidden="true" className="hifi-spark">✦</span> Zapytaj asystenta</button>
       </div>
       {details.length === 0 && <div className="card hifi-card"><p className="muted">Nie masz jeszcze oceny w systemie.</p></div>}
       {details.map(({ detail: d, self }, i) => {

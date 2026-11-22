@@ -13,6 +13,12 @@ public sealed class OpenRouterOptions
 
     /// <summary>Slug modelu z openrouter.ai/models.</summary>
     public string Model { get; init; } = "";
+
+    /// <summary>Model embeddingów do bazy wiedzy (openrouter.ai/models, filtr: embeddings). Zmiana = przeliczenie wektorów.</summary>
+    public string EmbeddingModel { get; init; } = "openai/text-embedding-3-small";
+
+    /// <summary>Adres API zgodnego z OpenAI; inny tylko do testów (atrapa modelu) albo innego dostawcy.</summary>
+    public string BaseUrl { get; init; } = "https://openrouter.ai/api/v1/";
 }
 
 /// <summary>OpenRouter przez endpoint chat completions (format OpenAI, z narzędziami jako "function").</summary>

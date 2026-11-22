@@ -32,6 +32,7 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
     public DbSet<EvaluationIndicatorContext> EvaluationIndicatorContexts => Set<EvaluationIndicatorContext>();
     public DbSet<EvaluationCriterionContext> EvaluationCriterionContexts => Set<EvaluationCriterionContext>();
     public DbSet<EvaluationTermChange> EvaluationTermChanges => Set<EvaluationTermChange>();
+    public DbSet<KnowledgeEmbedding> KnowledgeEmbeddings => Set<KnowledgeEmbedding>();
 
     // Tu, a nie w AddDbContext, żeby snake_case obowiązywał zawsze — schemat i aplikacja nie mogą się rozjechać.
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) =>
@@ -286,6 +287,8 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
                 .HasForeignKey(r => r.SentById)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+
+        modelBuilder.Entity<KnowledgeEmbedding>(b => b.HasKey(e => new { e.Hash, e.Model }));
 
         modelBuilder.Entity<EmployeeProfile>(b =>
         {

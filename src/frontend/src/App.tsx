@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { AccountPage } from './Account'
 import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
-import { AssistantPage } from './AssistantPage'
+import { AssistantWidget } from './assistant/AssistantWidget'
 import { Person } from './Person'
 import { CrudPage, ServiceName, type Column, type Field, type Row } from './Crud'
 import { TeamDashboard, TeamPage } from './Dashboard'
@@ -18,7 +18,6 @@ import { Logo } from './Logo'
 import { ProfilePage, type ProfileTab } from './Profile'
 import { UserMenu } from './UserMenu'
 import { UsersPage } from './Users'
-import { SHOW_PAGE_EVENT } from './hifi-helpers'
 
 // shortcut: lista pracowników to pierwsze 200 rekordów (API stronicuje); przy większej bazie dodać stronicowanie
 const EMPLOYEES_QUERY = 'pageSize=200'
@@ -210,13 +209,6 @@ const PAGES: Page[] = [
     render: (_, nav) => <MyEvaluationPage onOpen={nav.showEvaluation} />,
   },
   {
-    // Po stronach startowych ról (pierwsza widoczna strona = start), żeby nie zastąpić ich asystentem. W13: asystent zasad w pełnym widoku (przełożony, HR, oceniany). Odpowiada z bazy wiedzy, bez danych pracowników.
-    key: 'assistant',
-    label: 'Asystent',
-    visible: (s) => isSupervisor(s) || can(s, 'remind_evaluations') || s.roles.includes('Employee'),
-    render: () => <AssistantPage />,
-  },
-  {
     // Terminy etapów to zadania prowadzących ocenę (przełożony, HR), nie ocenianego.
     key: 'deadlines',
     label: 'Terminy',
@@ -340,17 +332,6 @@ export default function App() {
     return () => window.removeEventListener('popstate', pop)
   }, [])
 
-  // „Zapytaj asystenta” z pulpitu i „Mojej oceny”: przejście na stronę przez zdarzenie (wpis w historii jak przy go()).
-  useEffect(() => {
-    const show = (e: Event) => {
-      const v: View = { ...(history.state?.pageKey ? history.state : START_VIEW), pageKey: String((e as CustomEvent).detail), openEvaluation: null, evaluationReturn: null }
-      history.pushState(v, '')
-      setView(v)
-    }
-    window.addEventListener(SHOW_PAGE_EVENT, show)
-    return () => window.removeEventListener(SHOW_PAGE_EVENT, show)
-  }, [])
-
   useEffect(() => {
     const logout = () => setTokenState(null)
     window.addEventListener(LOGOUT_EVENT, logout)
@@ -408,6 +389,11 @@ export default function App() {
           <EmptyState title="Nie masz jeszcze dostępu do żadnego modułu">Poproś administratora o nadanie roli, a moduły pojawią się w menu.</EmptyState>
         )}
       </main>
+      <AssistantWidget screen={{
+        page: onMyProfile ? MY_PROFILE_PAGE : onProfile ? PROFILE_PAGE : page?.key ?? '',
+        evaluationId: page?.key === 'evaluations' ? openEvaluation : null,
+        employeeId: onProfile ? profileId : null,
+      }} />
     </>
   )
 }

@@ -233,16 +233,15 @@ Frontend (`npm run dev` w `src/frontend`) przekierowuje `/api` na `http://localh
 
 QuestPDF (licencja Community). `Busola.Api/Pdf/PdfReport.cs` daje wspólny układ (A4, nagłówek, numeracja stron) i tabelę. Nowy raport: `PdfReport.Render("Tytuł", c => PdfReport.Table(c, nagłówki, wiersze))` i `File(bytes, "application/pdf", "nazwa.pdf")`.
 
-## Agent AI (harness)
+## Asystent AI
 
-`Busola.Api/Agent`: szkielet agenta, bez gotowej logiki biznesowej. LLM przez OpenRouter (`OpenRouter__ApiKey`, `OpenRouter__Model`, slug z openrouter.ai/models). Bez klucza endpoint zwraca 503.
+Pływający asystent w prawym dolnym rogu każdego ekranu (front: `src/frontend/src/assistant/AssistantWidget.tsx`), backend: `Busola.Api/Agent`. Model przez OpenRouter: `OpenRouter__ApiKey`, `OpenRouter__Model` (slug z openrouter.ai/models), opcjonalnie `OpenRouter__EmbeddingModel` (domyślnie `openai/text-embedding-3-small`) i `OpenRouter__BaseUrl` (tylko do testów z atrapą). Bez klucza czat zwraca 503, a baza wiedzy działa po słowach.
 
-- `POST /api/agent/chat` `{ messages: [{ role: "user"|"assistant", content }] }` zwraca `{ reply }`. Bezstanowy: klient przysyła całą rozmowę.
-- **Uprawnienia**: agent działa w żądaniu zalogowanego użytkownika. Narzędzie z `RequiredPermission` jest pokazywane modelowi tylko, gdy użytkownik ma to uprawnienie, a dane filtruje tak jak kontrolery (`AccessScopeService` + `InScope`). Wzór: `Tools/ListEmployeesTool.cs`.
-- **Nowe narzędzie**: klasa implementująca `IAgentTool` (nazwa, opis, JSON Schema argumentów, uprawnienie, `ExecuteAsync`) i jedna linia `AddScoped<IAgentTool, ...>()` w `AgentServiceCollectionExtensions`.
-- **Baza wiedzy (RAG)**: pliki `*.md` w `Busola.Api/Agent/Knowledge` (np. opis flow raportów), cięte po nagłówkach i przeszukiwane narzędziem `search_knowledge`. Wyszukiwanie po słowach. Na embeddingi podmienia się implementację `IKnowledgeBase`.
-- **Inny dostawca LLM**: implementacja `ILlmClient` i podmiana rejestracji w `AddAgent`.
-- **Prompt systemowy**: `AgentPrompt.cs`.
+- `POST /api/agent/chat` `{ messages: [{ role, content }], context: { page, evaluationId?, employeeId?, step? } }` → `{ reply, contextLabel }`. Bezstanowy: klient przysyła rozmowę i to, na co patrzy. `POST /api/agent/context` zwraca samą etykietę („Ocena · Anna Nowak”) do nagłówka okna.
+- **Kontekst ekranu** (`ScreenContext.cs`): front przysyła tylko identyfikatory, a backend dociąga dane encji tymi samymi zakresami uprawnień co kontrolery (`AccessScopeService` + `InScope`). Encja spoza zakresu = informacja „brak dostępu, nie podawaj szczegółów”. Z kartoteki idą tylko dane służbowe (stanowisko, komórka, przełożony, oceny), bez adresu, rodziny itd. Uwaga: ten kontekst trafia do dostawcy modelu (OpenRouter).
+- **Baza wiedzy (RAG)**: pliki `*.md` w `Busola.Api/Agent/Knowledge`: rozporządzenia o ocenie okresowej (2016) i pierwszej ocenie (2015), ustawa o służbie cywilnej (tekst jednolity z ELI Sejmu) i Q&A zespołu. Cięte po nagłówkach (`## Rozdział`, `### § 5` / `### Art. 81`, długie artykuły na okna ~2000 znaków). `KnowledgeIndexer` po starcie liczy embeddingi tylko dla nowych/zmienionych fragmentów (klucz: SHA-256 treści + model) i trzyma je w tabeli `knowledge_embeddings`; wyszukiwanie: podobieństwo cosinusowe w pamięci. Nowy dokument = nowy plik `.md` + restart.
+- **Narzędzia**: `search_knowledge` (przepisy), `team_overview` (podwładni i najbliższe etapy ocen), `list_employees`. Narzędzie z `RequiredPermission` model dostaje tylko, gdy użytkownik ma to uprawnienie. Nowe narzędzie: klasa `IAgentTool` + linia `AddScoped<IAgentTool, ...>()` w `AgentServiceCollectionExtensions`.
+- **Prompt systemowy**: `AgentPrompt.cs`. **Inny dostawca**: implementacje `ILlmClient` / `IEmbeddingClient`.
 
 ## Podpisy odręczne (demo)
 

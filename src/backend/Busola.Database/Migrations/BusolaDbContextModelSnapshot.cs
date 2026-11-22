@@ -1104,6 +1104,27 @@ namespace Busola.Database.Migrations
                     b.ToTable("evaluation_term_changes", (string)null);
                 });
 
+            modelBuilder.Entity("Busola.Database.Entities.KnowledgeEmbedding", b =>
+                {
+                    b.Property<string>("Hash")
+                        .HasColumnType("text")
+                        .HasColumnName("hash");
+
+                    b.Property<string>("Model")
+                        .HasColumnType("text")
+                        .HasColumnName("model");
+
+                    b.PrimitiveCollection<float[]>("Vector")
+                        .IsRequired()
+                        .HasColumnType("real[]")
+                        .HasColumnName("vector");
+
+                    b.HasKey("Hash", "Model")
+                        .HasName("pk_knowledge_embeddings");
+
+                    b.ToTable("knowledge_embeddings", (string)null);
+                });
+
             modelBuilder.Entity("Busola.Database.Entities.Location", b =>
                 {
                     b.Property<int>("Id")

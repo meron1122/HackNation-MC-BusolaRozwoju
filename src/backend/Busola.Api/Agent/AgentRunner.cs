@@ -31,12 +31,12 @@ public sealed class AgentRunner(
 {
     private const int MaxSteps = 8;
 
-    public async Task<string> RunAsync(IReadOnlyList<LlmMessage> conversation, CancellationToken ct)
+    public async Task<string> RunAsync(IReadOnlyList<LlmMessage> conversation, string screen, CancellationToken ct)
     {
         var user = httpContextAccessor.HttpContext?.User ?? throw new InvalidOperationException("Brak kontekstu HTTP.");
         var available = tools.Where(t => t.RequiredPermission is null || user.HasPermission(t.RequiredPermission)).ToList();
 
-        List<LlmMessage> messages = [new("system", AgentPrompt.System(user.FindFirstValue(BusolaClaims.Name))), .. conversation];
+        List<LlmMessage> messages = [new("system", AgentPrompt.System(user.FindFirstValue(BusolaClaims.Name), screen)), .. conversation];
 
         for (var step = 0; step < MaxSteps; step++)
         {

@@ -4,16 +4,26 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Busola.Api.Controllers;
 
-/// <summary>Czat z agentem. Bezstanowy: klient przysyła całą rozmowę (tylko tekst), agent działa z uprawnieniami użytkownika.</summary>
+/// <summary>
+/// Czat z asystentem. Bezstanowy: klient przysyła całą rozmowę (tylko tekst) i to, na co patrzy (identyfikatory),
+/// a agent dociąga dane i działa z uprawnieniami zalogowanego użytkownika.
+/// </summary>
 [ApiController]
 [Route("api/agent")]
-public sealed class AgentController(AgentRunner agent) : ControllerBase
+public sealed class AgentController(AgentRunner agent, ScreenContextService screens) : ControllerBase
 {
     public sealed record ChatMessage([Required] string Role, [Required, MaxLength(8000)] string Content);
 
-    public sealed record ChatRequest([Required, MinLength(1), MaxLength(40)] IReadOnlyList<ChatMessage> Messages);
+    public sealed record ChatRequest([Required, MinLength(1), MaxLength(40)] IReadOnlyList<ChatMessage> Messages, ScreenContext? Context = null);
 
-    public sealed record ChatResponse(string Reply);
+    public sealed record ChatResponse(string Reply, string ContextLabel);
+
+    public sealed record ContextResponse(string Label);
+
+    /// <summary>Co asystent „widzi” na tym ekranie — etykieta w oknie czatu, zanim padnie pytanie.</summary>
+    [HttpPost("context")]
+    public async Task<ContextResponse> Context(ScreenContext context, CancellationToken ct) =>
+        new((await screens.DescribeAsync(context, ct)).Label);
 
     [HttpPost("chat")]
     public async Task<ActionResult<ChatResponse>> Chat(ChatRequest request, CancellationToken ct)
@@ -25,10 +35,11 @@ public sealed class AgentController(AgentRunner agent) : ControllerBase
                 detail: "Wiadomości mają role user/assistant, a ostatnia musi być od użytkownika.");
         }
 
+        var screen = await screens.DescribeAsync(request.Context, ct);
         try
         {
-            var reply = await agent.RunAsync(request.Messages.Select(m => new LlmMessage(m.Role, m.Content)).ToList(), ct);
-            return new ChatResponse(reply);
+            var reply = await agent.RunAsync(request.Messages.Select(m => new LlmMessage(m.Role, m.Content)).ToList(), screen.Prompt, ct);
+            return new ChatResponse(reply, screen.Label);
         }
         catch (LlmUnavailableException e)
         {
