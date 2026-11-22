@@ -24,7 +24,7 @@ export function OrgChart({ startId, onOpenProfile }: { startId: number; onOpenPr
     <div className={`org-card ${kind}${c.isMe ? ' me' : ''}`}>
       <button className="org-card-main" onClick={() => setFocusId(c.id)} disabled={kind === 'focus'}
         aria-label={kind === 'focus' ? undefined : `Pokaż strukturę: ${c.name}`}>
-        <Avatar path={c.hasAvatar ? `org/${c.id}/avatar` : null} name={c.name} size={kind === 'focus' ? 56 : 40} />
+        <Avatar path={c.hasAvatar ? `org/${c.id}/avatar` : null} name={c.name} size={kind === 'focus' ? 96 : 64} />
         <span>
           <strong>{c.name}</strong>{c.isMe && <span className="badge">Ja</span>}
           <span className="muted">{c.jobTitle ?? 'Stanowisko nieuzupełnione'}</span>

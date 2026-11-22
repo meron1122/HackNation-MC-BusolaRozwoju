@@ -4,12 +4,13 @@ import { EmptyState } from './EmptyState'
 import { goToAssistant, progressReason } from './hifi-helpers'
 import './hifi-pages.css'
 import { Icon } from './Icon'
+import { Person } from './Person'
 import { DuePill, Pill, StatusPill, type EvaluationStatus } from './evaluation/common'
 import {
   fmtDate, isFirstTemplate, kindLabel, pathLabel, plural, type Progress,
 } from './evaluation/types'
 
-type TeamMember = { employeeId: number; firstName: string; lastName: string; needsAttention: boolean; evaluation: Progress | null }
+type TeamMember = { employeeId: number; firstName: string; lastName: string; positionName: string | null; needsAttention: boolean; evaluation: Progress | null }
 type Team = { departmentName: string | null; count: number; members: TeamMember[] }
 
 const NOT_STARTED = 'Oczekuje na start'
@@ -128,7 +129,7 @@ export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
                     <li key={m.employeeId} className="hifi-task" style={{ '--i': index++ } as CSSProperties}>
                       <div className="hifi-task-main">
                         <div className="hifi-task-who">
-                          <strong>{fullName(m)}</strong>
+                          <Person id={m.employeeId} name={fullName(m)} detail={m.positionName} size="md" onOpen={() => onOpenProfile(m.employeeId)} />
                           <span className={`pill ${isFirstTemplate(p.templateCode) ? 'attention' : 'info'}`}>{kindOf(p)}</span>
                         </div>
                         <p className="hifi-why">
@@ -152,12 +153,14 @@ export function TeamDashboard({ userName, onOpenEvaluation, onOpenProfile }: {
           <ul className="hifi-team">
             {team.members.map((m) => (
               <li key={m.employeeId}>
-                <div className="hifi-team-who">
-                  <button type="button" className="link person-link"
-                    onClick={() => (m.evaluation ? onOpenEvaluation(m.evaluation.evaluationId) : onOpenProfile(m.employeeId))}>{fullName(m)}</button>
-                  {m.evaluation && <span className="muted small hifi-path">{kindLabel(m.evaluation.templateCode)}</span>}
-                </div>
-                <span className="hifi-team-status"><TeamStatus m={m} /></span>
+                <Person id={m.employeeId} name={fullName(m)} size="md" onOpen={() => onOpenProfile(m.employeeId)}
+                  detail={[m.positionName, m.evaluation && kindLabel(m.evaluation.templateCode)].filter(Boolean).join(' · ')} />
+                <span className="hifi-team-status">
+                  {m.evaluation ? (
+                    <button type="button" className="link hifi-team-open" onClick={() => onOpenEvaluation(m.evaluation!.evaluationId)}
+                      aria-label={`Ocena: ${fullName(m)}`}><TeamStatus m={m} /></button>
+                  ) : <TeamStatus m={m} />}
+                </span>
               </li>
             ))}
           </ul>
@@ -185,7 +188,7 @@ export function TeamPage({ onOpenEvaluation, onOpenProfile }: { onOpenEvaluation
                 const p = m.evaluation
                 return (
                   <tr key={m.employeeId}>
-                    <td><button type="button" className="link person-link" onClick={() => onOpenProfile(m.employeeId)}>{m.lastName} {m.firstName}</button></td>
+                    <td><Person id={m.employeeId} name={fullName(m)} detail={m.positionName} onOpen={() => onOpenProfile(m.employeeId)} /></td>
                     <td>{p ? pathLabel(p.templateCode) : '—'}</td>
                     <td><PhasePill progress={p} /></td>
                     <td>{p?.stageTitle ?? '—'}</td>

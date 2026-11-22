@@ -825,6 +825,10 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             .Where(e => e.Id == evaluation.EmployeeId && e.Department.Head != null)
             .Select(e => e.Department.Head!.FirstName + " " + e.Department.Head.LastName)
             .SingleOrDefaultAsync(ct);
+        var person = await db.Employees
+            .Where(e => e.Id == evaluation.EmployeeId)
+            .Select(e => new { Position = e.Position != null ? e.Position.Name : null, Department = e.Department.Name })
+            .SingleAsync(ct);
         var prefill = EvaluationWorkflow.WithoutDraft(schema, draft,
             await EvaluationPrefill.LoadAsync(db, id, schema, evaluation.Answers.Select(ToDto), ct), a => a.FieldKey).ToList();
 
@@ -854,7 +858,9 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             unitHead,
             canEditSelfAssessment,
             prefill,
-            SignatureSlots(schema, evaluation, signatures));
+            SignatureSlots(schema, evaluation, signatures),
+            person.Position,
+            person.Department);
     }
 
     private static IReadOnlyList<SignatureSlotDto> SignatureSlots(TemplateSchema schema, Evaluation evaluation, IReadOnlyList<SignatureDto> signatures)

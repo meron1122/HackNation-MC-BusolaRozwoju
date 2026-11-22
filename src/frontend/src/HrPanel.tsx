@@ -5,6 +5,7 @@ import { daysLabel, fmtDate, pathLabel, plural, type Progress } from './evaluati
 import { progressReason, waitsFor } from './hifi-helpers'
 import './hifi-pages.css'
 import { Icon } from './Icon'
+import { Person } from './Person'
 
 type HrRow = {
   employeeId: number; employeeName: string; evaluatorName: string | null; departmentId: number; departmentName: string
@@ -123,8 +124,8 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
                 return (
                   <tr key={p.evaluationId}>
                     <td>
-                      <button type="button" className="link person-link hifi-person" onClick={() => onOpenEvaluation(p.evaluationId)}>{r.employeeName}</button>
-                      {departments.length > 1 && <div className="muted small">{r.departmentName}</div>}
+                      <Person id={r.employeeId} name={r.employeeName} detail={departments.length > 1 ? r.departmentName : null}
+                        onOpen={() => onOpenEvaluation(p.evaluationId)} />
                     </td>
                     <td className="hifi-nowrap">{shortName(r.evaluatorName)}</td>
                     <td className="hifi-nowrap">{pathLabel(p.templateCode)}</td>

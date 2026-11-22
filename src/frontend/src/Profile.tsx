@@ -194,7 +194,7 @@ export function ProfilePage({ employeeId, onOpenProfile, onOpenEvaluation, initi
   return (
     <div className="profile">
       <aside className="profile-side card">
-        <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={name} size={112} version={avatarVersion} />
+        <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={name} size={136} version={avatarVersion} />
         <h2>{name}</h2>
         {profile.job.positionName && <p className="muted">{profile.job.positionName}</p>}
         <nav aria-label="Sekcje profilu">

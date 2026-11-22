@@ -75,6 +75,8 @@ export type Detail = {
   stages: Stage[]; answers: Answer[]; signatures: Signature[]; canEdit: boolean; isOwn: boolean
   templateCode: string; phase: string; currentStageKey: string | null; lockedSections: string[]
   scoring: Scoring | null; previous: Previous | null; unitHeadName: string | null; canEditSelfAssessment: boolean
+  /** Kim jest oceniany: stanowisko i komórka (do nagłówka z twarzą). */
+  employeePosition?: string | null; employeeDepartment?: string | null
   /**
    * Podpowiedzi z kartoteki dla pól bez zapisu (osoby: imię, nazwisko, wydział, stanowisko; nazwa urzędu; data zatrudnienia).
    * Backend traktuje je w /check jako wypełnione i zapisuje przy zamknięciu etapu. Brak pola = starsze API.

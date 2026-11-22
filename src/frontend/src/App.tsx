@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { AccountPage } from './Account'
 import { LOGOUT_EVENT, can, getToken, isSuperAdmin, readSession, setToken, type Session } from './api'
 import { AssistantPage } from './AssistantPage'
-import { Avatar } from './Avatar'
+import { Person } from './Person'
 import { CrudPage, ServiceName, type Column, type Field, type Row } from './Crud'
 import { TeamDashboard, TeamPage } from './Dashboard'
 import { DepartmentHead } from './DepartmentHead'
@@ -116,11 +116,10 @@ const absenceColumns = (nav: Nav): Column[] => [
 ]
 
 const employeeColumns = (nav: Nav): Column[] => [
-  ['Zdjęcie', (e) => (
-    <Avatar path={e.hasAvatar ? `employees/${e.id}/avatar` : null} name={`${e.firstName} ${e.lastName}`} size={28} />
+  ['Pracownik', (e) => (
+    <Person id={e.id} name={`${e.firstName} ${e.lastName}`} detail={e.positionName} hasAvatar={e.hasAvatar}
+      onOpen={() => nav.showProfile(e.id)} />
   )],
-  ['Nazwisko i imię', (e) => <button className="link person-link" onClick={() => nav.showProfile(e.id)}>{e.lastName} {e.firstName}</button>],
-  ['Stanowisko', (e) => e.positionName ?? '—'],
   ['E-mail', (e) => e.email ?? '—'],
   ['Urodzony', (e) => fmtDate(e.dateOfBirth)],
   ['Zatrudniony', (e) => fmtDate(e.hireDate)],
