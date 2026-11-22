@@ -1,6 +1,7 @@
-/* Tokeny marki: busola-tokens.css z paczki busola-brand (wersja 22.11.2026). */
+/* Tokeny marki: busola-tokens.css z paczki busola-brand (wersja 22.11.2026).
+   Zawsze jasny motyw: brandbook opisuje jedno tło, ciepłą biel („spokojnie, ale nie szpitalnie”), bez wariantu ciemnego. */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
   --bg: #fbf9f6;            /* ciepła biel: tło */
   --surface: #ffffff;       /* karty, pola, menu */
   --text: #1f2a5a;          /* granat: tekst i nagłówki */
@@ -23,28 +24,6 @@
   font-family: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-optical-sizing: auto;
   line-height: 1.5;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #11162e;
-    --surface: #1a2142;
-    --text: #e8ecf8;
-    --muted: #a3acc8;
-    --border: #2c3561;
-    --control-border: #6b76a3;
-    --accent: #8cc4ee;
-    --accent-text: #11162e;
-    --link: #8cc4ee;
-    --blue: #5aa9e6;
-    --blue-soft: #22305e;
-    --lavender: #a99bea;
-    --lavender-text: #b8adf0;
-    --lavender-soft: #2d2a5e;
-    --focus: #8cc4ee;
-    --danger: #f47067;
-    --shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
-  }
 }
 
 /* Daty i liczby w kolumnach: cyfry tabelaryczne. */
@@ -228,7 +207,7 @@ a.button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .sign-details p { margin: 0.25rem 0 0; }
 .sign-done { font-size: 1.1rem; }
 .signature-pad { display: grid; gap: 0.5rem; justify-items: start; }
-/* Tło zawsze białe, żeby atrament był widoczny także w trybie ciemnym. */
+/* Tło zawsze białe, żeby atrament był widoczny. */
 .signature-pad canvas { width: 100%; background: #fff; border: 1px solid var(--border); border-radius: 8px; touch-action: none; cursor: crosshair; }
 .signature-line { width: 100%; margin-top: -2.75rem; padding: 0 1rem 0.5rem; border-bottom: 0; color: #5d6680; font-size: 0.8rem; pointer-events: none; }
 .sign-panel { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; }

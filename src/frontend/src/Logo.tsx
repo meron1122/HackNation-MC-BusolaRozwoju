@@ -1,6 +1,6 @@
 // Logo w public/logo: wygenerowane skryptem z paczki marki (busola-brand/zrodla/logo.py) z drugim wierszem
 // „Rozwoju” zamiast „Kompetencji”; znak i „Busola” są identyczne z paczką. Logotypu nie składamy fontem.
-// W trybie ciemnym tło aplikacji jest granatowe, więc podmieniamy na wersję „na granacie”.
+// Aplikacja ma zawsze jasne tło (ciepła biel), więc tylko wersja podstawowa „jasny”; wersja na granat jest w paczce marki.
 const LAYOUTS = {
   // Brandbook: poziomy od 120 px szerokości, pionowy od 80 px.
   horizontal: { file: 'poziomy', ratio: 1024 / 2372, minWidth: 120 },
@@ -11,9 +11,8 @@ export function Logo({ layout = 'horizontal', width }: { layout?: keyof typeof L
   const { file, ratio, minWidth } = LAYOUTS[layout]
   const w = Math.max(width, minWidth)
   return (
-    <picture className="logo">
-      <source srcSet={`/logo/busola-${file}-ciemny.svg`} media="(prefers-color-scheme: dark)" />
+    <span className="logo">
       <img src={`/logo/busola-${file}-jasny.svg`} alt="Busola Rozwoju" width={w} height={Math.round(w * ratio)} />
-    </picture>
+    </span>
   )
 }
