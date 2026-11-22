@@ -401,7 +401,7 @@ export function AssistantChat({ variant, autoFocus = false }: { variant: Variant
           <div ref={end} />
         </div>
         <Composer mode={effectiveMode} setMode={setMode} autoFocus={autoFocus} contextLabel={label} />
-        {variant !== 'page' && <p className="asst-note"><Spark /> Podpowiadam, decyzję podejmujesz Ty.</p>}
+        {variant !== 'page' && <p className="asst-note"><Spark /> Asystent może się mylić — sprawdzaj ważne informacje.</p>}
       </div>
       {preview && active && (
         <div className="asst-side">
