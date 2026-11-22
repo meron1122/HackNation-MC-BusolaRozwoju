@@ -20,6 +20,10 @@ public class Employee
     public int DepartmentId { get; set; }
     public Department Department { get; set; } = null!;
 
+    /// <summary>Stanowisko ze słownika urzędu (opcjonalne).</summary>
+    public int? PositionId { get; set; }
+    public Position? Position { get; set; }
+
     /// <summary>Przełożony (opcjonalny).</summary>
     public int? SupervisorId { get; set; }
     public Employee? Supervisor { get; set; }

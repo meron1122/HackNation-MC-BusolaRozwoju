@@ -33,8 +33,7 @@ public class EmployeeProfile
     public string? WorkEmail { get; set; }
     public string? OtherEmail { get; set; }
 
-    // Zatrudnienie
-    public string? JobTitle { get; set; }
+    // Zatrudnienie (stanowisko jest w Employee.Position — słownik urzędu)
     public string? EmploymentType { get; set; }
     public DateOnly? ContractStart { get; set; }
     public DateOnly? ContractEnd { get; set; }

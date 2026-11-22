@@ -240,6 +240,13 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
             return Problem(statusCode: StatusCodes.Status409Conflict, detail: "Ocena jest zamknięta.");
         }
 
+        // Sprawozdanie składa oceniany (§ 2 pkt 3, § 6 rozporządzenia z 2015 r.) — etap zamyka jego przekazanie.
+        if (definition.CompletedByEvaluated)
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict,
+                detail: "Ten etap zamyka oceniany, przekazując sprawozdanie. Po upływie terminu możesz oznaczyć sprawozdanie jako niezłożone.");
+        }
+
         // Te same reguły co „Sprawdź przed podpisaniem”: braki blokujące nie pozwalają zamknąć etapu.
         var blocking = (await RunCheckAsync(evaluation, schema, ct)).Stages
             .Single(s => s.Key == stageKey).Issues.Where(i => i.Blocking).ToList();
@@ -423,13 +430,24 @@ public sealed class EvaluationsController(BusolaDbContext db, AccessScopeService
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>Tylko etapy opcjonalne (np. brak sprzeciwu).</summary>
+    /// <summary>
+    /// Pominięcie: etap opcjonalny (np. brak sprzeciwu) albo sprawozdanie niezłożone w terminie — po jego upływie
+    /// rozmowę oceniającą przeprowadza się bez sprawozdania (§ 8 ust. 1 rozporządzenia z 2015 r.).
+    /// </summary>
     [HttpPost("{id:int}/stages/{stageKey}/skip")]
     [Authorize(Policy = Permissions.EditEvaluation)]
     public Task<IActionResult> SkipStage(int id, string stageKey, CancellationToken ct) =>
         ChangeStageAsync(id, stageKey, ct, (schema, _, stage) =>
         {
-            if (!schema.Stages.Single(s => s.Key == stageKey).Optional)
+            var definition = schema.Stages.Single(s => s.Key == stageKey);
+            if (definition.CompletedByEvaluated)
+            {
+                if (stage.DueTo is not { } due || due >= Today)
+                {
+                    return $"Sprawozdanie można oznaczyć jako niezłożone dopiero po upływie terminu{(stage.DueTo is { } d ? $" ({d:dd.MM.yyyy})" : "")}.";
+                }
+            }
+            else if (!definition.Optional)
             {
                 return "Pominąć można tylko etap opcjonalny.";
             }

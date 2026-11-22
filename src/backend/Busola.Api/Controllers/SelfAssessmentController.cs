@@ -119,8 +119,16 @@ public sealed class SelfAssessmentController(BusolaDbContext db, AccessScopeServ
         }
 
         selfAssessment.SubmittedAt = DateTimeOffset.UtcNow;
+
+        // Przy pierwszej ocenie przekazanie samooceny = złożenie sprawozdania: zamyka etap (data złożenia = dziś).
+        if (context.Stage!.CompletedByEvaluated)
+        {
+            var stage = context.Evaluation.Stages.Single(s => s.StageKey == context.Stage.Key);
+            EvaluationWorkflow.Complete(context.Schema, context.Evaluation, stage, DateOnly.FromDateTime(DateTime.Today));
+        }
+
         await db.SaveChangesAsync(ct);
-        return ToDto(context);
+        return ToDto(context with { StageOpen = !context.Stage.CompletedByEvaluated });
     }
 
     private sealed record Context(
@@ -131,7 +139,9 @@ public sealed class SelfAssessmentController(BusolaDbContext db, AccessScopeServ
         bool StageOpen,
         IReadOnlyList<ScoreItem> Criteria,
         IReadOnlyList<ScaleOption> Scale,
-        EvaluationSelfAssessment? SelfAssessment);
+        EvaluationSelfAssessment? SelfAssessment,
+        Evaluation Evaluation,
+        TemplateSchema Schema);
 
     private ActionResult? CannotEdit(Context context)
     {
@@ -184,7 +194,9 @@ public sealed class SelfAssessmentController(BusolaDbContext db, AccessScopeServ
             stage is not null && evaluation.Stages.SingleOrDefault(s => s.StageKey == stage.Key)?.Status == StageStatus.Pending,
             scores is null ? [] : EvaluationScoring.Items(schema, scores, answers),
             scores is null ? [] : EvaluationScoring.Scale(schema, scores),
-            evaluation.SelfAssessment);
+            evaluation.SelfAssessment,
+            evaluation,
+            schema);
     }
 
     private static SelfAssessmentDto ToDto(Context context)

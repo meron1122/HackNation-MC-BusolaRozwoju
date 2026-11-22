@@ -37,6 +37,7 @@ internal static class PermissionSeed
         new() { Id = 15, Key = P.AddEvaluation, Name = "Zakładanie ocen" },
         new() { Id = 16, Key = P.EditEvaluation, Name = "Wypełnianie ocen i zamykanie etapów" },
         new() { Id = 17, Key = P.RemindEvaluations, Name = "Przypomnienia o terminach ocen" },
+        new() { Id = 18, Key = P.ManagePositions, Name = "Słownik stanowisk" },
     ];
 
     // SuperAdmin nie ma wierszy — ma wszystko z urzędu.
@@ -47,7 +48,7 @@ internal static class PermissionSeed
         .. Grant(RoleNames.Hr,
             P.ReadEmployees, P.AddEmployee, P.EditEmployee, P.DeleteEmployee,
             P.ReadLocations, P.ReadDepartments,
-            P.ReadEvaluations, P.AddEvaluation, P.EditEvaluation, P.RemindEvaluations),
+            P.ReadEvaluations, P.AddEvaluation, P.EditEvaluation, P.RemindEvaluations, P.ManagePositions),
         .. Grant(RoleNames.ServiceAdmin, Permissions.Select(p => p.Key).ToArray()),
     ];
 

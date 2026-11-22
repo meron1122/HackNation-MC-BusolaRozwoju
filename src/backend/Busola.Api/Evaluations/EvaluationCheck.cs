@@ -57,13 +57,25 @@ public static class EvaluationCheck
             issues.InsertRange(0, earlier.Select(s =>
                 new CheckIssue(definition.Key, null, null, $"Najpierw zamknij etap „{s.Title}”.", s.LegalRef, Blocking: true)));
 
-            if (definition.SelfAssessment && stage.Status == StageStatus.Pending && !selfAssessmentSubmitted)
+            // Etap zamykany przez ocenianego (sprawozdanie): oceniający go nie zamyka, po terminie może go pominąć.
+            var overdue = stage.DueTo is { } due && due < DateOnly.FromDateTime(DateTime.Today);
+            if (definition.CompletedByEvaluated && stage.Status == StageStatus.Pending)
+            {
+                issues.Add(new CheckIssue(definition.Key, null, null,
+                    overdue
+                        ? "Termin na sprawozdanie minął — możesz oznaczyć je jako niezłożone i przejść do rozmowy oceniającej."
+                        : "Etap zamyka oceniany, przekazując sprawozdanie.",
+                    "§ 8 ust. 1", Blocking: !overdue));
+            }
+            else if (definition.SelfAssessment && stage.Status == StageStatus.Pending && !selfAssessmentSubmitted)
             {
                 issues.Add(new CheckIssue(definition.Key, null, null, "Oceniany nie przekazał jeszcze samooceny.", null, Blocking: false));
             }
 
-            var canComplete = stage.Status == StageStatus.Pending && (!isFinal || definition.Optional) && issues.All(i => !i.Blocking);
-            result.Add(new StageCheckDto(definition.Key, definition.Title, stage.Status.ToString(), canComplete, issues));
+            var open = stage.Status == StageStatus.Pending;
+            var canComplete = open && !definition.CompletedByEvaluated && (!isFinal || definition.Optional) && issues.All(i => !i.Blocking);
+            var canSkip = open && (definition.Optional || (definition.CompletedByEvaluated && overdue));
+            result.Add(new StageCheckDto(definition.Key, definition.Title, stage.Status.ToString(), canComplete, canSkip, issues));
         }
 
         return new EvaluationCheckDto(result, sections);

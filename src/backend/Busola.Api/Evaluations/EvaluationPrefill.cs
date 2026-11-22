@@ -10,7 +10,7 @@ namespace Busola.Api.Evaluations;
 /// Dane arkusza brane z kartoteki, żeby nikt ich nie przepisywał ręcznie:
 /// pola „person” według roli (oceniany; oceniający / bezpośredni przełożony = oceniający oceny albo przełożony z kartoteki;
 /// kierujący komórką = kierujący wydziałem ocenianego) — imię, nazwisko, komórka organizacyjna = wydział tej osoby,
-/// stanowisko = stanowisko z profilu; nazwa urzędu = służba; prefill "employee.hireDate" = data zatrudnienia.
+/// stanowisko = stanowisko ze słownika (Employee.Position); nazwa urzędu = służba; prefill "employee.hireDate" = data zatrudnienia.
 /// Zwraca tylko wartości dla pól bez zapisanych wpisów. Zapisuje się je (kopia z chwili podpisu) przy zamknięciu etapu sekcji.
 /// </summary>
 public static class EvaluationPrefill
@@ -18,7 +18,7 @@ public static class EvaluationPrefill
     public const string OfficePrefill = "employee.office";
     public const string HireDatePrefill = "employee.hireDate";
 
-    private sealed record PersonData(int Id, string FirstName, string LastName, string DepartmentName);
+    private sealed record PersonData(int Id, string FirstName, string LastName, string DepartmentName, string? Position);
 
     public static async Task<List<AnswerDto>> LoadAsync(
         BusolaDbContext db, int evaluationId, TemplateSchema schema, IEnumerable<AnswerDto> stored, CancellationToken ct)
@@ -38,11 +38,8 @@ public static class EvaluationPrefill
         var ids = new[] { (int?)source.EmployeeId, source.EvaluatorId, source.HeadId }.Where(id => id is not null).Select(id => id!.Value).Distinct().ToList();
         var people = await db.Employees
             .Where(e => ids.Contains(e.Id))
-            .Select(e => new PersonData(e.Id, e.FirstName, e.LastName, e.Department.Name))
+            .Select(e => new PersonData(e.Id, e.FirstName, e.LastName, e.Department.Name, e.Position != null ? e.Position.Name : null))
             .ToDictionaryAsync(p => p.Id, ct);
-        var positions = await db.EmployeeProfiles
-            .Where(p => ids.Contains(p.EmployeeId) && p.JobTitle != null)
-            .ToDictionaryAsync(p => p.EmployeeId, p => p.JobTitle!, ct);
 
         var answers = new AnswerSet(stored);
         var result = new List<AnswerDto>();
@@ -71,7 +68,7 @@ public static class EvaluationPrefill
                     Add(new AnswerDto(field.Key, "firstName", person.FirstName));
                     Add(new AnswerDto(field.Key, "lastName", person.LastName));
                     Add(new AnswerDto(field.Key, "department", person.DepartmentName));
-                    Add(new AnswerDto(field.Key, "position", positions.GetValueOrDefault(id)));
+                    Add(new AnswerDto(field.Key, "position", person.Position));
                 }
             }
             else if (prefill == HireDatePrefill)

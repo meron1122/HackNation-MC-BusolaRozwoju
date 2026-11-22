@@ -235,7 +235,14 @@ public sealed record StageDefinition(
     string? Phase = null,
     bool SelfAssessment = false,
     string? LegalRef = null,
-    IReadOnlyList<StageTopic>? Topics = null);
+    IReadOnlyList<StageTopic>? Topics = null,
+    string? CompletedBy = null)
+{
+    /// <summary>CompletedBy = "evaluated": etap zamyka oceniany (przekazanie sprawozdania), nie oceniający.</summary>
+    public const string Evaluated = "evaluated";
+
+    public bool CompletedByEvaluated => CompletedBy == Evaluated;
+}
 
 /// <summary>Zagadnienie do omówienia na rozmowie w etapie (lista kontrolna z przepisu); Optional = „jeżeli dotyczy”.</summary>
 public sealed record StageTopic(string Text, string? LegalRef = null, bool Optional = false);

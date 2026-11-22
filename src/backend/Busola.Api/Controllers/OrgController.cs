@@ -86,7 +86,7 @@ public sealed class OrgController(BusolaDbContext db) : ControllerBase
             .Select(e => new OrgCard(
                 e.Id,
                 e.FirstName + " " + e.LastName,
-                db.EmployeeProfiles.Where(p => p.EmployeeId == e.Id).Select(p => p.JobTitle).FirstOrDefault(),
+                e.Position != null ? e.Position.Name : null,
                 e.Department.Name,
                 e.User != null && e.User.Avatar != null,
                 e.Subordinates.Count,

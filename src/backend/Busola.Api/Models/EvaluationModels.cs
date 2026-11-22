@@ -82,7 +82,8 @@ public sealed record CheckIssue(string StageKey, string? SectionKey, string? Fie
 public sealed record SectionCheckDto(
     string Key, string Title, string? Part, string StageKey, bool Visible, bool Locked, bool Complete, IReadOnlyList<CheckIssue> Issues);
 
-public sealed record StageCheckDto(string Key, string Title, string Status, bool CanComplete, IReadOnlyList<CheckIssue> Issues);
+/// <summary>CanSkip: etap opcjonalny albo sprawozdanie po terminie (oznaczenie jako niezłożone).</summary>
+public sealed record StageCheckDto(string Key, string Title, string Status, bool CanComplete, bool CanSkip, IReadOnlyList<CheckIssue> Issues);
 
 public sealed record EvaluationCheckDto(IReadOnlyList<StageCheckDto> Stages, IReadOnlyList<SectionCheckDto> Sections);
 

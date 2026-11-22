@@ -47,11 +47,13 @@ public sealed class EmployeeProfileController(BusolaDbContext db, AccessScopeSer
         [EmailAddress, MaxLength(256)] string? WorkEmail = null,
         [EmailAddress, MaxLength(256)] string? OtherEmail = null);
 
+    /// <summary>PositionId: stanowisko ze słownika urzędu (/api/positions); PositionName tylko w odpowiedzi.</summary>
     public sealed record JobSection(
-        [MaxLength(100)] string? JobTitle = null,
+        int? PositionId = null,
         [MaxLength(100)] string? EmploymentType = null,
         DateOnly? ContractStart = null,
-        DateOnly? ContractEnd = null);
+        DateOnly? ContractEnd = null,
+        string? PositionName = null);
 
     public sealed record QualificationsSection(
         [MaxLength(MaxListItems)] List<WorkExperience> WorkExperience,
@@ -96,7 +98,8 @@ public sealed class EmployeeProfileController(BusolaDbContext db, AccessScopeSer
                 p.MaritalStatus, p.Nationality, p.DriverLicenseNumber, p.DriverLicenseExpiry),
             new ContactSection(p.Street1, p.Street2, p.City, p.Province, p.PostalCode, p.Country, p.PhoneHome, p.PhoneMobile,
                 p.PhoneWork, p.WorkEmail, p.OtherEmail),
-            new JobSection(p.JobTitle, p.EmploymentType, p.ContractStart, p.ContractEnd),
+            new JobSection(e.PositionId, p.EmploymentType, p.ContractStart, p.ContractEnd,
+                e.PositionId is null ? null : await db.Positions.Where(x => x.Id == e.PositionId).Select(x => x.Name).SingleAsync(ct)),
             p.EmergencyContacts,
             p.Dependents,
             new QualificationsSection(p.WorkExperience, p.Education, p.Skills, p.Languages),
@@ -144,14 +147,24 @@ public sealed class EmployeeProfileController(BusolaDbContext db, AccessScopeSer
         });
 
     [HttpPut("{id:int}/profile/job")]
-    public Task<IActionResult> PutJob(int id, JobSection s, CancellationToken ct) =>
-        SaveAsync(id, selfAllowed: false, ct, (_, p, _) =>
+    public async Task<IActionResult> PutJob(int id, JobSection s, CancellationToken ct)
+    {
+        // Stanowisko tylko ze słownika służby, w której pracuje pracownik.
+        if (s.PositionId is { } positionId
+            && !await db.Employees.AnyAsync(e => e.Id == id
+                && db.Positions.Any(p => p.Id == positionId && p.ServiceId == e.Department.Location.ServiceId), ct))
         {
-            p.JobTitle = s.JobTitle;
+            return Problem(statusCode: StatusCodes.Status400BadRequest, detail: "Nie ma takiego stanowiska w słowniku urzędu pracownika.");
+        }
+
+        return await SaveAsync(id, selfAllowed: false, ct, (e, p, _) =>
+        {
+            e.PositionId = s.PositionId;
             p.EmploymentType = s.EmploymentType;
             p.ContractStart = s.ContractStart;
             p.ContractEnd = s.ContractEnd;
         });
+    }
 
     [HttpPut("{id:int}/profile/emergency-contacts")]
     public Task<IActionResult> PutEmergencyContacts(int id, [MaxLength(MaxListItems)] List<EmergencyContact> items, CancellationToken ct) =>

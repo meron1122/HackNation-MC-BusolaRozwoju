@@ -28,6 +28,7 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
     public DbSet<EvaluationSelfAssessment> EvaluationSelfAssessments => Set<EvaluationSelfAssessment>();
     public DbSet<EvaluationReminder> EvaluationReminders => Set<EvaluationReminder>();
     public DbSet<EvaluationNote> EvaluationNotes => Set<EvaluationNote>();
+    public DbSet<Position> Positions => Set<Position>();
     public DbSet<EvaluationIndicatorContext> EvaluationIndicatorContexts => Set<EvaluationIndicatorContext>();
     public DbSet<EvaluationCriterionContext> EvaluationCriterionContexts => Set<EvaluationCriterionContext>();
 
@@ -274,7 +275,7 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
                 .OnDelete(DeleteBehavior.Cascade);
 
             foreach (var name in new[] { "MiddleName", "EmployeeNumber", "OtherId", "Nationality", "DriverLicenseNumber", "City",
-                         "Province", "PostalCode", "Country", "PhoneHome", "PhoneMobile", "PhoneWork", "JobTitle", "EmploymentType" })
+                         "Province", "PostalCode", "Country", "PhoneHome", "PhoneMobile", "PhoneWork", "EmploymentType" })
             {
                 b.Property<string?>(name).HasMaxLength(100);
             }
@@ -400,10 +401,27 @@ public class BusolaDbContext(DbContextOptions<BusolaDbContext> options) : Identi
                 .HasForeignKey(e => e.DepartmentId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // Stanowiska przypisanego pracownikom nie da się usunąć — najpierw trzeba ich przepiąć.
+            b.HasOne(e => e.Position)
+                .WithMany(p => p.Employees)
+                .HasForeignKey(e => e.PositionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Nie można usunąć przełożonego, dopóki ma podwładnych — najpierw trzeba ich przepiąć.
             b.HasOne(e => e.Supervisor)
                 .WithMany(e => e.Subordinates)
                 .HasForeignKey(e => e.SupervisorId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Position>(b =>
+        {
+            b.Property(p => p.Name).HasMaxLength(200);
+            b.HasIndex(p => new { p.ServiceId, p.Name }).IsUnique();
+
+            b.HasOne(p => p.Service)
+                .WithMany()
+                .HasForeignKey(p => p.ServiceId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

@@ -75,6 +75,7 @@
       },
       "completesTo": "report_submitted",
       "selfAssessment": true,
+      "completedBy": "evaluated",
       "legalRef": "§ 4 ust. 1"
     },
     {
