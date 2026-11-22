@@ -3,6 +3,7 @@ import { api } from './api'
 import { Avatar } from './Avatar'
 import { addressee, termWord } from './dash-model'
 import { BellButton, MiniStepper, SheetMark } from './dash-parts'
+import { MedianCard } from './dash-median'
 import { EmptyState } from './EmptyState'
 import { fmtDate, plural, type EvaluationTerms, type Progress } from './evaluation/types'
 import './hifi-pages.css'
@@ -213,7 +214,7 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
         <SegmentBar done={c.closedInYear} progress={c.inProgress} out={outside} year={year} onYear={setYear} />
       </div>
 
-      <div className="dash-hr-grid">
+      <div className="dash-hr-grid with-radar">
         <section className="card dash-list" aria-labelledby="hr-needs">
           <div className="dash-list-head">
             <h2 id="hr-needs">Wymaga działania <span className="dash-count">{needs.length}</span></h2>
@@ -261,6 +262,7 @@ export function HrPanel({ canRemind, onOpenEvaluation }: { canRemind: boolean; o
             </details>
           )}
         </section>
+        <MedianCard evaluationIds={groups.flatMap((g) => [g.main, ...g.others]).map((r) => r.evaluation.evaluationId).sort((a, b) => a - b)} />
       </div>
       {groups.length === 0 && <EmptyState title="Brak ocen w tym wydziale">Wybierz inny wydział.</EmptyState>}
 

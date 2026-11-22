@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { api } from '../api'
 import { SheetForm } from '../Evaluations'
-import { AiFrame, Info, Source, askAssistant, useStepHeader } from '../v2'
+import { AiFrame, Info, Source, askAssistant } from '../v2'
+import { StartHead } from './start-head'
 import type { StepProps } from './common'
 import { saveAnswers } from './data'
 import { CompetencyIcon, UiIcon, shortName } from './start-icons'
@@ -245,7 +246,6 @@ function CriteriaBoard({ detail, field, section, reload }: { detail: Detail; fie
 /** W03: kryteria obowiązkowe (z arkusza) + do 3 dodatkowych z modelu kompetencji. */
 export function CriteriaStep({ detail, steps, go, reload }: StepProps) {
   const first = isFirstTemplate(detail.templateCode)
-  useStepHeader(first ? 'Elementy oceny' : 'Kryteria oceny')
   const schema = detail.schema
   const criteriaField = criteriaFieldOf(schema)
   const section = schema.sections.find((s) => s.fields.some((f) => f === criteriaField))
@@ -254,7 +254,7 @@ export function CriteriaStep({ detail, steps, go, reload }: StepProps) {
 
   return (
     <div className="step sv2">
-      <h2 className="sr-only">{first ? 'Elementy oceny' : 'Kryteria oceny'}</h2>
+      <StartHead detail={detail} topic={first ? 'Elementy oceny' : 'Kryteria oceny'} />
       {criteriaField && section ? (
         fromModel
           ? <CriteriaBoard detail={detail} field={criteriaField} section={section} reload={reload} />

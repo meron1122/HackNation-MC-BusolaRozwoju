@@ -245,3 +245,13 @@
   .dash-tl { --who: 170px; --state: 170px; }
   .dash-kpi { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* H14: mediana kryteriów (arkusz C) */
+.dash-median { display: grid; gap: 12px; align-content: start; padding: 22px 24px !important; animation: dash-rise .2s var(--ease, ease) both; }
+.dash-median-head { display: flex; align-items: center; gap: 10px; }
+.dash-median-head h2 { margin: 0; font-size: 20px; }
+.dash-median .v2-radar { max-width: 100%; }
+.dash-median-empty { margin: 0; color: var(--muted); }
+.dash-median-need { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-radius: 12px; background: var(--bg); font-weight: 600; }
+.dash-median-need strong { font-size: 28px; }
+@media (max-width: 1360px) and (min-width: 1200px) { .dash-hr-grid.with-radar { grid-template-columns: minmax(0, 1fr) 340px; } }

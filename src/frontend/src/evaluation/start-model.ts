@@ -70,3 +70,31 @@ export const ospKey = (id: number) => `busola.osp-current.${id}`
 /** Miesiące między datami ISO (zaokrąglone). */
 export const monthsBetween = (from: string, to: string) =>
   Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / (30.44 * 86_400_000)))
+
+/** Przebieg rozmowy rozpoczynającej (wygoda przełożonej, nie dane arkusza): omówione zagadnienia § 5 ust. 1 i kryteria. */
+export type KickoffState = { topics: number[]; criteria: string[] }
+export const KICKOFF_EMPTY: KickoffState = { topics: [], criteria: [] }
+
+/** Zagadnienia rozmowy z szablonu (stages[].topics) albo z § 5 ust. 1; `kind` wybiera panel, `short` to nazwa w stepperze. */
+export type TopicKind = 'duties' | 'criteria' | 'expectations' | 'goals' | 'other'
+export type KickoffTopic = { short: string; kind: TopicKind; text: string; legalRef?: string; optional?: boolean }
+const TOPIC_FALLBACK = [
+  { text: 'Główne obowiązki wynikające z opisu stanowiska pracy', legalRef: '§ 5 ust. 1 pkt 1' },
+  { text: 'Kryteria obowiązkowe i dodatkowe', legalRef: '§ 5 ust. 1 pkt 2' },
+  { text: 'Oczekiwania oceniającego co do sposobu spełniania kryteriów', legalRef: '§ 5 ust. 1 pkt 3' },
+  { text: 'Cele na okres oceny i sposób ich realizacji', legalRef: '§ 5 ust. 1 pkt 4', optional: true },
+]
+function classify(text: string): { kind: TopicKind; short: string } {
+  if (/^oczekiwania/i.test(text)) return { kind: 'expectations', short: 'Oczekiwania' }
+  if (/^kryteria/i.test(text)) return { kind: 'criteria', short: 'Kryteria' }
+  if (/obowiązk/i.test(text)) return { kind: 'duties', short: 'Obowiązki' }
+  if (/^cele/i.test(text)) return { kind: 'goals', short: 'Cele' }
+  if (/sprawozdani/i.test(text)) return { kind: 'other', short: 'Sprawozdanie' }
+  if (/sposób dokonywania/i.test(text)) return { kind: 'other', short: 'Sposób oceny' }
+  return { kind: 'other', short: text.split(/\s+/).slice(0, 2).join(' ') }
+}
+export function kickoffTopics(detail: Detail): KickoffTopic[] {
+  const key = detail.stages[0]?.key
+  const topics = detail.schema.stages?.find((s) => s.key === key)?.topics
+  return (topics?.length ? topics : TOPIC_FALLBACK).map((t) => ({ ...classify(t.text), text: t.text, legalRef: t.legalRef, optional: t.optional }))
+}

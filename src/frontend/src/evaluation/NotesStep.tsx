@@ -1,18 +1,21 @@
-import { Fragment, useState, type FormEvent } from 'react'
+import { Fragment, useEffect, useState, type FormEvent } from 'react'
 import { api } from '../api'
 import { ConfirmButton } from '../ConfirmButton'
 import { DateInput } from '../DateInput'
-import { Icon } from '../Icon'
+import { AiFrame, Info } from '../v2'
 import { CompleteStage, DuePill, IssueList, PdfButton, Pill, type StepProps } from './common'
 import { useApi } from './data'
 import { TermPanel } from './TermPanel'
 import {
-  daysUntil, criteriaOf, fmtDate, plural, today, type Detail, type Note, type NoteRequest, type Notes, type SelfAssessment,
+  daysUntil, criteriaOf, fmtDate, today, type Detail, type Note, type NoteRequest, type Notes, type SelfAssessment,
 } from './types'
 import { noteHint } from './final-note-hint'
-import './final-hifi.css'
-
-type IndicatorOption = { key: string; text: string; criterionKey: string; criterionLabel: string }
+import { CoverageMap, DeadlineBanner, NotesTimeline, type IndicatorOption } from './notes-parts'
+import { StartHead } from './start-head'
+import { CompetencyIcon, UiIcon } from './start-icons'
+import { firstNameOf, nameCase } from './start-model'
+import './start-hifi.css'
+import './notes-v2.css'
 
 function indicatorOptions(detail: Detail): IndicatorOption[] {
   const competencies = detail.schema.competencyModel?.competencies ?? {}
@@ -34,13 +37,13 @@ export function SelfAssessmentStatus({ detail }: { detail: Detail }) {
   )
 }
 
-/** W06: notatki z obserwacji (sytuacja–działanie–rezultat) i dowody na wskaźniki. Oceniany ich nie widzi. */
+/** W06 / H06 v2: oś okresu z notatkami, mapa pokrycia wskaźników, formularz S/D/R. Oceniany notatek nie widzi. */
 export function NotesStep({ detail, steps, go, reload: reloadDetail }: StepProps) {
   const { data, error, reload } = useApi<Notes>(`evaluations/${detail.id}/notes`)
   const options = indicatorOptions(detail)
   const criteria = criteriaOf(detail)
   const [editing, setEditing] = useState<number | null>(null)
-  const [preset, setPreset] = useState<{ key: string; n: number } | null>(null)
+  const [indicator, setIndicator] = useState<string | null>(null)
   const notesStep = steps.find((s) => s.id === 'notes')
   const stage = detail.stages.find((s) => s.key === notesStep?.stageKey)
   const firstStage = detail.stages[0]
@@ -49,11 +52,13 @@ export function NotesStep({ detail, steps, go, reload: reloadDetail }: StepProps
   const left = daysUntil(end)
   const ratingStep = steps.find((s) => s.group === 'Ocena')
   const canWrite = detail.canEdit && stage?.status === 'Pending'
+  const alert = stage?.status === 'Pending' && left != null && left <= 30
+  const name = firstNameOf(detail.employeeName)
 
-  const progress = end ? Math.min(1, Math.max(0, (Date.parse(today()) - Date.parse(periodStart)) / (Date.parse(end) - Date.parse(periodStart)))) : null
   const count = (indicatorKey: string) => data?.evidence.indicators.find((i) => i.indicatorKey === indicatorKey)?.count ?? 0
   const notesCount = data?.notes.length ?? 0
   const uncovered = options.filter((o) => count(o.key) === 0).length
+  const selected = indicator ?? options.find((o) => count(o.key) === 0)?.key ?? options[0]?.key ?? null
 
   async function create(body: NoteRequest) {
     await api(`evaluations/${detail.id}/notes`, 'POST', body)
@@ -68,161 +73,129 @@ export function NotesStep({ detail, steps, go, reload: reloadDetail }: StepProps
     await api(`evaluations/${detail.id}/notes/${id}`, 'DELETE')
     await reload()
   }
-  function addFor(key: string) {
-    setPreset((p) => ({ key, n: (p?.n ?? 0) + 1 }))
-    requestAnimationFrame(() => document.getElementById('notes-new')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-  }
 
   return (
-    <div className="step notes-hifi">
-      {stage?.status === 'Pending' && left != null && left <= 30 && (
-        <div className="notes-banner" role="status">
-          <Icon name="clock" />
-          <strong>{left < 0 ? `Termin oceny minął ${-left} ${plural(-left, 'dzień', 'dni', 'dni')} temu.` : `${left} ${plural(left, 'dzień', 'dni', 'dni')} do terminu oceny.`}</strong>
-          <span className="grow">Zaplanuj rozmowę oceniającą.</span>
-          {ratingStep && <button type="button" onClick={() => go(ratingStep.id)}>Przejdź do oceny</button>}
-        </div>
-      )}
-      <div className="step-head"><h2>Notatki z obserwacji</h2><Pill icon="lock">widzisz tylko Ty</Pill></div>
-      {progress != null && (
-        <div className="notes-timeline" aria-label={`Okres obserwacji: ${Math.round(progress * 100)}% za nami`}>
-          <div className="notes-timeline-bar">
-            <div style={{ width: `${progress * 100}%` }} />
-            <span className="notes-today" style={{ left: `${progress * 100}%` }} aria-hidden="true" />
-          </div>
-          <div className="notes-timeline-labels small">
-            <span><strong>{fmtDate(periodStart)}</strong> · początek okresu oceny</span>
-            <span className="notes-today-label">dziś</span>
-            <span><strong>{fmtDate(end)}</strong> · termin</span>
-          </div>
-          {stage?.dueNote && <p className="muted small">{stage.dueNote}</p>}
-        </div>
-      )}
-      {!detail.isOwn && <TermPanel detail={detail} reload={reloadDetail} />}
-      <SelfAssessmentStatus detail={detail} />
+    <div className="step sv2 nv2">
+      <StartHead detail={detail} topic="Notatki" />
+      {alert && data && <DeadlineBanner left={left!} uncovered={uncovered} onGo={ratingStep ? () => go(ratingStep.id) : undefined} />}
       {error ? (
         <p className="callout attention">Notatki nie są jeszcze dostępne: {error}</p>
       ) : !data ? <p>Ładowanie…</p> : (
         <>
-          {data.evidence.recentShare != null && notesCount >= 3 && data.evidence.recentShare >= 0.5 && (
-            <p className="callout attention">
-              <strong>! {Math.round(data.evidence.recentShare * 100)}% notatek pochodzi z ostatnich 4 miesięcy.</strong> Dodaj obserwacje z wcześniejszej części okresu, żeby ocena objęła cały okres, a nie ostatnie wrażenie.
-            </p>
-          )}
+          {end && <NotesTimeline start={periodStart} end={end} today={today()} notes={data.notes} options={options} recentShare={data.evidence.recentShare} />}
+          {stage?.dueNote && <p className="sv2-muted">{stage.dueNote}</p>}
           {data.evidence.outsidePeriod > 0 && (
-            <p className="muted small">{data.evidence.outsidePeriod} {plural(data.evidence.outsidePeriod, 'notatka jest', 'notatki są', 'notatek jest')} sprzed okresu oceny — nie liczą się jako dowody.</p>
+            <p className="sv2-muted">Sprzed okresu oceny: {data.evidence.outsidePeriod} — nie liczą się jako dowody.</p>
           )}
-          {canWrite && (
-            <NoteForm key={preset ? `${preset.key}-${preset.n}` : 'new'} id="notes-new" title="Nowa notatka" options={options} onSubmit={create}
-              defaultIndicator={preset?.key ?? options[0]?.key ?? null} />
+          <div className={canWrite ? 'nv2-cols' : undefined}>
+            <CoverageMap options={options} criteria={criteria} count={count} selected={canWrite ? selected : indicator} onSelect={setIndicator} />
+            {canWrite && (
+              <NoteForm id="notes-new" title="Nowa notatka" employee={name} options={options} onSubmit={create} alert={alert}
+                indicator={selected} onIndicator={setIndicator} />
+            )}
+          </div>
+          {!detail.isOwn && <TermPanel detail={detail} reload={reloadDetail} />}
+          <SelfAssessmentStatus detail={detail} />
+          {notesCount > 0 && (
+            <details className="sv2-details nv2-list">
+              <summary>Wszystkie notatki · {notesCount}</summary>
+              <ul className="nv2-notes">
+                {[...data.notes].sort((a, b) => b.observedOn.localeCompare(a.observedOn)).map((n) => (
+                  <li key={n.id} className={n.inPeriod ? undefined : 'out'}>
+                    {editing === n.id ? (
+                      <NoteForm title="Edycja notatki" employee={name} options={options} initial={n} onSubmit={(body) => update(n.id, body)}
+                        onCancel={() => setEditing(null)} />
+                    ) : (
+                      <NoteView note={n} options={options} employee={name} onEdit={canWrite && n.canEdit ? () => setEditing(n.id) : undefined}
+                        onDelete={canWrite && n.canEdit ? () => remove(n.id) : undefined} />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
-          <section className="card notes-coverage" aria-labelledby="notes-coverage-title">
-            <div className="card-head">
-              <h3 id="notes-coverage-title">Notatki przy wskaźnikach</h3>
-              {options.length > 0 && (uncovered > 0
-                ? <Pill tone="attention">{uncovered} z {options.length} bez notatek</Pill>
-                : <Pill tone="done" icon="done">każdy wskaźnik ma notatkę</Pill>)}
-            </div>
-            <ul>
-              {criteria.flatMap((c) => options.filter((o) => o.criterionKey === c.key).map((o, i) => (
-                <li key={o.key}>
-                  <span className="small muted notes-crit">{i === 0 ? c.label : ''}</span>
-                  <span className="grow">{o.text}</span>
-                  {count(o.key) > 0
-                    ? <Pill tone="info">{count(o.key)} {plural(count(o.key), 'notatka', 'notatki', 'notatek')}</Pill>
-                    : <Pill tone="attention">! Brak notatek</Pill>}
-                  {canWrite && <button type="button" className="link small" onClick={() => addFor(o.key)} aria-label={`Dodaj notatkę: ${o.text}`}>Dodaj</button>}
-                </li>
-              )))}
-            </ul>
-          </section>
-          <section className="card">
-            <h3>Notatki ({notesCount})</h3>
-            {notesCount === 0 && <p className="muted">Zapisuj krótkie obserwacje co miesiąc. Ułatwią ocenę za 2 lata. Opisz zachowanie: co zrobił(a), w jakiej sytuacji, z jakim skutkiem.</p>}
-            <ul className="note-list">
-              {[...data.notes].sort((a, b) => b.observedOn.localeCompare(a.observedOn)).map((n) => (
-                <li key={n.id} className={n.inPeriod ? undefined : 'muted'}>
-                  {editing === n.id ? (
-                    <NoteForm title="Edycja notatki" options={options} initial={n} onSubmit={(body) => update(n.id, body)} onCancel={() => setEditing(null)} />
-                  ) : (
-                    <NoteView note={n} options={options} onEdit={canWrite && n.canEdit ? () => setEditing(n.id) : undefined}
-                      onDelete={canWrite && n.canEdit ? () => remove(n.id) : undefined} />
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
         </>
       )}
     </div>
   )
 }
 
-function NoteView({ note, options, onEdit, onDelete }: { note: Note; options: IndicatorOption[]; onEdit?: () => void; onDelete?: () => void }) {
+function NoteView({ note, options, employee, onEdit, onDelete }: {
+  note: Note; options: IndicatorOption[]; employee: string; onEdit?: () => void; onDelete?: () => void
+}) {
   const indicator = options.find((o) => o.key === note.indicatorKey)
   return (
-    <div className="note">
-      <div className="note-head">
+    <div className="nv2-note">
+      <div className="nv2-note-head">
         <strong>{fmtDate(note.observedOn)}</strong>
-        {indicator && <Pill>{indicator.criterionLabel} · {indicator.text.length > 60 ? `${indicator.text.slice(0, 60)}…` : indicator.text}</Pill>}
-        {note.isPrivate && <Pill icon="lock">prywatna</Pill>}
-        {note.discussedWithEmployee && <Pill tone="info" icon="done">omówiono z pracownikiem</Pill>}
-        {!note.inPeriod && <Pill tone="attention">sprzed okresu oceny</Pill>}
+        {indicator && <span className="nv2-note-ind"><CompetencyIcon id={indicator.criterionKey} size={16} />{indicator.criterionLabel} · {indicator.text}</span>}
         <span className="grow" />
+        {note.isPrivate && <span className="nv2-tag"><UiIcon name="lock" size={14} /> tylko dla mnie</span>}
+        {note.discussedWithEmployee && <span className="nv2-tag"><UiIcon name="check" size={14} /> omówiono z {nameCase(employee, 'inst')}</span>}
+        {!note.inPeriod && <span className="nv2-tag">sprzed okresu</span>}
         {onEdit && <button type="button" className="link" onClick={onEdit}>Edytuj</button>}
         {onDelete && <ConfirmButton compact question="Usunąć notatkę?" confirmLabel="Usuń notatkę" onConfirm={onDelete}>Usuń</ConfirmButton>}
       </div>
-      <dl className="notes-sar">
-        <div><dt>Sytuacja</dt><dd>{note.situation || '—'}</dd></div>
-        <div><dt>Działanie</dt><dd>{note.action || '—'}</dd></div>
-        <div><dt>Rezultat</dt><dd>{note.result || '—'}</dd></div>
+      <dl className="nv2-sar">
+        {SAR.map((f) => note[f.name] ? <div key={f.name}><dt><UiIcon name={f.icon} size={16} /><span className="sr-only">{f.label}</span></dt><dd>{note[f.name]}</dd></div> : null)}
       </dl>
-      <p className="muted small">{note.authorName}</p>
     </div>
   )
 }
 
 const SAR = [
-  { name: 'situation', label: 'Sytuacja', placeholder: 'np. raport kwartalny, termin 12.03' },
-  { name: 'action', label: 'Działanie', placeholder: 'co zrobił(a)' },
-  { name: 'result', label: 'Rezultat', placeholder: 'z jakim skutkiem' },
+  { name: 'situation', label: 'Sytuacja', icon: 'pin', placeholder: 'Sytuacja: kiedy, przy jakim zadaniu' },
+  { name: 'action', label: 'Działanie', icon: 'pen', placeholder: 'Działanie: co zrobił(a)' },
+  { name: 'result', label: 'Rezultat', icon: 'flag', placeholder: 'Rezultat: z jakim skutkiem' },
 ] as const
 
-function NoteForm({ id, title, options, initial, defaultIndicator = null, onSubmit, onCancel }: {
+function NoteForm({ id, title, employee, options, initial, indicator, onIndicator, alert = false, onSubmit, onCancel }: {
   id?: string
   title: string
+  employee: string
   options: IndicatorOption[]
   initial?: Note
-  defaultIndicator?: string | null
+  /** Formularz nowej notatki: wskaźnik sterowany z mapy pokrycia. */
+  indicator?: string | null
+  onIndicator?: (key: string | null) => void
+  /** Tryb alertu (≤ 30 dni): główną akcją jest „Przejdź do oceny”, zapis ma obrys. */
+  alert?: boolean
   onSubmit: (body: NoteRequest) => Promise<void>
   onCancel?: () => void
 }) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [formKey, setFormKey] = useState(0)
+  const [localIndicator, setLocalIndicator] = useState<string>(initial?.indicatorKey ?? '')
   const [text, setText] = useState<Record<string, string>>(() => ({
     situation: initial?.situation ?? '', action: initial?.action ?? '', result: initial?.result ?? '',
   }))
   const [saved, setSaved] = useState('')
+  const [dismissed, setDismissed] = useState<string | null>(null)
   const criteria = [...new Map(options.map((o) => [o.criterionKey, o.criterionLabel])).entries()]
   const hint = noteHint([text.situation, text.action, text.result].filter(Boolean).join(' '))
+  const value = onIndicator ? indicator ?? '' : localIndicator
+  const setValue = (v: string) => (onIndicator ? onIndicator(v || null) : setLocalIndicator(v))
+  const criterion = options.find((o) => o.key === value)?.criterionKey
+  const empty = !text.situation.trim() && !text.action.trim() && !text.result.trim()
+  useEffect(() => { if (hint !== dismissed) setDismissed(null) }, [hint, dismissed])
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
-    const value = (name: string) => String(form.get(name) ?? '').trim()
-    if (!value('situation') && !value('action') && !value('result')) {
+    const field = (name: string) => String(form.get(name) ?? '').trim()
+    if (!field('situation') && !field('action') && !field('result')) {
       setError('Opisz przynajmniej sytuację, działanie albo rezultat.')
       return
     }
     setBusy(true)
     try {
       await onSubmit({
-        observedOn: value('observedOn'),
-        situation: value('situation'),
-        action: value('action'),
-        result: value('result'),
-        indicatorKey: value('indicatorKey') || null,
+        observedOn: field('observedOn'),
+        situation: field('situation'),
+        action: field('action'),
+        result: field('result'),
+        indicatorKey: field('indicatorKey') || null,
         isPrivate: form.get('isPrivate') === 'on',
         discussedWithEmployee: form.get('discussedWithEmployee') === 'on',
       })
@@ -240,11 +213,23 @@ function NoteForm({ id, title, options, initial, defaultIndicator = null, onSubm
   }
 
   return (
-    <form key={formKey} id={id} className="card note-form notes-form" onSubmit={submit}>
-      <h3>{title}</h3>
-      <div className="notes-form-row">
-        <label className="notes-indicator">Wskaźnik
-          <select name="indicatorKey" defaultValue={initial ? initial.indicatorKey ?? '' : defaultIndicator ?? ''}>
+    <form key={formKey} id={id} className="card nv2-form" onSubmit={submit} aria-labelledby={id ? `${id}-title` : undefined}>
+      <div className="sv2-row-head">
+        <h3 id={id ? `${id}-title` : undefined} className="sv2-h3">{title}</h3>
+        <span className="nv2-private"><UiIcon name="lock" size={16} /> Prywatna</span>
+        <Info label="Kto widzi notatkę">
+          {employee} nie widzi notatek w aplikacji. Do asystenta trafia tekst bez nazwiska. „Tylko dla mnie” ukrywa notatkę też przed innymi przełożonymi.
+        </Info>
+      </div>
+      <div className="nv2-form-row">
+        <label className="nv2-date">
+          <span className="sr-only">Data zdarzenia</span>
+          <DateInput name="observedOn" required defaultValue={initial?.observedOn ?? today()} max={today()} />
+        </label>
+        <label className="nv2-select">
+          <span className="sr-only">Wskaźnik</span>
+          {criterion && <CompetencyIcon id={criterion} size={18} />}
+          <select name="indicatorKey" value={value} onChange={(e) => setValue(e.target.value)}>
             <option value="">— bez wskaźnika —</option>
             {criteria.map(([key, label]) => (
               <optgroup key={key} label={label}>
@@ -253,29 +238,30 @@ function NoteForm({ id, title, options, initial, defaultIndicator = null, onSubm
             ))}
           </select>
         </label>
-        <label>Data obserwacji <DateInput name="observedOn" required defaultValue={initial?.observedOn ?? today()} /></label>
       </div>
-      <div className="notes-sar-inputs">
-        {SAR.map((f) => (
-          <label key={f.name}>{f.label}
-            <textarea name={f.name} rows={3} defaultValue={text[f.name]} placeholder={f.placeholder}
-              onChange={(e) => { const v = e.target.value; setText((t) => ({ ...t, [f.name]: v })); setSaved('') }} />
-          </label>
-        ))}
-      </div>
-      {hint && (
-        <div className="ai-proposal notes-hint" role="status">
-          <span className="ai-tag">✦ Podpowiedź</span>
-          <span>{hint}</span>
-        </div>
+      {SAR.map((f) => (
+        <label key={f.name} className="sv2-input-icon nv2-sar-input">
+          <UiIcon name={f.icon} size={18} />
+          <span className="sr-only">{f.label}</span>
+          <textarea name={f.name} rows={1} defaultValue={text[f.name]} placeholder={f.placeholder}
+            onChange={(e) => { const v = e.target.value; setText((t) => ({ ...t, [f.name]: v })); setSaved('') }} />
+        </label>
+      ))}
+      {hint && dismissed !== hint && (
+        <AiFrame compact label={null} className="nv2-hint" live>
+          <p className="nv2-hint-row">
+            <span className="grow">{hint}</span>
+            <button type="button" className="nv2-x" aria-label="Zamknij uwagę asystenta" onClick={() => setDismissed(hint)}>×</button>
+          </p>
+        </AiFrame>
       )}
-      <div className="notes-form-foot">
-        <label className="check"><input type="checkbox" name="isPrivate" defaultChecked={initial?.isPrivate} /> Prywatna</label>
-        <label className="check"><input type="checkbox" name="discussedWithEmployee" defaultChecked={initial?.discussedWithEmployee} /> Omówiono z pracownikiem</label>
+      <div className="nv2-form-foot">
+        <label className="check"><input type="checkbox" name="discussedWithEmployee" defaultChecked={initial?.discussedWithEmployee} /> Omówiono z {nameCase(employee, 'inst')}</label>
+        <label className="check"><input type="checkbox" name="isPrivate" defaultChecked={initial?.isPrivate} /> Tylko dla mnie</label>
         <span className="grow" />
-        {saved && <span className="muted small" role="status">{saved}</span>}
+        {saved && <span className="sv2-muted" role="status">{saved}</span>}
         {onCancel && <button type="button" className="secondary" onClick={onCancel}>Anuluj</button>}
-        <button type="submit" disabled={busy}>{busy ? 'Zapisywanie…' : 'Zapisz notatkę'}</button>
+        <button type="submit" className={alert ? 'nv2-outline' : undefined} disabled={busy || empty}>{busy ? 'Zapisywanie…' : 'Zapisz notatkę'}</button>
       </div>
       {error && <p role="alert" className="error">{error}</p>}
     </form>

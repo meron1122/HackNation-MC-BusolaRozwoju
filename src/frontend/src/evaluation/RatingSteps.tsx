@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { DateInput } from '../DateInput'
-import { Avatar } from '../Avatar'
 import { SheetForm } from '../Evaluations'
 import { Info, Radar, Segments, Source, useStepHeader } from '../v2'
 import { NextButton, PdfButton, type StepProps } from './common'
 import { saveAnswers, useApi, useWorkContext } from './data'
-import { byDate, NotesAside, PeriodAxis, ScaleTiles, shortCriterion } from './rating-parts'
+import { byDate, PeriodAxis, ScaleTiles, shortCriterion } from './rating-parts'
 import { shuffled, suggestionValues } from './rating-logic'
 import {
   answerOf, criteriaOf, emptyAnswer, fmtDate, indicatorFieldOf, isFirstTemplate, plural, scoresFieldOf,
@@ -27,13 +26,6 @@ type WorkApi = ReturnType<typeof useWorkContext>
 
 const lower = (o: ScaleOption) => o.label.charAt(0).toLowerCase() + o.label.slice(1)
 const firstNameOf = (name: string) => name.split(' ')[0]
-
-/** Okres osi notatek: od podpisu części I (początek okresu z API) do terminu etapu oceny. */
-function periodOf(detail: Detail, notes: Notes | null, stageKey: string | null | undefined) {
-  const start = notes?.evidence.periodStart ?? detail.stages[0]?.completedOn ?? null
-  const end = detail.stages.find((s) => s.key === stageKey)?.dueTo ?? null
-  return { start, end }
-}
 
 /** H07 (ocena wskaźnika: opisy zachowań jako odpowiedzi) i H08 (ocena robocza kryterium: sugestia i decyzja). */
 export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
@@ -68,7 +60,7 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
   const indicator = typeof pos.i === 'number' ? indicators[pos.i] : undefined
 
   // Nagłówek kreatora: „Katarzyna Nowak · Rzetelność” i segmenty kryteriów „2/6”.
-  useStepHeader(criterion?.label ?? null, criterion ? { current: pos.c + 1, total: criteria.length, label: `Kryterium ${pos.c + 1} z ${criteria.length}` } : null)
+  useStepHeader(criterion ? shortCriterion(criterion.key, criterion.label) : null, criterion ? { current: pos.c + 1, total: criteria.length, label: `Kryterium ${pos.c + 1} z ${criteria.length}` } : null)
 
   const move = (next: { c: number; i: number | 'summary' }) => {
     window.clearTimeout(timer.current)
@@ -125,7 +117,6 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
     else if (pos.c > 0) move({ c: pos.c - 1, i: 'summary' })
   }
   const criterionNotes = notes.data?.notes.filter((n) => n.criterionKey === criterion.key || indicators.some((i) => i.key === n.indicatorKey)) ?? []
-  const period = periodOf(detail, notes.data, scores.section.stage)
   const last = pos.i === 'summary' && pos.c === criteria.length - 1
 
   return (
@@ -165,9 +156,6 @@ export function IndicatorsStep({ detail, steps, go, reload }: StepProps) {
               )}
           </div>
         </div>
-
-        <NotesAside notes={criterionNotes} start={period.start} end={period.end}
-          error={notes.error ? `Notatki niedostępne: ${notes.error}` : undefined} empty="Brak notatek przy tym kryterium." />
       </div>
     </div>
   )
@@ -377,8 +365,6 @@ function agendaOf(topics: Topic[] | undefined, first: boolean): AgendaItem[] {
     : [{ kind: 'criteria' }, { kind: 'goals' }, { kind: 'development' }]
 }
 
-type OrgFocus = { focus: { id: number; name: string; hasAvatar: boolean } }
-
 /** H09: rozmowa oceniająca — agenda § 10 jako 3 kroki, karta kryterium (oczekiwanie, notatki, oś), radar ocen roboczych. */
 export function InterviewStep({ detail, steps, go, reload, sections }: StepProps & { sections: string[] }) {
   const first = isFirstTemplate(detail.templateCode)
@@ -389,13 +375,12 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
   const work = useWorkContext(detail.id)
   const notes = useApi<Notes>(`evaluations/${detail.id}/notes`)
   const self = useApi<SelfAssessment>(`evaluations/${detail.id}/self-assessment`)
-  const org = useApi<OrgFocus>('org')
   const firstName = firstNameOf(detail.employeeName)
   const section = detail.schema.sections.find((s) => sections.includes(s.key))
   const agenda = agendaOf(detail.schema.stages?.find((s) => s.key === section?.stage)?.topics, first)
   const scoreOf = (key: string) => (scores ? answerOf(detail, scores.field.key, key)?.valueNumber ?? null : null)
 
-  useStepHeader(null, null)
+  useStepHeader(section?.title ?? 'Rozmowa oceniająca')
 
   const devField = detail.schema.sections.filter((s) => s.stage === section?.stage).flatMap((s) => s.fields)
     .find((f) => f.type === 'longText' && f.key.toLowerCase().includes('development'))
@@ -442,7 +427,6 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
   const current = agenda[tabIndex] ?? agenda[0]
   const nextTab = agenda[tabIndex + 1]
   const prevTab = agenda[tabIndex - 1]
-  const me = org.data?.focus.name === detail.evaluatorName ? org.data.focus : null
 
   const goNext = () => {
     if (current.kind === 'criteria' && index < criteria.length - 1) setIndex(index + 1)
@@ -460,21 +444,16 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
 
   return (
     <div className="step rh rh-talk">
-      <div className="rh-talk-head">
-        <h2>{section?.title ?? 'Rozmowa oceniająca'}</h2>
-        <span className="rh-pair" role="img" aria-label={`${detail.employeeName} i ${detail.evaluatorName ?? 'oceniający'}`}>
-          <Avatar path={`org/${detail.employeeId}/avatar`} name={detail.employeeName} size={40} decorative />
-          <Avatar path={me?.hasAvatar ? `org/${me.id}/avatar` : null} name={detail.evaluatorName ?? '?'} size={40} decorative />
-        </span>
-        <span className="grow" />
-        {dateField && (
+      {dateField && (
+        <div className="rh-talk-head">
+          <span className="grow" />
           <label className="rh-date">
             <span>Data rozmowy</span>
             <DateInput value={answerOf(detail, dateField.key)?.valueDate ?? ''} onChange={saveDate}
               disabled={!detail.canEdit || sectionLocked} required={dateField.required} />
           </label>
-        )}
-      </div>
+        </div>
+      )}
       {dateStatus && <p role="alert" className="error">{dateStatus}</p>}
 
       <ol className="rh-agenda card" aria-label="Agenda rozmowy">
@@ -506,17 +485,23 @@ export function InterviewStep({ detail, steps, go, reload, sections }: StepProps
         {current.kind === 'criteria' && criteria.length === 0 && <p className="muted">Brak kryteriów do omówienia.</p>}
         {current.kind === 'criteria' && criteria[index] && (
           <div className="rh-talk-grid">
-            <CriterionTalk detail={detail} criterionKey={criteria[index].key} label={criteria[index].label}
-              work={work} notes={notes.data?.notes ?? []} notesData={notes.data} self={self.data} selfError={self.error} firstName={firstName}
-              reload={reload} />
             {criteria.length >= 3 && (
               <section className="card rh-radar-card" aria-labelledby="rh-radar-title">
-                <h3 id="rh-radar-title">Oceny robocze</h3>
-                <Radar axes={criteria.map((c) => shortCriterion(c.key, c.label))} size={170}
+                <div className="rh-radar-side">
+                  <h3 id="rh-radar-title">Oceny robocze</h3>
+                  <p className="rh-radar-now">
+                    <span>{shortCriterion(criteria[index].key, criteria[index].label)}</span>
+                    <strong>{scoreOf(criteria[index].key) ?? '–'}</strong>
+                  </p>
+                </div>
+                <Radar axes={criteria.map((c) => shortCriterion(c.key, c.label))} size={120}
                   series={[{ name: 'ocena robocza', values: criteria.map((c) => scoreOf(c.key)), kind: 'a' }]}
                   title={`Oceny robocze: ${criteria.map((c) => `${shortCriterion(c.key, c.label)} ${scoreOf(c.key) ?? 'bez oceny'}`).join(', ')}`} />
               </section>
             )}
+            <CriterionTalk detail={detail} criterionKey={criteria[index].key} label={criteria[index].label}
+              work={work} notes={notes.data?.notes ?? []} notesData={notes.data} self={self.data} selfError={self.error} firstName={firstName}
+              reload={reload} />
           </div>
         )}
 

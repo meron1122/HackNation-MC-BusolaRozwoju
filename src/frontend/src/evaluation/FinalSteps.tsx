@@ -99,7 +99,7 @@ export function ResultFigure({ detail, compact = false }: { detail: Detail; comp
         <div className="final-avg">
           <span className="final-avg-label"><Lock /> {first ? 'Ocena łączna' : 'Średnia'}
             {legal(avgField?.legalRef) && <Source refText={legal(avgField?.legalRef)!} />}</span>
-          <strong className="final-avg-value" aria-live="polite">{s?.average != null ? fmtAvg(s.average) : '–'}</strong>
+          <strong className={`final-avg-value${s?.average == null ? ' empty' : ''}`} aria-live="polite">{s?.average != null ? fmtAvg(s.average) : '–'}</strong>
         </div>
         <div className="final-verdict">
           {s?.levelLabel
@@ -358,7 +358,7 @@ export function ResultStep({ detail, steps, go, reload, sections, title }: StepP
           <ResultFigure detail={detail} />
           <div className="final-hero-radar">
             <p className="final-card-title">Oceny cząstkowe</p>
-            <ScoresRadar scores={criteria} onPick={scoresStep ? () => go(scoresStep.id) : undefined} />
+            <ScoresRadar scores={criteria} size={130} onPick={scoresStep ? () => go(scoresStep.id) : undefined} />
             {scoresStep && (
               <button type="button" className="link final-change" onClick={() => go(scoresStep.id)}>
                 <FIcon name="pencil" /> {missing ? `Oceń brakujące (${missing})` : 'Zmień oceny'}

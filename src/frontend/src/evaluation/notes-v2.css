@@ -1,0 +1,116 @@
+/* H06 v2 · notatki: baner terminu, oś okresu z kropkami, mapa pokrycia, formularz S/D/R. Selektory w .nv2 (klasy nv2-).
+   Ostrzeżenia = granatowy obrys + ⚠ na #DCEEFB (bez lawendy). Lawenda tylko w uwadze AI (AiFrame). */
+
+.nv2-warnchip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 12px; min-height: 32px; border-radius: 999px;
+  background: var(--blue-soft); border: 1.5px solid var(--text); color: var(--text); font-size: 14px; font-weight: 700; white-space: nowrap;
+}
+.nv2-warnchip:not(:has(.v2-tipwrap)) { padding-right: 12px; }
+
+/* baner (≤ 30 dni) */
+.nv2-banner {
+  display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 20px; border-radius: 14px;
+  background: var(--blue-soft); border: 2px solid var(--link); color: var(--text); font-size: 18px;
+}
+.nv2-banner > button { display: inline-flex; align-items: center; gap: 8px; }
+
+/* oś okresu */
+.nv2-period { display: grid; gap: 8px; margin: 0; }
+.nv2-axis { position: relative; height: 128px; margin: 32px 14px 0; }
+.nv2-line, .nv2-line-done { position: absolute; left: 0; bottom: 18px; height: 3px; border-radius: 2px; }
+.nv2-line { right: 0; background: var(--border); }
+.nv2-line-done { background: var(--text); }
+.nv2-recent { position: absolute; top: 8px; bottom: 10px; background: #eef1f6; border-radius: 8px; }
+.nv2-start, .nv2-end { position: absolute; bottom: 11px; width: 17px; height: 17px; border-radius: 50%; }
+.nv2-start { left: -8px; background: var(--text); }
+.nv2-end { right: -8px; background: var(--surface); border: 2px solid var(--text); }
+.nv2-year { position: absolute; bottom: -6px; transform: translateX(-50%); font-size: 14px; color: var(--muted); }
+.nv2-year::before { content: ''; position: absolute; left: 50%; bottom: 22px; width: 1.5px; height: 10px; background: var(--field-border); }
+.nv2-today { position: absolute; top: 0; bottom: 12px; width: 2px; background: var(--text); transform: translateX(-1px); }
+.nv2-today b {
+  position: absolute; top: -6px; left: 50%; transform: translate(-50%, -100%); padding: 2px 10px; border-radius: 999px;
+  background: var(--text); color: #fff; font-size: 14px;
+}
+.nv2-dots { list-style: none; margin: 0; padding: 0; position: absolute; inset: 0; }
+.nv2-dots li { position: absolute; transform: translateX(-50%); }
+.nv2-dots button {
+  display: block; width: 12px; height: 12px; padding: 0; border-radius: 50%; border: 0; background: var(--link); box-shadow: none; cursor: pointer;
+}
+.nv2-dots button:hover { transform: scale(1.3); background: var(--link); box-shadow: none; }
+.nv2-dots button.on { width: 16px; height: 16px; margin: -2px; background: var(--surface); border: 3px solid var(--link); }
+.nv2-axis-labels { display: flex; justify-content: space-between; font-size: 15px; }
+.nv2-preview {
+  display: grid; gap: 6px; width: min(420px, 100%); padding: 12px 16px; border-radius: 12px; border: 1.5px solid var(--text);
+  background: var(--surface);
+}
+.nv2-preview p { margin: 0; font-size: 15px; }
+.nv2-preview-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+
+/* mapa + formularz */
+.nv2-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.nv2-cols > .card { margin: 0; }
+.nv2-map { display: grid; gap: 14px; }
+.nv2-grid { display: grid; grid-template-columns: minmax(120px, 170px) minmax(0, 1fr); gap: 10px 14px; align-items: center; }
+.nv2-crit { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; font-weight: 650; line-height: 1.3; }
+.nv2-cells { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.nv2-cell {
+  position: relative; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border-radius: 8px;
+  font-size: 16px; font-weight: 750; border: 0; box-shadow: none; color: var(--text); cursor: pointer;
+}
+.nv2-cell:hover { box-shadow: none; filter: brightness(.97); }
+.nv2-cell.c0 { background: var(--surface); border: 2px solid var(--text); }
+.nv2-cell.c1 { background: #e3f0fb; }
+.nv2-cell.c2 { background: #bcd9f3; }
+.nv2-cell.c3 { background: #7fb2e3; }
+.nv2-cell.c4 { background: #2b6cb0; color: #fff; }
+.nv2-cell.c0:hover { background: var(--surface); }
+.nv2-cell.c1:hover { background: #e3f0fb; } .nv2-cell.c2:hover { background: #bcd9f3; }
+.nv2-cell.c3:hover { background: #7fb2e3; } .nv2-cell.c4:hover { background: #2b6cb0; }
+.nv2-cell.on { outline: 3px solid var(--text); outline-offset: 2px; }
+.nv2-cell-tip {
+  position: absolute; z-index: 30; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 260px;
+  display: grid; gap: 2px; padding: 8px 12px; border-radius: 10px; background: var(--text); color: #fff; font-size: 14px; font-weight: 450;
+  text-align: left; pointer-events: none; opacity: 0; visibility: hidden;
+}
+.nv2-cell-tip strong { font-weight: 700; }
+.nv2-cell:hover .nv2-cell-tip, .nv2-cell:focus-visible .nv2-cell-tip { opacity: 1; visibility: visible; }
+@media (prefers-reduced-motion: no-preference) { .nv2-cell-tip { transition: opacity .15s var(--ease, ease), visibility .15s; } }
+
+.nv2-form { display: grid; gap: 12px; margin: 0; }
+.nv2-private { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 650; color: var(--text); }
+.nv2-form-row { display: grid; grid-template-columns: minmax(140px, 170px) minmax(0, 1fr); gap: 10px; }
+.nv2-date, .nv2-select { display: flex; align-items: center; gap: 8px; margin: 0; min-width: 0; }
+.nv2-date > :not(.sr-only), .nv2-date input { width: 100%; }
+.nv2-select { position: relative; padding-left: 12px; border-radius: 12px; border: 1.5px solid var(--field-border); background: var(--surface); }
+.nv2-select select { flex: 1; min-width: 0; border: 0; background: transparent; box-shadow: none; padding-left: 0; font-weight: 600; }
+.nv2-select:focus-within { outline: 3px solid var(--focus); outline-offset: 1px; }
+.nv2-select select:focus { outline: 0; box-shadow: none; }
+.nv2-sar-input textarea { padding: 11px 0; min-height: 44px; }
+.nv2-hint { padding: 8px 12px; }
+.nv2-hint-row { display: flex; align-items: center; gap: 8px; margin: 0; padding-left: 22px; font-size: 14px; color: var(--lavender-text); }
+.nv2-x {
+  display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: 6px; border: 0; background: transparent;
+  box-shadow: none; color: var(--text); font-size: 20px; line-height: 1;
+}
+.nv2-x:hover { background: var(--blue-soft); box-shadow: none; }
+.nv2-form-foot { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+.nv2-form-foot label.check { margin: 0; }
+.nv2-form-foot button.nv2-outline { background: var(--surface); color: var(--text); border: 2px solid var(--text); }
+.nv2-form-foot button.nv2-outline:hover:not(:disabled) { background: var(--blue-soft); }
+
+/* lista notatek */
+.nv2-notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.nv2-notes > li { padding: 12px 0; border-top: 1px solid var(--border); }
+.nv2-notes > li.out { opacity: .75; }
+.nv2-note { display: grid; gap: 8px; }
+.nv2-note-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.nv2-note-ind { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+.nv2-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 10px; border-radius: 999px; background: #f4f6fa; font-size: 14px; }
+.nv2-sar { margin: 0; display: grid; gap: 4px; }
+.nv2-sar > div { display: flex; gap: 10px; align-items: baseline; }
+.nv2-sar dt { color: var(--muted); }
+.nv2-sar dd { margin: 0; font-size: 15px; }
+
+@container sv2 (max-width: 900px) {
+  .nv2-cols { grid-template-columns: minmax(0, 1fr); }
+}

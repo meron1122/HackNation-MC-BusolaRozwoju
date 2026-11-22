@@ -1,5 +1,6 @@
 import { Fragment, useState } from 'react'
 import { api } from '../api'
+import { Avatar } from '../Avatar'
 import { ConfirmButton } from '../ConfirmButton'
 import { SignatureField } from '../Evaluations'
 import { PdfButton, Pill, type StepProps } from './common'
@@ -14,17 +15,13 @@ export function OwnCriteriaStep({ detail }: StepProps) {
   const criteria = criteriaOf(detail)
   const competencies = detail.schema.competencyModel?.competencies ?? {}
   const work = useWorkContext(detail.id)
-  const current = detail.stages.find((s) => s.key === detail.currentStageKey)
   return (
     <div className="step own-hifi">
-      <div className="step-head"><h2>Moja ocena · {isFirstTemplate(detail.templateCode) ? 'elementy oceny' : 'kryteria'} i oczekiwania</h2></div>
-      <div className="card">
-        <dl className="summary">
-          <dt>Faza</dt><dd>{detail.phase}</dd>
-          <dt>Przełożony</dt><dd>{detail.evaluatorName ?? '—'}</dd>
-          {current && <><dt>Najbliższy termin</dt><dd>{current.title}{current.dueTo && ` · do ${fmtDate(current.dueTo)}`}</dd></>}
-        </dl>
-      </div>
+      <h2 className="sr-only">Moja ocena · {isFirstTemplate(detail.templateCode) ? 'elementy oceny' : 'kryteria'} i oczekiwania</h2>
+      <p className="own-boss">
+        <Avatar path={null} name={detail.evaluatorName ?? '?'} size={32} decorative />
+        <span>Ocenia: <strong>{detail.evaluatorName ?? '—'}</strong></span>
+      </p>
       {criteria.length === 0 && <p className="muted">Kryteria nie zostały jeszcze ustalone.</p>}
       {criteria.map((c) => (
         <details key={c.key} className="card" open={criteria.length <= 3}>

@@ -161,8 +161,8 @@ function NextStep({ m, onOpen }: { m: TeamMember; onOpen: (id: number) => void }
         </div>
         {p.dueTo && (
           <div className="dash-hero-due">
-            <Ring value={days} max={stageWindow(p)} size={128} overdue={p.overdue}
-              label={p.overdue ? `${Math.abs(days)} dni po terminie` : `Zostało ${days} dni`} />
+            <Ring value={days} max={stageWindow(p)} size={128} overdue={p.overdue} caption={Math.abs(days) === 1 ? 'dzień' : 'dni'}
+              label={p.overdue ? `${Math.abs(days)} ${Math.abs(days) === 1 ? 'dzień' : 'dni'} po terminie` : `Zostało ${days} ${days === 1 ? 'dzień' : 'dni'}`} />
             <span className="dash-hero-date">
               do {fmtDate(p.dueTo)}
               {(reason || ref) && <Source refText={[reason, ref].filter(Boolean).join(' · ')} align="end" />}

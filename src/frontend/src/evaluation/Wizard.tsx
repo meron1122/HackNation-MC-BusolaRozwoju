@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api } from '../api'
-import { Person } from '../Person'
+import { StepHeader, StepHeaderContext, type StepProgress } from '../v2'
+import { StageNav, TermCard } from '../v2/WizardNav'
+import { WizardPanel } from '../v2/WizardPanel'
 import { setAssistantStep } from '../assistant/AssistantWidget'
 import { PdfButton, type Step, type StepProps } from './common'
 import { canSignNow } from './data'
@@ -10,7 +12,7 @@ import { OwnCriteriaStep, OwnSignaturesStep, SelfAssessmentStep } from './OwnSte
 import { IndicatorsStep, InterviewStep } from './RatingSteps'
 import { CriteriaStep, KickoffStep, PartOneStep, StartStep } from './StartSteps'
 import {
-  daysUntil, daysLabel, fmtDate, indicatorFieldOf, isFirstTemplate, kindLabel, scoresFieldOf, type Check, type Detail, type Section, type SectionCheck,
+  daysUntil, indicatorFieldOf, isFirstTemplate, scoresFieldOf, sheetLetter, type Check, type Detail, type Section, type SectionCheck,
 } from './types'
 
 const GROUP_START = 'Start cyklu'
@@ -158,7 +160,10 @@ function defaultStep(detail: Detail, steps: Step[]): string {
   return candidates.find((s) => s.id !== 'notes')?.id ?? candidates[0]?.id ?? steps.find((s) => !s.done)?.id ?? steps[0].id
 }
 
-/** Ekran oceny jako kreator (W02–W12, W15): lewe menu kroków, treść kroku, termin etapu w toku. */
+/**
+ * Ekran oceny jako kreator (H08 v2): lewa kolumna z arkuszem, 5 etapami v5 i kartą terminu; treść kroku z nagłówkiem
+ * (twarz, temat, segmenty); prawy panel z zakładkami Notatki / ✦ Asystent.
+ */
 export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: {
   id: number
   onBack: () => void
@@ -169,6 +174,9 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
   const [check, setCheck] = useState<Check | null>(null)
   const [error, setError] = useState('')
   const [stepId, setStepId] = useState<string | null>(null)
+  // Nagłówek kroku (temat, segmenty) — krok ustawia go hookiem useStepHeader.
+  const [header, setHeaderState] = useState<{ topic?: ReactNode; progress?: StepProgress | null } | null>(null)
+  const setHeader = useCallback((next: { topic?: ReactNode; progress?: StepProgress | null } | null) => setHeaderState(next), [])
 
   // Szczegóły i /check razem; krok startowy wybieramy raz, przy pierwszym wczytaniu (potem prowadzi użytkownik).
   const fetchAll = useCallback(async () => {
@@ -208,43 +216,17 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
   }
   const step = steps.find((s) => s.id === stepId) ?? steps[0]
   const props: StepProps = { detail, check, steps, reload: load, go, onOpenEvaluation }
-  const groups = [...new Set(steps.map((s) => s.group))]
-  const current = detail.stages.find((s) => s.key === detail.currentStageKey)
+
+  const ratingStageKey = steps.find((s) => s.id === 'indicators' || s.id === 'review')?.stageKey ?? null
+  const letter = sheetLetter(detail.templateCode)
+  const sheet = isFirstTemplate(detail.templateCode) ? 'Pierwsza ocena' : `Arkusz ${letter ?? ''}`.trim()
+  const hasNotes = steps.some((s) => s.id === 'notes')
 
   return (
-    <section className="wizard">
-      <aside className="wizard-nav card">
-        <div className="wizard-person">
-          <Person id={detail.employeeId} name={detail.employeeName} size="xl" stacked
-            detail={<>{[detail.employeePosition, detail.employeeDepartment].filter(Boolean).join(' · ')}<br />{kindLabel(detail.templateCode)}</>} />
-        </div>
-        <nav aria-label="Kroki oceny">
-          {groups.map((group) => (
-            <div key={group} className="step-group">
-              <p className="step-group-title">{group}</p>
-              {steps.filter((s) => s.group === group).map((s) => (
-                <button key={s.id} type="button" className={s.id === step.id ? 'step-link active' : 'step-link'}
-                  aria-current={s.id === step.id ? 'step' : undefined} onClick={() => go(s.id)}>
-                  <span className={s.done ? 'step-dot done' : s.id === step.id ? 'step-dot current' : 'step-dot'} aria-hidden="true">{s.done ? '✓' : ''}</span>
-                  <span>{s.title}</span>
-                  {s.done && <span className="sr-only">(gotowe)</span>}
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
-        <div className="due-box">
-          {detail.isFinal ? (
-            <><p className="muted small">Status</p><strong>{detail.statusLabel}</strong></>
-          ) : current ? (
-            <>
-              <p className="muted small">Termin · {detail.phase}</p>
-              <strong>{current.dueTo ? `${current.dueFrom ? `${fmtDate(current.dueFrom)} – ` : 'do '}${fmtDate(current.dueTo)}` : current.title}</strong>
-              <p className={current.overdue ? 'error small' : 'muted small'}>{daysLabel(daysUntil(current.dueTo), current.overdue)}</p>
-              {current.dueNote && <p className="muted small">{current.dueNote}</p>}
-            </>
-          ) : <strong>{detail.phase}</strong>}
-        </div>
+    <section className="wizard wz">
+      <aside className="wizard-nav wz-left">
+        <StageNav sheet={sheet} steps={steps} currentId={step.id} onGo={go} />
+        <TermCard detail={detail} ratingStageKey={ratingStageKey} />
       </aside>
       <div className="wizard-main">
         <div className="wizard-toolbar">
@@ -254,9 +236,13 @@ export function EvaluationWizard({ id, onBack, onShowSheet, onOpenEvaluation }: 
           <PdfButton detail={detail} />
           <button type="button" className="secondary" onClick={onShowSheet}>Cały arkusz</button>
         </div>
+        <StepHeader personId={detail.employeeId} name={detail.employeeName} topic={header?.topic ?? step.title} progress={header?.progress ?? null} />
         {error && <p role="alert" className="error">{error}</p>}
-        <StepView key={step.id} step={step} props={props} />
+        <StepHeaderContext.Provider value={setHeader}>
+          <StepView key={step.id} step={step} props={props} />
+        </StepHeaderContext.Provider>
       </div>
+      <WizardPanel detail={detail} step={step.id} onAddNote={hasNotes && !detail.isOwn ? () => go('notes') : undefined} />
     </section>
   )
 }

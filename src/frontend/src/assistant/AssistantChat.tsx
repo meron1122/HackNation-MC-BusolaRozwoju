@@ -1,9 +1,12 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
-import { api } from '../api'
+import { api, LOGOUT_EVENT } from '../api'
 import { Avatar } from '../Avatar'
 import { AiFrame, Compass, Info, ScaleBar, Spark, Warn } from '../v2'
 import { DOCS, parseReply, type Parsed, type SourceRef } from './parse'
 import { ask, contextFor, hasEntity, resetChat, useAssistant, type Mode, type Msg } from './store'
+
+const CONTEXT_LABELS = new Map<string, string>()
+if (typeof window !== 'undefined') window.addEventListener(LOGOUT_EVENT, () => CONTEXT_LABELS.clear())
 import './assistant.css'
 
 export type Variant = 'page' | 'panel' | 'pop'
@@ -277,11 +280,17 @@ export function AssistantChat({ variant, autoFocus = false }: { variant: Variant
   const effectiveMode: Mode = entity ? mode : 'rules'
   const ctxKey = JSON.stringify(contextFor(effectiveMode))
 
+  // Etykieta kontekstu dzieli limit zapytań z czatem: pamiętamy ją per kontekst i pytamy dopiero po 600 ms bez zmian.
   useEffect(() => {
     if (effectiveMode !== 'context') return
+    const cached = CONTEXT_LABELS.get(ctxKey)
+    if (cached !== undefined) { setLabel(cached); return }
     let on = true
-    api<{ label: string }>('agent/context', 'POST', JSON.parse(ctxKey)).then((r) => on && setLabel(r.label), () => on && setLabel(''))
-    return () => { on = false }
+    const t = setTimeout(() => {
+      api<{ label: string }>('agent/context', 'POST', JSON.parse(ctxKey))
+        .then((r) => { CONTEXT_LABELS.set(ctxKey, r.label); if (on) setLabel(r.label) }, () => on && setLabel(''))
+    }, 600)
+    return () => { on = false; clearTimeout(t) }
   }, [effectiveMode, ctxKey])
 
   useEffect(() => { end.current?.scrollIntoView({ block: 'end', behavior: 'auto' }) }, [msgs.length, busy])

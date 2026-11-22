@@ -2,7 +2,8 @@
 // potwierdzenie „Opis aktualny”, a gdy dane wskazują koordynację — pytanie Tak → B / Nie → C (przełącznik arkusza z API).
 import { useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { api } from '../api'
-import { Info, Source, useStepHeader } from '../v2'
+import { Info, Source } from '../v2'
+import { StartHead } from './start-head'
 import { Pill, type StepProps } from './common'
 import { useApi } from './data'
 import { UiIcon } from './start-icons'
@@ -40,7 +41,6 @@ function useConnector(box: RefObject<HTMLElement | null>, from: RefObject<HTMLEl
 export function StartStep({ detail, steps, go, reload }: StepProps) {
   const first = isFirstTemplate(detail.templateCode)
   const notStarted = detail.phase === 'Oczekuje na start'
-  useStepHeader(notStarted ? 'Rozpocznij ocenę' : 'Ścieżka oceny')
   const letter = sheetLetter(detail.templateCode)
   const templates = useApi<{ code: string; title: string }[]>('evaluation-templates')
   const periodic = (templates.data ?? []).filter((t) => t.code.startsWith('periodic-'))
@@ -92,7 +92,7 @@ export function StartStep({ detail, steps, go, reload }: StepProps) {
 
   return (
     <div className="step sv2">
-      <h2 className="sr-only">{notStarted ? 'Rozpocznij ocenę' : 'Ścieżka oceny'}</h2>
+      <StartHead detail={detail} topic={notStarted ? 'Rozpocznij ocenę' : 'Ścieżka oceny'} />
 
       <div className="sv2-pathrow">
         <span className="sv2-iconbox"><UiIcon name="cycle" size={20} /></span>

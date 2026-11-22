@@ -5,7 +5,6 @@ import { Avatar } from './Avatar'
 import { MiniStepper } from './dash-parts'
 import './dash-v2.css'
 import { Icon } from './Icon'
-import { openAssistant } from './assistant/AssistantWidget'
 import './hifi-pages.css'
 import { signatureState, slotBlock } from './evaluation/data'
 import { daysUntil, fmtDate, kindLabel, type Detail, type Progress, type SelfAssessment } from './evaluation/types'
@@ -91,7 +90,6 @@ export function MyEvaluationPage({ onOpen }: { onOpen: (id: number) => void }) {
     <section className="hifi-page dash-my">
       <div className="hifi-head">
         <h1>Moja ocena</h1>
-        <button type="button" className="secondary hifi-ask" onClick={openAssistant}><span aria-hidden="true" className="dash-spark">✦</span> Zapytaj asystenta</button>
       </div>
       {details.length === 0 && <div className="card"><p className="dash-muted">Nie masz jeszcze oceny w systemie.</p></div>}
       {details.map(({ detail: d, self }, i) => {
